@@ -7,6 +7,7 @@ import { DashboardScreen } from '../screens/DashboardScreen';
 import { TransactionsScreen } from '../screens/TransactionsScreen';
 import { MyExpensesScreen } from '../screens/MyExpensesScreen';
 import { ExpenseAnalyticsScreen } from '../screens/ExpenseAnalyticsScreen';
+import { GroupsScreen } from '../screens/GroupsScreen';
 import { ProfileScreen } from '../screens/ProfileScreen';
 import { AddExpenseScreen } from '../screens/AddExpenseScreen';
 import { BottomTabBar } from './BottomTabBar';
@@ -93,6 +94,13 @@ export const AppNavigator: React.FC = () => {
           />
         );
 
+      case ROUTES.GROUPS:
+        return (
+          <GroupsScreen
+            onNavigateBack={() => navigateTo(previousRoute || ROUTES.DASHBOARD)}
+          />
+        );
+
       case ROUTES.TRANSACTIONS:
         return <TransactionsScreen />;
 
@@ -117,6 +125,7 @@ export const AppNavigator: React.FC = () => {
             onNavigateToPersonalExpenses={() => navigateTo(ROUTES.PERSONAL_EXPENSES)}
             onNavigateToTodayExpenses={() => navigateTo(ROUTES.TODAY_EXPENSES)}
             onNavigateToAnalytics={() => navigateTo(ROUTES.EXPENSE_ANALYTICS)}
+            onNavigateToGroups={() => navigateTo(ROUTES.GROUPS)}
             onNavigateToAddExpense={() => navigateTo(ROUTES.ADD_EXPENSE)}
             onNavigateToProfile={() => navigateTo(ROUTES.PROFILE)}
             onNavigateToHome={() => navigateTo(ROUTES.HOME)}
@@ -152,7 +161,8 @@ export const AppNavigator: React.FC = () => {
             currentRoute === ROUTES.PERSONAL_EXPENSES ||
             currentRoute === ROUTES.TODAY_EXPENSES ||
             currentRoute === ROUTES.EXPENSE_ANALYTICS ||
-            currentRoute === ROUTES.EXPENSE_SUMMARY
+            currentRoute === ROUTES.EXPENSE_SUMMARY ||
+            currentRoute === ROUTES.GROUPS
               ? ROUTES.DASHBOARD
               : currentRoute
           }

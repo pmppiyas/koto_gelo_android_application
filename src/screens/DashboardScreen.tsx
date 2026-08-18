@@ -18,6 +18,7 @@ export interface DashboardScreenProps {
   onNavigateToPersonalExpenses?: () => void;
   onNavigateToTodayExpenses?: () => void;
   onNavigateToAnalytics?: () => void;
+  onNavigateToGroups?: () => void;
   onNavigateToAddExpense?: () => void;
   onNavigateToProfile?: () => void;
   onNavigateToHome?: () => void;
@@ -28,6 +29,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
   onNavigateToPersonalExpenses,
   onNavigateToTodayExpenses,
   onNavigateToAnalytics,
+  onNavigateToGroups,
   onNavigateToAddExpense,
   onNavigateToProfile,
   onNavigateToHome,
@@ -115,9 +117,14 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
           onNavigateToTransactions?.();
         }
         break;
+      case 'GROUPS':
       case 'GROUP_EXPENSES':
       case 'GROUP_HISTORY':
-        onNavigateToTransactions?.();
+        if (onNavigateToGroups) {
+          onNavigateToGroups();
+        } else {
+          onNavigateToTransactions?.();
+        }
         break;
       case 'PROFILE':
       case 'SETTINGS':
@@ -216,7 +223,10 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
             <Text style={styles.actionLabel}>My Expenses</Text>
           </TouchableOpacity>
           
-          <TouchableOpacity style={styles.actionItem}>
+          <TouchableOpacity 
+            style={styles.actionItem}
+            onPress={onNavigateToGroups || onNavigateToTransactions}
+          >
             <View style={[styles.actionIconCircle, { backgroundColor: colors.accent }]}>
               <Feather name="users" size={24} color={colors.surface} />
             </View>

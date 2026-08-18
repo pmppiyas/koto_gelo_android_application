@@ -18,6 +18,7 @@ import { colors } from '../constants/colors';
 import { spacing, borderRadius, typography, BOTTOM_TAB_HEIGHT } from '../constants/spacing';
 import { EXPENSE_CATEGORIES } from '../constants/expense';
 import { expenseService } from '../services/expenseService';
+import { ConfirmModal } from '../components/common/ConfirmModal';
 import { useExpenses, useAuth } from '../store/hooks';
 
 export interface MyExpensesScreenProps {
@@ -217,33 +218,34 @@ export const MyExpensesScreen: React.FC<MyExpensesScreenProps> = ({
     });
   }, [localExpenses, serverExpenses, searchQuery, selectedCategory, selectedTimeFilter]);
 
+  const [expenseToDelete, setExpenseToDelete] = useState<ExpenseItem | null>(null);
+  const [isDeletingExpense, setIsDeletingExpense] = useState(false);
+
   const totalSpent = useMemo(() => {
     return unifiedExpenses.reduce((sum, item) => sum + (item.amount || 0), 0);
   }, [unifiedExpenses]);
 
+  const handleConfirmDeleteExpense = async () => {
+    if (!expenseToDelete) return;
+    setIsDeletingExpense(true);
+    try {
+      if (expenseToDelete.localId) {
+        await deleteLocalExpense(expenseToDelete.localId);
+      }
+      if (expenseToDelete.serverId && isAuthenticated) {
+        try {
+          await expenseService.deletePersonalExpense(expenseToDelete.serverId);
+          setServerExpenses((prev) => prev.filter((s) => s.id !== expenseToDelete.serverId));
+        } catch {}
+      }
+      setExpenseToDelete(null);
+    } finally {
+      setIsDeletingExpense(false);
+    }
+  };
+
   const handleDeleteExpense = (item: ExpenseItem) => {
-    Alert.alert(
-      'Delete Expense',
-      `Are you sure you want to delete this ৳${item.amount.toLocaleString()} expense?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            if (item.localId) {
-              await deleteLocalExpense(item.localId);
-            }
-            if (item.serverId && isAuthenticated) {
-              try {
-                await expenseService.deletePersonalExpense(item.serverId);
-                setServerExpenses((prev) => prev.filter((s) => s.id !== item.serverId));
-              } catch {}
-            }
-          },
-        },
-      ]
-    );
+    setExpenseToDelete(item);
   };
 
   const formatDate = (dateStr: string) => {
@@ -546,6 +548,17 @@ export const MyExpensesScreen: React.FC<MyExpensesScreenProps> = ({
             }
           />
         )}
+
+        <ConfirmModal
+          visible={expenseToDelete !== null}
+          title="Delete Expense?"
+          message={`Are you sure you want to delete this ৳${expenseToDelete?.amount?.toLocaleString()} ${expenseToDelete?.title || expenseToDelete?.category || 'expense'}?`}
+          confirmText="Delete Expense"
+          confirmVariant="danger"
+          isLoading={isDeletingExpense}
+          onConfirm={handleConfirmDeleteExpense}
+          onClose={() => setExpenseToDelete(null)}
+        />
       </View>
     </SafeAreaView>
   );
