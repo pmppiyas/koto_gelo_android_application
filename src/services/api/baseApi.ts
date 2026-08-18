@@ -1,0 +1,79 @@
+import { ENV } from '../../config/env';
+import { RequestConfig, ApiResponse } from './api.types';
+
+export class BaseApi {
+  protected baseUrl: string;
+
+  constructor(baseUrl: string = ENV.API_BASE_URL) {
+    this.baseUrl = baseUrl;
+  }
+
+  protected async request<T = any>(
+    endpoint: string,
+    method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' = 'GET',
+    data?: any,
+    config?: RequestConfig
+  ): Promise<ApiResponse<T>> {
+    const url = `${this.baseUrl}${endpoint}`;
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      ...config?.headers,
+    };
+
+    try {
+      const response = await fetch(url, {
+        method,
+        headers,
+        body: data ? JSON.stringify(data) : undefined,
+        credentials: 'include',
+      });
+
+      let resJson: any = null;
+      try {
+        resJson = await response.json();
+      } catch {
+        resJson = null;
+      }
+
+      if (!response.ok) {
+        throw {
+          status: response.status,
+          message: resJson?.message || 'API request failed',
+          data: resJson,
+        };
+      }
+
+      return {
+        data: resJson,
+        status: response.status,
+      };
+    } catch (error: any) {
+      if (error?.status) throw error;
+      throw {
+        status: 0,
+        message: error?.message || 'Network connection error',
+        data: null,
+      };
+    }
+  }
+
+  public get<T = any>(endpoint: string, config?: RequestConfig) {
+    return this.request<T>(endpoint, 'GET', undefined, config);
+  }
+
+  public post<T = any>(endpoint: string, data?: any, config?: RequestConfig) {
+    return this.request<T>(endpoint, 'POST', data, config);
+  }
+
+  public put<T = any>(endpoint: string, data?: any, config?: RequestConfig) {
+    return this.request<T>(endpoint, 'PUT', data, config);
+  }
+
+  public patch<T = any>(endpoint: string, data?: any, config?: RequestConfig) {
+    return this.request<T>(endpoint, 'PATCH', data, config);
+  }
+
+  public delete<T = any>(endpoint: string, config?: RequestConfig) {
+    return this.request<T>(endpoint, 'DELETE', undefined, config);
+  }
+}
