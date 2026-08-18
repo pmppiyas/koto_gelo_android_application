@@ -4,7 +4,6 @@ import { SyncQueueItem } from '../database/repositories/sync.repository';
 export class SyncProcessor {
   async processItem(item: SyncQueueItem): Promise<boolean> {
     try {
-      // Process individual mutation to server
       await syncQueue.removeItem(item.id);
       return true;
     } catch (error) {
