@@ -8,17 +8,21 @@ import { TransactionsScreen } from '../screens/TransactionsScreen';
 import { MyExpensesScreen } from '../screens/MyExpensesScreen';
 import { ExpenseAnalyticsScreen } from '../screens/ExpenseAnalyticsScreen';
 import { GroupsScreen } from '../screens/GroupsScreen';
+import { GroupDetailsScreen } from '../screens/GroupDetailsScreen';
 import { ProfileScreen } from '../screens/ProfileScreen';
 import { AddExpenseScreen } from '../screens/AddExpenseScreen';
 import { BottomTabBar } from './BottomTabBar';
+import { DashboardDrawer } from '../components/dashboard/DashboardDrawer';
 import { Loading } from '../components/common/Loading';
 import { useAuth } from '../store/hooks';
 import { ROUTES, RouteNames } from '../constants/routes';
 
 export const AppNavigator: React.FC = () => {
-  const { user, isAuthenticated, isLoading } = useAuth();
+  const { user, isAuthenticated, isLoading, logout } = useAuth();
   const [currentRoute, setCurrentRoute] = useState<RouteNames>(ROUTES.HOME);
   const [previousRoute, setPreviousRoute] = useState<RouteNames>(ROUTES.DASHBOARD);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isLoading) {
@@ -43,6 +47,40 @@ export const AppNavigator: React.FC = () => {
   const navigateTo = (route: RouteNames) => {
     setPreviousRoute(currentRoute);
     setCurrentRoute(route);
+  };
+
+  const handleDrawerSelectRoute = (route: string) => {
+    switch (route) {
+      case 'DASHBOARD':
+        navigateTo(ROUTES.DASHBOARD);
+        break;
+      case 'PERSONAL_EXPENSES':
+        navigateTo(ROUTES.PERSONAL_EXPENSES);
+        break;
+      case 'TODAY_EXPENSES':
+        navigateTo(ROUTES.TODAY_EXPENSES);
+        break;
+      case 'EXPENSE_ANALYTICS':
+      case 'EXPENSE_SUMMARY':
+        navigateTo(ROUTES.EXPENSE_ANALYTICS);
+        break;
+      case 'GROUPS':
+      case 'GROUP_EXPENSES':
+      case 'GROUP_HISTORY':
+        navigateTo(ROUTES.GROUPS);
+        break;
+      case 'PROFILE':
+      case 'SETTINGS':
+        navigateTo(ROUTES.PROFILE);
+        break;
+      default:
+        break;
+    }
+  };
+
+  const handleDrawerLogout = async () => {
+    await logout();
+    navigateTo(ROUTES.HOME);
   };
 
   const displayName = user?.name || user?.username || 'User';
@@ -98,11 +136,31 @@ export const AppNavigator: React.FC = () => {
         return (
           <GroupsScreen
             onNavigateBack={() => navigateTo(previousRoute || ROUTES.DASHBOARD)}
+            onSelectGroup={(id) => {
+              setSelectedGroupId(id);
+              navigateTo(ROUTES.GROUP_DETAILS);
+            }}
+          />
+        );
+
+      case ROUTES.GROUP_DETAILS:
+        return (
+          <GroupDetailsScreen
+            groupId={selectedGroupId || ''}
+            onNavigateBack={() => navigateTo(ROUTES.GROUPS)}
           />
         );
 
       case ROUTES.TRANSACTIONS:
-        return <TransactionsScreen />;
+        return (
+          <TransactionsScreen
+            onNavigateToGroups={() => navigateTo(ROUTES.GROUPS)}
+            onNavigateToGroupDetails={(groupId) => {
+              setSelectedGroupId(groupId);
+              navigateTo(ROUTES.GROUP_DETAILS);
+            }}
+          />
+        );
 
       case ROUTES.PROFILE:
         return (
@@ -162,13 +220,22 @@ export const AppNavigator: React.FC = () => {
             currentRoute === ROUTES.TODAY_EXPENSES ||
             currentRoute === ROUTES.EXPENSE_ANALYTICS ||
             currentRoute === ROUTES.EXPENSE_SUMMARY ||
-            currentRoute === ROUTES.GROUPS
+            currentRoute === ROUTES.GROUPS ||
+            currentRoute === ROUTES.GROUP_DETAILS
               ? ROUTES.DASHBOARD
               : currentRoute
           }
           onNavigate={(route) => navigateTo(route as RouteNames)}
+          onOpenDrawer={() => setIsDrawerOpen(true)}
         />
       )}
+
+      <DashboardDrawer
+        visible={isDrawerOpen}
+        onClose={() => setIsDrawerOpen(false)}
+        onSelectRoute={handleDrawerSelectRoute}
+        onLogout={handleDrawerLogout}
+      />
     </View>
   );
 };

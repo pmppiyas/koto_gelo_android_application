@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   useWindowDimensions,
+  ActivityIndicator,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { colors } from '../constants/colors';
@@ -17,16 +18,31 @@ import { spacing, borderRadius, typography } from '../constants/spacing';
 import { EXPENSE_CATEGORIES, CategoryInfo } from '../constants/expense';
 import { AppInput } from '../components/common/AppInput';
 import { AppButton } from '../components/common/AppButton';
-import { useExpenses } from '../store/hooks';
-import { getLocalDateString } from '../utils/date';
+import { useExpenses, useAuth } from '../store/hooks';
+import { getLocalDateString, formatExpenseDateForServer } from '../utils/date';
+import { groupService, Group } from '../services/groupService';
+import { CreateGroupModal } from '../components/group/CreateGroupModal';
 
 export interface AddExpenseScreenProps {
   onClose: () => void;
 }
 
+const TYPE_EMOJI: Record<string, string> = {
+  MESS: '🍲',
+  FRIENDS: '👥',
+  TOUR: '🎒',
+  TRIP: '✈️',
+  FAMILY: '👨‍👩‍👧',
+  OFFICE: '💼',
+  ROOMMATES: '🏠',
+  STUDENTS: '🎓',
+  OTHER: '📁',
+};
+
 export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({ onClose }) => {
   const { width } = useWindowDimensions();
   const { addExpense } = useExpenses();
+  const { isAuthenticated } = useAuth();
   const scrollViewRef = useRef<ScrollView>(null);
   const amountInputRef = useRef<TextInput>(null);
 
@@ -42,6 +58,32 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({ onClose }) =
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [categorySectionY, setCategorySectionY] = useState<number>(0);
+
+  const [groups, setGroups] = useState<Group[]>([]);
+  const [isLoadingGroups, setIsLoadingGroups] = useState(false);
+  const [selectedGroup, setSelectedGroup] = useState<Group | null>(null);
+  const [isCreateGroupOpen, setIsCreateGroupOpen] = useState(false);
+
+  const fetchGroups = useCallback(async () => {
+    if (!isAuthenticated) return;
+    setIsLoadingGroups(true);
+    try {
+      const res = await groupService.getGroups({ limit: 50 });
+      const list = res?.groups || res?.data?.groups || res || [];
+      if (Array.isArray(list)) {
+        setGroups(list);
+        if (list.length > 0 && !selectedGroup) {
+          setSelectedGroup(list[0]);
+        }
+      }
+    } catch {} finally {
+      setIsLoadingGroups(false);
+    }
+  }, [isAuthenticated, selectedGroup]);
+
+  useEffect(() => {
+    fetchGroups();
+  }, [fetchGroups]);
 
   const quickAmounts = [50, 100, 200, 500, 1000];
 
@@ -140,27 +182,49 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({ onClose }) =
       return;
     }
 
+    if (expenseType === 'GROUP' && !selectedGroup) {
+      setError('Please select a group for this expense');
+      return;
+    }
+
     setError('');
     setIsSubmitting(true);
 
     try {
-      await addExpense({
-        amount: numAmount,
-        category: selectedCategory.name,
-        subcategory: selectedSubcategory || null,
-        title: title.trim() || selectedSubcategory || selectedCategory.name,
-        date,
-        note: note.trim() || null,
-        type: expenseType,
-      });
+      if (expenseType === 'GROUP' && selectedGroup) {
+        await groupService.addGroupExpense({
+          groupId: selectedGroup.id,
+          amount: numAmount,
+          category: selectedCategory.name,
+          subcategory: selectedSubcategory || undefined,
+          title: title.trim() || selectedSubcategory || selectedCategory.name,
+          note: note.trim() || undefined,
+          expenseDate: formatExpenseDateForServer(date),
+          splitType: 'EQUAL',
+        });
+      } else {
+        await addExpense({
+          amount: numAmount,
+          category: selectedCategory.name,
+          subcategory: selectedSubcategory || null,
+          title: title.trim() || selectedSubcategory || selectedCategory.name,
+          date,
+          note: note.trim() || null,
+          type: 'PERSONAL',
+        });
+      }
 
       onClose();
-    } catch {
-      setError('Could not save expense. Please try again.');
+    } catch (err: any) {
+      setError(err?.message || 'Could not save expense. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
   };
+
+  const memberCount = selectedGroup?.members?.length || selectedGroup?._count?.members || 1;
+  const numAmount = parseFloat(amount) || 0;
+  const perPersonSplit = numAmount > 0 ? (numAmount / memberCount).toFixed(0) : '0';
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -204,7 +268,10 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({ onClose }) =
 
             <TouchableOpacity
               style={[styles.typeBtn, expenseType === 'GROUP' && styles.typeBtnActive]}
-              onPress={() => setExpenseType('GROUP')}
+              onPress={() => {
+                setExpenseType('GROUP');
+                if (groups.length === 0) fetchGroups();
+              }}
               activeOpacity={0.8}
             >
               <Feather
@@ -224,11 +291,105 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({ onClose }) =
           </View>
 
           {expenseType === 'GROUP' && (
-            <View style={styles.groupNotice}>
-              <Feather name="info" size={16} color={colors.accent} style={styles.noticeIcon} />
-              <Text style={styles.groupNoticeText}>
-                Group expenses are saved locally and synced directly to your group database when online.
-              </Text>
+            <View style={styles.groupSection}>
+              <View style={styles.sectionHeaderRow}>
+                <Text style={styles.sectionLabel}>SELECT GROUP *</Text>
+                <TouchableOpacity
+                  onPress={() => setIsCreateGroupOpen(true)}
+                  style={styles.createGroupLink}
+                  activeOpacity={0.7}
+                >
+                  <Feather name="plus" size={14} color={colors.primary} />
+                  <Text style={styles.createGroupLinkText}>New Group</Text>
+                </TouchableOpacity>
+              </View>
+
+              {isLoadingGroups ? (
+                <View style={styles.groupLoading}>
+                  <ActivityIndicator size="small" color={colors.primary} />
+                  <Text style={styles.groupLoadingText}>Loading your groups...</Text>
+                </View>
+              ) : groups.length === 0 ? (
+                <View style={styles.noGroupCard}>
+                  <Feather name="users" size={24} color={colors.accent} />
+                  <Text style={styles.noGroupTitle}>No Groups Found</Text>
+                  <Text style={styles.noGroupSubtitle}>
+                    Create a group first to split this expense with members.
+                  </Text>
+                  <TouchableOpacity
+                    style={styles.noGroupCreateBtn}
+                    onPress={() => setIsCreateGroupOpen(true)}
+                    activeOpacity={0.8}
+                  >
+                    <Feather name="plus" size={14} color="#FFFFFF" />
+                    <Text style={styles.noGroupCreateBtnText}>Create a Group</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <>
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.groupChipList}
+                  >
+                    {groups.map((grp) => {
+                      const isSelected = selectedGroup?.id === grp.id;
+                      const emoji = TYPE_EMOJI[grp.type] || '📁';
+                      const count = grp.members?.length || grp._count?.members || 1;
+
+                      return (
+                        <TouchableOpacity
+                          key={grp.id}
+                          style={[
+                            styles.groupChip,
+                            isSelected && styles.groupChipSelected,
+                          ]}
+                          onPress={() => {
+                            setSelectedGroup(grp);
+                            setError('');
+                          }}
+                          activeOpacity={0.7}
+                        >
+                          <Text style={styles.groupChipEmoji}>{emoji}</Text>
+                          <View>
+                            <Text
+                              style={[
+                                styles.groupChipName,
+                                isSelected && styles.groupChipNameSelected,
+                              ]}
+                              numberOfLines={1}
+                            >
+                              {grp.name}
+                            </Text>
+                            <Text
+                              style={[
+                                styles.groupChipMembers,
+                                isSelected && styles.groupChipMembersSelected,
+                              ]}
+                            >
+                              {count} member{count === 1 ? '' : 's'}
+                            </Text>
+                          </View>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </ScrollView>
+
+                  {selectedGroup && (
+                    <View style={styles.splitBanner}>
+                      <Feather name="pie-chart" size={16} color={colors.primary} />
+                      <Text style={styles.splitBannerText}>
+                        Split equally among {memberCount} member{memberCount === 1 ? '' : 's'}
+                      </Text>
+                      {numAmount > 0 && (
+                        <Text style={styles.splitBannerAmount}>
+                          ৳{perPersonSplit}/person
+                        </Text>
+                      )}
+                    </View>
+                  )}
+                </>
+              )}
             </View>
           )}
 
@@ -299,34 +460,37 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({ onClose }) =
                 onPress={() => setIsCategoryExpanded(true)}
                 activeOpacity={0.8}
               >
-                <View
-                  style={[
-                    styles.selectedCategoryIconCircle,
-                    { backgroundColor: selectedCategory.bgColor },
-                  ]}
-                >
-                  <Text style={styles.categoryEmojiLarge}>{selectedCategory.emoji}</Text>
+                <View style={styles.selectedCategoryLeft}>
+                  <View
+                    style={[
+                      styles.selectedCategoryIconCircle,
+                      { backgroundColor: selectedCategory.bgColor },
+                    ]}
+                  >
+                    <Text style={styles.selectedCategoryEmoji}>{selectedCategory.emoji}</Text>
+                  </View>
+                  <View>
+                    <Text style={[styles.selectedCategoryName, { color: selectedCategory.color }]}>
+                      {selectedCategory.name}
+                    </Text>
+                    {selectedSubcategory ? (
+                      <Text style={styles.selectedSubcategoryLabel}>
+                        Subcategory: {selectedSubcategory}
+                      </Text>
+                    ) : (
+                      <Text style={styles.selectedSubcategoryLabel}>Tap subcategories below</Text>
+                    )}
+                  </View>
                 </View>
-                <View style={styles.selectedCategoryTextCol}>
-                  <Text style={[styles.selectedCategoryTitle, { color: selectedCategory.color }]}>
-                    {selectedCategory.name}
-                  </Text>
-                  <Text style={styles.selectedCategoryHint}>
-                    {selectedSubcategory ? `Selected: ${selectedSubcategory}` : 'Tap below to select subcategory'}
-                  </Text>
-                </View>
-                <View style={styles.changeBtnBadge}>
-                  <Feather name="edit-2" size={14} color={selectedCategory.color} />
-                  <Text style={[styles.changeBtnText, { color: selectedCategory.color }]}>Change</Text>
-                </View>
+                <Feather name="check-circle" size={20} color={selectedCategory.color} />
               </TouchableOpacity>
             ) : (
-              <View>
+              <View style={styles.categoryPickerCard}>
                 <View style={styles.categorySearchContainer}>
                   <Feather name="search" size={16} color={colors.textSecondary} style={styles.searchIcon} />
                   <TextInput
                     style={styles.categorySearchInput}
-                    placeholder="Search category or item (e.g. coffee, bKash, gym)..."
+                    placeholder="Search 35+ categories & subcategories..."
                     placeholderTextColor={colors.textMuted}
                     value={categorySearchQuery}
                     onChangeText={setCategorySearchQuery}
@@ -339,13 +503,13 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({ onClose }) =
                 </View>
 
                 {matchingSubcategories.length > 0 && (
-                  <View style={styles.matchingSubContainer}>
-                    <Text style={styles.matchingSubLabel}>DIRECT MATCHES:</Text>
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.matchingSubScroll}>
+                  <View style={styles.directMatchesContainer}>
+                    <Text style={styles.directMatchesLabel}>Direct Subcategory Matches:</Text>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.directMatchesScroll}>
                       {matchingSubcategories.map(({ category, subcategory }) => (
                         <TouchableOpacity
-                          key={`${category.id}_${subcategory}`}
-                          style={styles.directMatchChip}
+                          key={`${category.id}-${subcategory}`}
+                          style={[styles.directMatchChip, { borderColor: category.color }]}
                           onPress={() => handleQuickSubcategorySelect(category, subcategory)}
                           activeOpacity={0.7}
                         >
@@ -484,7 +648,13 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({ onClose }) =
 
         <View style={styles.footer}>
           <AppButton
-            title={isSubmitting ? 'Saving...' : 'Add Expense'}
+            title={
+              isSubmitting
+                ? 'Saving...'
+                : expenseType === 'GROUP'
+                ? `Add to ${selectedGroup?.name || 'Group'}`
+                : 'Add Personal Expense'
+            }
             variant="primary"
             size="lg"
             loading={isSubmitting}
@@ -492,6 +662,15 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({ onClose }) =
             style={styles.submitBtn}
           />
         </View>
+
+        <CreateGroupModal
+          visible={isCreateGroupOpen}
+          onClose={() => setIsCreateGroupOpen(false)}
+          onGroupCreated={() => {
+            setIsCreateGroupOpen(false);
+            fetchGroups();
+          }}
+        />
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -567,22 +746,124 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontWeight: '700',
   },
-  groupNotice: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.accentLight,
-    padding: spacing.sm + 2,
-    borderRadius: borderRadius.md,
+  groupSection: {
     marginBottom: spacing.md,
   },
-  noticeIcon: {
-    marginRight: spacing.sm,
+  createGroupLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
   },
-  groupNoticeText: {
-    flex: 1,
+  createGroupLinkText: {
+    fontSize: typography.xs,
+    fontWeight: '700',
+    color: colors.primary,
+  },
+  groupLoading: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingVertical: spacing.sm,
+  },
+  groupLoadingText: {
+    fontSize: typography.xs,
+    color: colors.textSecondary,
+  },
+  noGroupCard: {
+    backgroundColor: colors.accentLight,
+    padding: spacing.md,
+    borderRadius: borderRadius.lg,
+    alignItems: 'center',
+    gap: 4,
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+  },
+  noGroupTitle: {
+    fontSize: typography.sm,
+    fontWeight: '700',
+    color: '#92400E',
+    marginTop: 2,
+  },
+  noGroupSubtitle: {
     fontSize: typography.xs,
     color: '#92400E',
-    fontWeight: '500',
+    textAlign: 'center',
+    marginBottom: spacing.xs,
+  },
+  noGroupCreateBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: colors.primary,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 6,
+    borderRadius: borderRadius.full,
+  },
+  noGroupCreateBtnText: {
+    fontSize: typography.xs,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  groupChipList: {
+    gap: spacing.sm,
+    paddingVertical: 2,
+  },
+  groupChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    backgroundColor: colors.surface,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    borderRadius: borderRadius.lg,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    minWidth: 130,
+  },
+  groupChipSelected: {
+    borderColor: colors.primary,
+    backgroundColor: colors.primaryLight,
+  },
+  groupChipEmoji: {
+    fontSize: 22,
+  },
+  groupChipName: {
+    fontSize: typography.xs + 1,
+    fontWeight: '700',
+    color: colors.textPrimary,
+  },
+  groupChipNameSelected: {
+    color: colors.primary,
+    fontWeight: '800',
+  },
+  groupChipMembers: {
+    fontSize: 10,
+    color: colors.textMuted,
+  },
+  groupChipMembersSelected: {
+    color: colors.primary,
+    fontWeight: '600',
+  },
+  splitBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs + 2,
+    backgroundColor: colors.primaryLight,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: borderRadius.md,
+    marginTop: spacing.sm,
+  },
+  splitBannerText: {
+    flex: 1,
+    fontSize: typography.xs,
+    fontWeight: '600',
+    color: colors.primary,
+  },
+  splitBannerAmount: {
+    fontSize: typography.xs,
+    fontWeight: '800',
+    color: colors.primary,
   },
   amountCard: {
     backgroundColor: colors.surfaceCard,
@@ -600,10 +881,10 @@ const styles = StyleSheet.create({
   },
   amountLabel: {
     fontSize: typography.xs,
-    fontWeight: '700',
-    color: colors.textMuted,
-    letterSpacing: 1,
-    marginBottom: spacing.xs,
+    fontWeight: '600',
+    color: colors.textSecondary,
+    marginBottom: spacing.sm,
+    letterSpacing: 0.5,
   },
   amountRow: {
     flexDirection: 'row',
@@ -613,15 +894,15 @@ const styles = StyleSheet.create({
   },
   currencySymbol: {
     fontSize: typography.xxl,
-    fontWeight: '700',
-    color: colors.textPrimary,
+    fontWeight: '800',
+    color: colors.primary,
     marginRight: spacing.xs,
   },
   amountInput: {
-    fontSize: typography.hero + 6,
-    fontWeight: '800',
+    fontSize: typography.hero,
+    fontWeight: '900',
     color: colors.textPrimary,
-    minWidth: 120,
+    minWidth: 100,
     textAlign: 'center',
     padding: 0,
   },
@@ -629,33 +910,33 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'center',
-    gap: spacing.xs + 2,
+    gap: spacing.sm,
   },
   quickAmountBtn: {
     backgroundColor: colors.primaryLight,
-    paddingVertical: spacing.xs,
     paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs + 2,
     borderRadius: borderRadius.full,
   },
   quickAmountText: {
     fontSize: typography.xs,
-    fontWeight: '700',
+    fontWeight: '600',
     color: colors.primary,
   },
   errorContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.dangerLight,
-    padding: spacing.sm + 2,
-    borderRadius: borderRadius.md,
+    padding: spacing.sm,
+    borderRadius: borderRadius.sm,
     marginBottom: spacing.md,
-    gap: spacing.sm,
+    gap: spacing.xs,
   },
   errorText: {
-    flex: 1,
-    fontSize: typography.sm,
+    fontSize: typography.xs,
     color: colors.danger,
     fontWeight: '500',
+    flex: 1,
   },
   section: {
     marginBottom: spacing.md,
@@ -664,13 +945,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: spacing.sm,
+    marginBottom: spacing.xs + 2,
   },
   sectionLabel: {
     fontSize: typography.xs,
-    fontWeight: '700',
-    color: colors.textMuted,
-    letterSpacing: 0.8,
+    fontWeight: '600',
+    color: colors.textSecondary,
+    letterSpacing: 0.5,
   },
   toggleCategoryBtn: {
     flexDirection: 'row',
@@ -679,16 +960,22 @@ const styles = StyleSheet.create({
   },
   toggleCategoryText: {
     fontSize: typography.xs,
-    fontWeight: '700',
+    fontWeight: '600',
     color: colors.primary,
   },
   selectedCategoryBanner: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderWidth: 1.5,
+    justifyContent: 'space-between',
+    padding: spacing.md,
     borderRadius: borderRadius.lg,
-    padding: spacing.sm + 2,
-    backgroundColor: colors.surfaceCard,
+    borderWidth: 1.5,
+    backgroundColor: colors.surface,
+  },
+  selectedCategoryLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
   },
   selectedCategoryIconCircle: {
     width: 44,
@@ -696,111 +983,102 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: spacing.sm + 2,
   },
-  categoryEmojiLarge: {
+  selectedCategoryEmoji: {
     fontSize: 22,
   },
-  selectedCategoryTextCol: {
-    flex: 1,
-  },
-  selectedCategoryTitle: {
+  selectedCategoryName: {
     fontSize: typography.md,
     fontWeight: '700',
   },
-  selectedCategoryHint: {
+  selectedSubcategoryLabel: {
     fontSize: typography.xs,
     color: colors.textSecondary,
     marginTop: 2,
   },
-  changeBtnBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
+  categoryPickerCard: {
     backgroundColor: colors.surface,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: borderRadius.full,
+    borderRadius: borderRadius.lg,
+    padding: spacing.md,
     borderWidth: 1,
-    borderColor: colors.borderLight,
-  },
-  changeBtnText: {
-    fontSize: 11,
-    fontWeight: '700',
+    borderColor: colors.border,
   },
   categorySearchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.surface,
+    backgroundColor: colors.background,
     borderRadius: borderRadius.md,
-    borderWidth: 1.5,
+    borderWidth: 1,
     borderColor: colors.border,
-    paddingHorizontal: spacing.md,
-    height: 42,
+    paddingHorizontal: spacing.sm + 2,
     marginBottom: spacing.sm,
+    height: 38,
   },
   searchIcon: {
-    marginRight: spacing.sm,
+    marginRight: spacing.xs,
   },
   categorySearchInput: {
     flex: 1,
-    fontSize: typography.sm,
+    fontSize: typography.xs,
     color: colors.textPrimary,
+    padding: 0,
   },
-  matchingSubContainer: {
+  directMatchesContainer: {
     marginBottom: spacing.sm,
+    paddingBottom: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.borderLight,
   },
-  matchingSubLabel: {
+  directMatchesLabel: {
     fontSize: 10,
     fontWeight: '700',
     color: colors.textMuted,
-    letterSpacing: 0.5,
-    marginBottom: 4,
+    marginBottom: spacing.xs,
+    textTransform: 'uppercase',
   },
-  matchingSubScroll: {
-    gap: spacing.xs + 2,
+  directMatchesScroll: {
+    flexDirection: 'row',
   },
   directMatchChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.primaryLight,
-    borderWidth: 1,
-    borderColor: colors.primary,
-    paddingVertical: 5,
-    paddingHorizontal: spacing.sm + 2,
+    backgroundColor: colors.surface,
+    borderWidth: 1.5,
     borderRadius: borderRadius.full,
+    paddingVertical: 4,
+    paddingHorizontal: spacing.sm + 2,
+    marginRight: spacing.xs + 2,
     gap: 4,
   },
   directMatchEmoji: {
-    fontSize: 14,
+    fontSize: 13,
   },
   directMatchText: {
     fontSize: typography.xs,
     fontWeight: '700',
-    color: colors.primaryDark,
+    color: colors.textPrimary,
   },
   directMatchCategoryTag: {
-    fontSize: 10,
-    color: colors.textSecondary,
+    fontSize: 9,
+    color: colors.textMuted,
   },
   categoryGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
+    gap: spacing.sm,
   },
   categoryCard: {
-    backgroundColor: colors.surfaceCard,
-    borderRadius: borderRadius.md,
-    paddingVertical: spacing.sm + 2,
-    paddingHorizontal: 2,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1.5,
-    borderColor: colors.border,
-    minHeight: 78,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: 2,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+    backgroundColor: colors.surface,
   },
   categoryCardSelected: {
-    borderWidth: 2,
+    borderWidth: 1.5,
   },
   categoryIconCircle: {
     width: 36,
@@ -821,59 +1099,54 @@ const styles = StyleSheet.create({
     lineHeight: 12,
   },
   noCategoriesContainer: {
-    paddingVertical: spacing.lg,
+    paddingVertical: spacing.md,
     alignItems: 'center',
   },
   noCategoriesText: {
-    fontSize: typography.sm,
+    fontSize: typography.xs,
     color: colors.textMuted,
   },
   subcategorySection: {
-    backgroundColor: colors.surfaceCard,
-    borderRadius: borderRadius.lg,
-    borderWidth: 1.5,
-    borderColor: colors.border,
-    padding: spacing.md,
     marginBottom: spacing.md,
-    shadowColor: colors.shadow,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 6,
-    elevation: 2,
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.lg,
+    padding: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   subcategoryHeaderLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: spacing.xs,
   },
   subcategoryEmojiBadge: {
-    fontSize: 16,
+    fontSize: 14,
   },
   clearSubcategoryText: {
     fontSize: typography.xs,
+    color: colors.primary,
     fontWeight: '600',
-    color: colors.textMuted,
   },
   subcategoryWrapContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: spacing.sm,
-    marginTop: spacing.xs + 2,
+    gap: spacing.xs + 2,
+    marginTop: spacing.xs,
   },
   subcategoryPill: {
-    backgroundColor: colors.surface,
-    borderWidth: 1.5,
+    backgroundColor: colors.background,
+    borderWidth: 1,
     borderColor: colors.border,
-    paddingVertical: spacing.sm + 2,
-    paddingHorizontal: spacing.md + 2,
+    paddingVertical: 5,
+    paddingHorizontal: spacing.sm + 2,
     borderRadius: borderRadius.full,
   },
   subcategoryPillSelected: {
-    borderColor: colors.primary,
+    borderWidth: 1.5,
   },
   subcategoryPillText: {
-    fontSize: typography.sm,
-    fontWeight: '600',
+    fontSize: typography.xs,
+    fontWeight: '500',
     color: colors.textPrimary,
   },
   subcategoryPillTextSelected: {
@@ -881,33 +1154,34 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   formFields: {
-    gap: spacing.xs,
-  },
-  fieldLabel: {
-    fontSize: typography.sm,
-    fontWeight: '500',
-    color: colors.textPrimary,
-    marginBottom: spacing.xs,
+    gap: spacing.sm,
+    marginBottom: spacing.md,
   },
   dateContainer: {
-    marginBottom: spacing.md,
+    marginBottom: spacing.xs,
+  },
+  fieldLabel: {
+    fontSize: typography.xs,
+    fontWeight: '600',
+    color: colors.textSecondary,
+    marginBottom: spacing.xs,
+    letterSpacing: 0.5,
   },
   dateRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderWidth: 1.5,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
     borderColor: colors.border,
     borderRadius: borderRadius.md,
-    backgroundColor: colors.surface,
     paddingHorizontal: spacing.md,
     height: 48,
     gap: spacing.sm,
   },
   dateInput: {
     flex: 1,
-    fontSize: typography.md,
+    fontSize: typography.sm,
     color: colors.textPrimary,
-    height: '100%',
   },
   footer: {
     padding: spacing.md,

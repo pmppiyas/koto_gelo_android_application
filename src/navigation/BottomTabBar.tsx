@@ -8,9 +8,14 @@ import { BOTTOM_TAB_HEIGHT, FAB_SIZE } from '../constants/spacing';
 export interface BottomTabBarProps {
   activeRoute: string;
   onNavigate: (route: string) => void;
+  onOpenDrawer: () => void;
 }
 
-export const BottomTabBar: React.FC<BottomTabBarProps> = ({ activeRoute, onNavigate }) => {
+export const BottomTabBar: React.FC<BottomTabBarProps> = ({
+  activeRoute,
+  onNavigate,
+  onOpenDrawer,
+}) => {
   const renderTab = (route: string, icon: keyof typeof Feather.glyphMap, label: string) => {
     const isActive = activeRoute === route;
 
@@ -50,7 +55,15 @@ export const BottomTabBar: React.FC<BottomTabBarProps> = ({ activeRoute, onNavig
       </View>
 
       {renderTab(ROUTES.DASHBOARD, 'grid', 'Dashboard')}
-      {renderTab(ROUTES.PROFILE, 'user', 'Profile')}
+
+      <TouchableOpacity
+        style={styles.tabContainer}
+        onPress={onOpenDrawer}
+        activeOpacity={0.7}
+      >
+        <Feather name="menu" size={22} color={colors.textMuted} />
+        <Text style={styles.tabLabel}>Menu</Text>
+      </TouchableOpacity>
     </View>
   );
 };

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, SafeAreaView, ScrollView, StatusBar, TouchableOpacity } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { colors } from '../constants/colors';
@@ -7,7 +7,6 @@ import { EXPENSE_CATEGORIES } from '../constants/expense';
 import { BalanceCard } from '../components/dashboard/BalanceCard';
 import { SummaryCard } from '../components/dashboard/SummaryCard';
 import { RecentTransactions } from '../components/dashboard/RecentTransactions';
-import { DashboardDrawer } from '../components/dashboard/DashboardDrawer';
 import { demoBalanceSummary, demoTransactions } from '../data/demoData';
 import { useAuth, useExpenses } from '../store/hooks';
 import { Transaction, BalanceSummary } from '../types/transaction';
@@ -32,11 +31,9 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
   onNavigateToGroups,
   onNavigateToAddExpense,
   onNavigateToProfile,
-  onNavigateToHome,
 }) => {
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const { expenses, pendingExpenses, totalExpenseAmount, syncExpenses, isSyncing } = useExpenses();
-  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   
   const displayName = user?.name || user?.username || 'User';
   const initial = displayName.charAt(0).toUpperCase();
@@ -87,59 +84,6 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
     return [...localConverted, ...demoTransactions].slice(0, 5);
   }, [expenses, categoryMap]);
 
-  const handleDrawerSelectRoute = (route: string) => {
-    switch (route) {
-      case 'DASHBOARD':
-        break;
-      case 'PERSONAL_EXPENSES':
-        if (onNavigateToPersonalExpenses) {
-          onNavigateToPersonalExpenses();
-        } else {
-          onNavigateToTransactions?.();
-        }
-        break;
-      case 'TODAY_EXPENSES':
-        if (onNavigateToTodayExpenses) {
-          onNavigateToTodayExpenses();
-        } else if (onNavigateToPersonalExpenses) {
-          onNavigateToPersonalExpenses();
-        } else {
-          onNavigateToTransactions?.();
-        }
-        break;
-      case 'EXPENSE_ANALYTICS':
-      case 'EXPENSE_SUMMARY':
-        if (onNavigateToAnalytics) {
-          onNavigateToAnalytics();
-        } else if (onNavigateToPersonalExpenses) {
-          onNavigateToPersonalExpenses();
-        } else {
-          onNavigateToTransactions?.();
-        }
-        break;
-      case 'GROUPS':
-      case 'GROUP_EXPENSES':
-      case 'GROUP_HISTORY':
-        if (onNavigateToGroups) {
-          onNavigateToGroups();
-        } else {
-          onNavigateToTransactions?.();
-        }
-        break;
-      case 'PROFILE':
-      case 'SETTINGS':
-        onNavigateToProfile?.();
-        break;
-      default:
-        break;
-    }
-  };
-
-  const handleDrawerLogout = async () => {
-    await logout();
-    onNavigateToHome?.();
-  };
-
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
@@ -166,14 +110,6 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
             
             <TouchableOpacity style={styles.iconBtn} activeOpacity={0.7}>
               <Feather name="bell" size={20} color={colors.textPrimary} />
-            </TouchableOpacity>
-
-            <TouchableOpacity 
-              style={styles.iconBtn}
-              onPress={() => setIsDrawerOpen(true)}
-              activeOpacity={0.7}
-            >
-              <Feather name="menu" size={20} color={colors.textPrimary} />
             </TouchableOpacity>
           </View>
         </View>
@@ -251,13 +187,6 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
           />
         </View>
       </ScrollView>
-
-      <DashboardDrawer
-        visible={isDrawerOpen}
-        onClose={() => setIsDrawerOpen(false)}
-        onSelectRoute={handleDrawerSelectRoute}
-        onLogout={handleDrawerLogout}
-      />
     </SafeAreaView>
   );
 };

@@ -72,7 +72,7 @@ export const GroupsScreen: React.FC<GroupsScreenProps> = ({
       const list = res?.groups || res?.data?.groups || res || [];
       setGroups(Array.isArray(list) ? list : []);
     } catch (err: any) {
-      setErrorMessage(err?.message || 'Failed to load groups');
+      setErrorMessage('You are offline');
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
@@ -100,7 +100,7 @@ export const GroupsScreen: React.FC<GroupsScreenProps> = ({
       setGroups((prev) => prev.filter((g) => g.id !== groupToDelete.id));
       setGroupToDelete(null);
     } catch (err: any) {
-      setErrorMessage(err?.message || 'Could not delete group');
+      setErrorMessage('You are offline');
     } finally {
       setIsDeleting(false);
     }
@@ -290,7 +290,7 @@ export const GroupsScreen: React.FC<GroupsScreenProps> = ({
 
         {errorMessage ? (
           <View style={styles.errorBanner}>
-            <Feather name="alert-circle" size={14} color={colors.danger} />
+            <Feather name="cloud-off" size={14} color="#92400E" />
             <Text style={styles.errorBannerText}>{errorMessage}</Text>
           </View>
         ) : null}
