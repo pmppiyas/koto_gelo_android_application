@@ -8,6 +8,9 @@ export const ROUTES = {
   TODAY_EXPENSES: 'TodayExpenses',
   EXPENSE_SUMMARY: 'ExpenseAnalytics',
   EXPENSE_ANALYTICS: 'ExpenseAnalytics',
+  GROUPS: 'Groups',
+  CREATE_GROUP: 'CreateGroup',
+  GROUP_DETAILS: 'GroupDetails',
   ADD_EXPENSE: 'AddExpense',
   PROFILE: 'Profile',
 } as const;
