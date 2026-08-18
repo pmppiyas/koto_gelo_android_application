@@ -1,6 +1,7 @@
 import { API_ENDPOINTS } from '../config/api';
 import { storage, STORAGE_KEYS } from '../config/storage';
 import { LocalExpense } from '../features/expenses/expense.types';
+import { formatExpenseDateForServer } from '../utils/date';
 
 export const expenseService = {
   async getAuthHeaders(localId?: string): Promise<Record<string, string>> {
@@ -26,7 +27,7 @@ export const expenseService = {
       subcategory: expense.subcategory || undefined,
       title: expense.title || undefined,
       note: expense.note || undefined,
-      expenseDate: new Date(expense.date).toISOString(),
+      expenseDate: formatExpenseDateForServer(expense.date),
     };
 
     const res = await fetch(API_ENDPOINTS.EXPENSES.PERSONAL, {
@@ -85,6 +86,37 @@ export const expenseService = {
     const json = await res.json().catch(() => null);
     if (!res.ok) {
       throw new Error(json?.message || 'Failed to fetch summary');
+    }
+    return json?.data || json;
+  },
+
+  async deletePersonalExpense(id: string): Promise<any> {
+    const headers = await this.getAuthHeaders();
+    const res = await fetch(`${API_ENDPOINTS.EXPENSES.PERSONAL}/${id}`, {
+      method: 'DELETE',
+      headers,
+      credentials: 'include',
+    });
+
+    const json = await res.json().catch(() => null);
+    if (!res.ok) {
+      throw new Error(json?.message || 'Failed to delete expense');
+    }
+    return json?.data || json;
+  },
+
+  async updatePersonalExpense(id: string, data: any): Promise<any> {
+    const headers = await this.getAuthHeaders();
+    const res = await fetch(`${API_ENDPOINTS.EXPENSES.PERSONAL}/${id}`, {
+      method: 'PATCH',
+      headers,
+      credentials: 'include',
+      body: JSON.stringify(data),
+    });
+
+    const json = await res.json().catch(() => null);
+    if (!res.ok) {
+      throw new Error(json?.message || 'Failed to update expense');
     }
     return json?.data || json;
   },

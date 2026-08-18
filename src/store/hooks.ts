@@ -5,6 +5,7 @@ import { expenseSyncService } from '../services/expenseSyncService';
 import { storage, STORAGE_KEYS } from '../config/storage';
 import { SignInPayload, SignUpPayload } from '../features/auth/auth.types';
 import { LocalExpense } from '../features/expenses/expense.types';
+import { getLocalDateString } from '../utils/date';
 
 export const useAppSelector = <T>(selector: (state: RootState) => T): T => {
   const { state } = useStore();
@@ -73,7 +74,7 @@ export const useExpenses = () => {
   const { expenses, isLoading, isSyncing, error, lastSyncedAt } = state.expenses;
   const isAuthenticated = state.auth.isAuthenticated;
 
-  const todayStr = new Date().toISOString().split('T')[0];
+  const todayStr = getLocalDateString();
 
   const todayExpenses = expenses.filter((e) => {
     const expenseDate = e.date ? e.date.split('T')[0] : '';
