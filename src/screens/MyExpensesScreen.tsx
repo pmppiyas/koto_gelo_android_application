@@ -500,7 +500,7 @@ export const MyExpensesScreen: React.FC<MyExpensesScreenProps> = ({
             renderItem={renderExpenseCard}
             contentContainerStyle={[
               styles.listContainer,
-              { paddingBottom: BOTTOM_TAB_HEIGHT + spacing.xxl },
+              { paddingBottom: BOTTOM_TAB_HEIGHT + spacing.sm },
             ]}
             showsVerticalScrollIndicator={false}
             refreshControl={

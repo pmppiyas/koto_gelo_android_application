@@ -698,7 +698,7 @@ const styles = StyleSheet.create({
   },
   listContent: {
     paddingHorizontal: spacing.lg,
-    paddingBottom: BOTTOM_TAB_HEIGHT + spacing.xxl,
+    paddingBottom: BOTTOM_TAB_HEIGHT + spacing.sm,
   },
   transactionItem: {
     flexDirection: 'row',

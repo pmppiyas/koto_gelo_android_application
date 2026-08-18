@@ -131,7 +131,7 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.md,
-    paddingBottom: BOTTOM_TAB_HEIGHT + spacing.xxl,
+    paddingBottom: BOTTOM_TAB_HEIGHT + spacing.sm,
   },
   loadingContainer: {
     flex: 1,

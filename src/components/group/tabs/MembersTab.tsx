@@ -104,7 +104,7 @@ const styles = StyleSheet.create({
   listContent: {
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.md,
-    paddingBottom: BOTTOM_TAB_HEIGHT + spacing.xxl,
+    paddingBottom: BOTTOM_TAB_HEIGHT + spacing.sm,
   },
   headerRow: {
     flexDirection: 'row',
