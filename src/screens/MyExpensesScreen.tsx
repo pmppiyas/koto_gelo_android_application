@@ -134,7 +134,7 @@ export const MyExpensesScreen: React.FC<MyExpensesScreenProps> = ({
         setPage(pagination.page || pageToFetch);
         setTotalPages(pagination.totalPages || 1);
       } catch (err: any) {
-        setErrorMessage(err?.message || 'Could not fetch from server');
+        setErrorMessage('You are offline (showing offline/local data)');
       } finally {
         setIsLoading(false);
         setIsRefreshing(false);
@@ -310,19 +310,14 @@ export const MyExpensesScreen: React.FC<MyExpensesScreenProps> = ({
           <Text style={styles.amountText}>-৳{item.amount.toLocaleString()}</Text>
 
           <View style={styles.badgeAndActions}>
-            {item.syncStatus === 'pending' ? (
+            {item.syncStatus === 'synced' ? (
+              <View style={styles.syncedBadge}>
+                <Feather name="check" size={12} color={colors.secondary} />
+              </View>
+            ) : (
               <View style={styles.pendingBadge}>
                 <Feather name="cloud-off" size={10} color="#B45309" />
                 <Text style={styles.pendingBadgeText}>Offline</Text>
-              </View>
-            ) : item.syncStatus === 'failed' ? (
-              <View style={styles.failedBadge}>
-                <Feather name="alert-circle" size={10} color={colors.danger} />
-                <Text style={styles.failedBadgeText}>Failed</Text>
-              </View>
-            ) : (
-              <View style={styles.syncedBadge}>
-                <Feather name="check" size={12} color={colors.secondary} />
               </View>
             )}
 
@@ -488,8 +483,8 @@ export const MyExpensesScreen: React.FC<MyExpensesScreenProps> = ({
 
         {errorMessage ? (
           <View style={styles.errorBanner}>
-            <Feather name="info" size={14} color={colors.accent} />
-            <Text style={styles.errorBannerText}>{errorMessage} (showing offline/local data)</Text>
+            <Feather name="cloud-off" size={14} color="#92400E" />
+            <Text style={styles.errorBannerText}>You are offline (showing offline/local data)</Text>
           </View>
         ) : null}
 
