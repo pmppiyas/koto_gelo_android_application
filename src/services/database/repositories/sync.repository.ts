@@ -12,13 +12,11 @@ class SyncRepository {
     return [];
   }
 
-  async enqueue(item: Omit<SyncQueueItem, 'id' | 'createdAt' | 'retryCount'>): Promise<void> {
-    // Save to local offline queue table
-  }
+  async enqueue(
+    item: Omit<SyncQueueItem, 'id' | 'createdAt' | 'retryCount'>,
+  ): Promise<void> {}
 
-  async dequeue(id: string): Promise<void> {
-    // Remove from local offline queue table
-  }
+  async dequeue(id: string): Promise<void> {}
 }
 
 export const syncRepository = new SyncRepository();

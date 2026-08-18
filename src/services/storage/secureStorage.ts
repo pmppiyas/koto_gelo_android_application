@@ -1,4 +1,3 @@
-// Secure storage wrapper (can be backed by react-native-keychain or expo-secure-store)
 import { localStorage } from './localStorage';
 
 class SecureStorage {

@@ -5,7 +5,7 @@ class AppDatabase {
 
   async init(): Promise<void> {
     if (this.isInitialized) return;
-    // Database initialization logic (e.g. SQLite, WatermelonDB, or Realm)
+
     this.isInitialized = true;
   }
 

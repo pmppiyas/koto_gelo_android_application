@@ -88,6 +88,8 @@ export const AppNavigator: React.FC = () => {
           <DashboardScreen
             onNavigateToTransactions={() => setCurrentRoute(ROUTES.TRANSACTIONS)}
             onNavigateToAddExpense={() => navigateTo(ROUTES.ADD_EXPENSE)}
+            onNavigateToProfile={() => setCurrentRoute(ROUTES.PROFILE)}
+            onNavigateToHome={() => setCurrentRoute(ROUTES.HOME)}
           />
         );
 
