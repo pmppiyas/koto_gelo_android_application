@@ -307,7 +307,7 @@ export const GroupsScreen: React.FC<GroupsScreenProps> = ({
             renderItem={renderGroupCard}
             contentContainerStyle={[
               styles.listContainer,
-              { paddingBottom: BOTTOM_TAB_HEIGHT + spacing.xxl },
+              { paddingBottom: BOTTOM_TAB_HEIGHT + spacing.sm },
             ]}
             showsVerticalScrollIndicator={false}
             refreshControl={

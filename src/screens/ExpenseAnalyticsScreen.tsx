@@ -782,6 +782,7 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.md,
+    paddingBottom: BOTTOM_TAB_HEIGHT + spacing.sm,
     gap: spacing.md,
   },
   periodSwitcherContainer: {
