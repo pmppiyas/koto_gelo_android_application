@@ -5,6 +5,8 @@ import { LoginScreen } from '../screens/LoginScreen';
 import { RegisterScreen } from '../screens/RegisterScreen';
 import { DashboardScreen } from '../screens/DashboardScreen';
 import { TransactionsScreen } from '../screens/TransactionsScreen';
+import { MyExpensesScreen } from '../screens/MyExpensesScreen';
+import { ExpenseAnalyticsScreen } from '../screens/ExpenseAnalyticsScreen';
 import { ProfileScreen } from '../screens/ProfileScreen';
 import { AddExpenseScreen } from '../screens/AddExpenseScreen';
 import { BottomTabBar } from './BottomTabBar';
@@ -38,9 +40,7 @@ export const AppNavigator: React.FC = () => {
   }
 
   const navigateTo = (route: RouteNames) => {
-    if (route === ROUTES.ADD_EXPENSE) {
-      setPreviousRoute(currentRoute);
-    }
+    setPreviousRoute(currentRoute);
     setCurrentRoute(route);
   };
 
@@ -51,18 +51,45 @@ export const AppNavigator: React.FC = () => {
       case ROUTES.LOGIN:
         return (
           <LoginScreen
-            onNavigateToRegister={() => setCurrentRoute(ROUTES.REGISTER)}
-            onNavigateToHome={() => setCurrentRoute(ROUTES.HOME)}
-            onLoginSuccess={() => setCurrentRoute(ROUTES.DASHBOARD)}
+            onNavigateToRegister={() => navigateTo(ROUTES.REGISTER)}
+            onNavigateToHome={() => navigateTo(ROUTES.HOME)}
+            onLoginSuccess={() => navigateTo(ROUTES.DASHBOARD)}
           />
         );
 
       case ROUTES.REGISTER:
         return (
           <RegisterScreen
-            onNavigateToLogin={() => setCurrentRoute(ROUTES.LOGIN)}
-            onNavigateToHome={() => setCurrentRoute(ROUTES.HOME)}
-            onRegisterSuccess={() => setCurrentRoute(ROUTES.DASHBOARD)}
+            onNavigateToLogin={() => navigateTo(ROUTES.LOGIN)}
+            onNavigateToHome={() => navigateTo(ROUTES.HOME)}
+            onRegisterSuccess={() => navigateTo(ROUTES.DASHBOARD)}
+          />
+        );
+
+      case ROUTES.PERSONAL_EXPENSES:
+        return (
+          <MyExpensesScreen
+            initialFilter="ALL"
+            onNavigateBack={() => navigateTo(previousRoute || ROUTES.DASHBOARD)}
+            onNavigateToAddExpense={() => navigateTo(ROUTES.ADD_EXPENSE)}
+          />
+        );
+
+      case ROUTES.TODAY_EXPENSES:
+        return (
+          <MyExpensesScreen
+            initialFilter="TODAY"
+            onNavigateBack={() => navigateTo(previousRoute || ROUTES.DASHBOARD)}
+            onNavigateToAddExpense={() => navigateTo(ROUTES.ADD_EXPENSE)}
+          />
+        );
+
+      case ROUTES.EXPENSE_ANALYTICS:
+      case ROUTES.EXPENSE_SUMMARY:
+        return (
+          <ExpenseAnalyticsScreen
+            onNavigateBack={() => navigateTo(previousRoute || ROUTES.DASHBOARD)}
+            onNavigateToAddExpense={() => navigateTo(ROUTES.ADD_EXPENSE)}
           />
         );
 
@@ -72,7 +99,7 @@ export const AppNavigator: React.FC = () => {
       case ROUTES.PROFILE:
         return (
           <ProfileScreen
-            onNavigateToHome={() => setCurrentRoute(ROUTES.HOME)}
+            onNavigateToHome={() => navigateTo(ROUTES.HOME)}
           />
         );
 
@@ -86,10 +113,13 @@ export const AppNavigator: React.FC = () => {
       case ROUTES.DASHBOARD:
         return (
           <DashboardScreen
-            onNavigateToTransactions={() => setCurrentRoute(ROUTES.TRANSACTIONS)}
+            onNavigateToTransactions={() => navigateTo(ROUTES.TRANSACTIONS)}
+            onNavigateToPersonalExpenses={() => navigateTo(ROUTES.PERSONAL_EXPENSES)}
+            onNavigateToTodayExpenses={() => navigateTo(ROUTES.TODAY_EXPENSES)}
+            onNavigateToAnalytics={() => navigateTo(ROUTES.EXPENSE_ANALYTICS)}
             onNavigateToAddExpense={() => navigateTo(ROUTES.ADD_EXPENSE)}
-            onNavigateToProfile={() => setCurrentRoute(ROUTES.PROFILE)}
-            onNavigateToHome={() => setCurrentRoute(ROUTES.HOME)}
+            onNavigateToProfile={() => navigateTo(ROUTES.PROFILE)}
+            onNavigateToHome={() => navigateTo(ROUTES.HOME)}
           />
         );
 
@@ -99,9 +129,9 @@ export const AppNavigator: React.FC = () => {
           <HomeScreen
             isAuthenticated={isAuthenticated}
             userName={displayName}
-            onNavigateToLogin={() => setCurrentRoute(ROUTES.LOGIN)}
-            onNavigateToRegister={() => setCurrentRoute(ROUTES.REGISTER)}
-            onNavigateToDashboard={() => setCurrentRoute(ROUTES.DASHBOARD)}
+            onNavigateToLogin={() => navigateTo(ROUTES.LOGIN)}
+            onNavigateToRegister={() => navigateTo(ROUTES.REGISTER)}
+            onNavigateToDashboard={() => navigateTo(ROUTES.DASHBOARD)}
           />
         );
     }
@@ -118,7 +148,14 @@ export const AppNavigator: React.FC = () => {
       <View style={styles.content}>{renderScreen()}</View>
       {showBottomNav && (
         <BottomTabBar
-          activeRoute={currentRoute}
+          activeRoute={
+            currentRoute === ROUTES.PERSONAL_EXPENSES ||
+            currentRoute === ROUTES.TODAY_EXPENSES ||
+            currentRoute === ROUTES.EXPENSE_ANALYTICS ||
+            currentRoute === ROUTES.EXPENSE_SUMMARY
+              ? ROUTES.DASHBOARD
+              : currentRoute
+          }
           onNavigate={(route) => navigateTo(route as RouteNames)}
         />
       )}

@@ -11,9 +11,13 @@ import { DashboardDrawer } from '../components/dashboard/DashboardDrawer';
 import { demoBalanceSummary, demoTransactions } from '../data/demoData';
 import { useAuth, useExpenses } from '../store/hooks';
 import { Transaction, BalanceSummary } from '../types/transaction';
+import { getLocalDateString } from '../utils/date';
 
 export interface DashboardScreenProps {
   onNavigateToTransactions?: () => void;
+  onNavigateToPersonalExpenses?: () => void;
+  onNavigateToTodayExpenses?: () => void;
+  onNavigateToAnalytics?: () => void;
   onNavigateToAddExpense?: () => void;
   onNavigateToProfile?: () => void;
   onNavigateToHome?: () => void;
@@ -21,6 +25,9 @@ export interface DashboardScreenProps {
 
 export const DashboardScreen: React.FC<DashboardScreenProps> = ({
   onNavigateToTransactions,
+  onNavigateToPersonalExpenses,
+  onNavigateToTodayExpenses,
+  onNavigateToAnalytics,
   onNavigateToAddExpense,
   onNavigateToProfile,
   onNavigateToHome,
@@ -61,6 +68,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
   }, [totalExpenseAmount]);
 
   const unifiedRecentTransactions: Transaction[] = useMemo(() => {
+    const today = getLocalDateString();
     const localConverted: Transaction[] = expenses.map((e) => {
       const catInfo = categoryMap[e.category] || categoryMap[e.category.toLowerCase()];
       return {
@@ -69,7 +77,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
         category: catInfo?.name || e.category,
         amount: Number(e.amount),
         type: 'expense',
-        date: e.date === new Date().toISOString().split('T')[0] ? 'Today' : e.date,
+        date: e.date === today ? 'Today' : e.date,
         icon: catInfo?.icon || 'coffee',
       };
     });
@@ -82,8 +90,31 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
       case 'DASHBOARD':
         break;
       case 'PERSONAL_EXPENSES':
+        if (onNavigateToPersonalExpenses) {
+          onNavigateToPersonalExpenses();
+        } else {
+          onNavigateToTransactions?.();
+        }
+        break;
       case 'TODAY_EXPENSES':
+        if (onNavigateToTodayExpenses) {
+          onNavigateToTodayExpenses();
+        } else if (onNavigateToPersonalExpenses) {
+          onNavigateToPersonalExpenses();
+        } else {
+          onNavigateToTransactions?.();
+        }
+        break;
+      case 'EXPENSE_ANALYTICS':
       case 'EXPENSE_SUMMARY':
+        if (onNavigateToAnalytics) {
+          onNavigateToAnalytics();
+        } else if (onNavigateToPersonalExpenses) {
+          onNavigateToPersonalExpenses();
+        } else {
+          onNavigateToTransactions?.();
+        }
+        break;
       case 'GROUP_EXPENSES':
       case 'GROUP_HISTORY':
         onNavigateToTransactions?.();
@@ -175,11 +206,14 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
             <Text style={styles.actionLabel}>Add Expense</Text>
           </TouchableOpacity>
           
-          <TouchableOpacity style={styles.actionItem}>
+          <TouchableOpacity 
+            style={styles.actionItem}
+            onPress={onNavigateToPersonalExpenses}
+          >
             <View style={[styles.actionIconCircle, { backgroundColor: colors.secondary }]}>
-              <Feather name="send" size={24} color={colors.surface} />
+              <Feather name="credit-card" size={24} color={colors.surface} />
             </View>
-            <Text style={styles.actionLabel}>Transfer</Text>
+            <Text style={styles.actionLabel}>My Expenses</Text>
           </TouchableOpacity>
           
           <TouchableOpacity style={styles.actionItem}>
@@ -189,18 +223,21 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
             <Text style={styles.actionLabel}>Groups</Text>
           </TouchableOpacity>
           
-          <TouchableOpacity style={styles.actionItem}>
+          <TouchableOpacity 
+            style={styles.actionItem}
+            onPress={onNavigateToAnalytics || onNavigateToTransactions}
+          >
             <View style={[styles.actionIconCircle, { backgroundColor: colors.primaryDark }]}>
-              <Feather name="bar-chart-2" size={24} color={colors.surface} />
+              <Feather name="pie-chart" size={24} color={colors.surface} />
             </View>
-            <Text style={styles.actionLabel}>Reports</Text>
+            <Text style={styles.actionLabel}>Analytics</Text>
           </TouchableOpacity>
         </View>
 
         <View style={styles.section}>
           <RecentTransactions 
             transactions={unifiedRecentTransactions} 
-            onSeeAll={onNavigateToTransactions} 
+            onSeeAll={onNavigateToPersonalExpenses || onNavigateToTransactions} 
           />
         </View>
       </ScrollView>

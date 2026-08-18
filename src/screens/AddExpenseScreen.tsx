@@ -18,6 +18,7 @@ import { EXPENSE_CATEGORIES, CategoryInfo } from '../constants/expense';
 import { AppInput } from '../components/common/AppInput';
 import { AppButton } from '../components/common/AppButton';
 import { useExpenses } from '../store/hooks';
+import { getLocalDateString } from '../utils/date';
 
 export interface AddExpenseScreenProps {
   onClose: () => void;
@@ -36,7 +37,7 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({ onClose }) =
   const [isCategoryExpanded, setIsCategoryExpanded] = useState<boolean>(true);
   const [categorySearchQuery, setCategorySearchQuery] = useState<string>('');
   const [title, setTitle] = useState('');
-  const [date, setDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [date, setDate] = useState(() => getLocalDateString());
   const [note, setNote] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -98,10 +99,10 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({ onClose }) =
     setCategorySearchQuery('');
     setError('');
 
+    scrollViewRef.current?.scrollTo({ y: 0, animated: true });
     setTimeout(() => {
-      scrollViewRef.current?.scrollTo({ y: 0, animated: true });
       amountInputRef.current?.focus();
-    }, 120);
+    }, 280);
   };
 
   const handleSubcategorySelect = (sub: string) => {
@@ -111,10 +112,10 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({ onClose }) =
 
     if (!isDeselecting) {
       setTitle(sub);
+      scrollViewRef.current?.scrollTo({ y: 0, animated: true });
       setTimeout(() => {
-        scrollViewRef.current?.scrollTo({ y: 0, animated: true });
         amountInputRef.current?.focus();
-      }, 120);
+      }, 280);
     }
   };
 
