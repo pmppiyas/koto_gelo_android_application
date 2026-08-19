@@ -1,16 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet } from 'react-native';
+import { View } from '../components/ui/core';
 import { HomeScreen } from '../screens/HomeScreen';
 import { LoginScreen } from '../screens/LoginScreen';
 import { RegisterScreen } from '../screens/RegisterScreen';
 import { DashboardScreen } from '../screens/DashboardScreen';
 import { TransactionsScreen } from '../screens/TransactionsScreen';
-import { MyExpensesScreen } from '../screens/MyExpensesScreen';
 import { ExpenseAnalyticsScreen } from '../screens/ExpenseAnalyticsScreen';
 import { GroupsScreen } from '../screens/GroupsScreen';
-import { GroupDetailsScreen } from '../screens/GroupDetailsScreen';
 import { ProfileScreen } from '../screens/ProfileScreen';
+import { GroupBalancesScreen } from '../screens/GroupBalancesScreen';
 import { AddExpenseScreen } from '../screens/AddExpenseScreen';
+import { InvitationsScreen } from '../features/invitations/screens/InvitationsScreen';
 import { BottomTabBar } from './BottomTabBar';
 import { DashboardDrawer } from '../components/dashboard/DashboardDrawer';
 import { Loading } from '../components/common/Loading';
@@ -20,7 +20,7 @@ import { ROUTES, RouteNames } from '../constants/routes';
 export const AppNavigator: React.FC = () => {
   const { user, isAuthenticated, isLoading, logout } = useAuth();
   const [currentRoute, setCurrentRoute] = useState<RouteNames>(ROUTES.HOME);
-  const [previousRoute, setPreviousRoute] = useState<RouteNames>(ROUTES.DASHBOARD);
+  const [previousRoute, setPreviousRoute] = useState<RouteNames>(ROUTES.HOME);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
 
@@ -28,7 +28,7 @@ export const AppNavigator: React.FC = () => {
     if (!isLoading) {
       if (isAuthenticated) {
         setCurrentRoute((prev) =>
-          prev === ROUTES.LOGIN || prev === ROUTES.REGISTER ? ROUTES.DASHBOARD : prev
+          prev === ROUTES.LOGIN || prev === ROUTES.REGISTER ? ROUTES.HOME : prev
         );
       } else {
         setCurrentRoute((prev) =>
@@ -40,19 +40,19 @@ export const AppNavigator: React.FC = () => {
     }
   }, [isAuthenticated, isLoading]);
 
-  if (isLoading) {
-    return <Loading message="Starting KotoGelo..." />;
-  }
-
   const navigateTo = (route: RouteNames) => {
-    setPreviousRoute(currentRoute);
-    setCurrentRoute(route);
+    if (route !== currentRoute) {
+      setPreviousRoute(currentRoute);
+      setCurrentRoute(route);
+    }
   };
 
   const handleDrawerSelectRoute = (route: string) => {
+    setIsDrawerOpen(false);
     switch (route) {
       case 'DASHBOARD':
-        navigateTo(ROUTES.DASHBOARD);
+      case 'HOME':
+        navigateTo(ROUTES.HOME);
         break;
       case 'PERSONAL_EXPENSES':
         navigateTo(ROUTES.PERSONAL_EXPENSES);
@@ -61,17 +61,27 @@ export const AppNavigator: React.FC = () => {
         navigateTo(ROUTES.TODAY_EXPENSES);
         break;
       case 'EXPENSE_ANALYTICS':
-      case 'EXPENSE_SUMMARY':
         navigateTo(ROUTES.EXPENSE_ANALYTICS);
         break;
+      case 'GROUP_ANALYTICS':
+        navigateTo(ROUTES.GROUP_ANALYTICS);
+        break;
       case 'GROUPS':
-      case 'GROUP_EXPENSES':
-      case 'GROUP_HISTORY':
         navigateTo(ROUTES.GROUPS);
         break;
+      case 'GROUP_EXPENSES':
+      case 'GROUP_HISTORY':
+        navigateTo(ROUTES.GROUP_EXPENSES);
+        break;
+      case 'GROUP_BALANCES':
+      case 'SETTLEMENTS':
+        navigateTo(ROUTES.GROUP_BALANCES);
+        break;
       case 'PROFILE':
-      case 'SETTINGS':
         navigateTo(ROUTES.PROFILE);
+        break;
+      case 'INVITATIONS':
+        navigateTo(ROUTES.INVITATIONS);
         break;
       default:
         break;
@@ -79,9 +89,18 @@ export const AppNavigator: React.FC = () => {
   };
 
   const handleDrawerLogout = async () => {
+    setIsDrawerOpen(false);
     await logout();
     navigateTo(ROUTES.HOME);
   };
+
+  if (isLoading) {
+    return (
+      <View className="flex-1 bg-background justify-center items-center">
+        <Loading text="Loading KotoGelo..." />
+      </View>
+    );
+  }
 
   const displayName = user?.name || user?.username || 'User';
 
@@ -92,7 +111,7 @@ export const AppNavigator: React.FC = () => {
           <LoginScreen
             onNavigateToRegister={() => navigateTo(ROUTES.REGISTER)}
             onNavigateToHome={() => navigateTo(ROUTES.HOME)}
-            onLoginSuccess={() => navigateTo(ROUTES.DASHBOARD)}
+            onLoginSuccess={() => navigateTo(ROUTES.HOME)}
           />
         );
 
@@ -101,25 +120,59 @@ export const AppNavigator: React.FC = () => {
           <RegisterScreen
             onNavigateToLogin={() => navigateTo(ROUTES.LOGIN)}
             onNavigateToHome={() => navigateTo(ROUTES.HOME)}
-            onRegisterSuccess={() => navigateTo(ROUTES.DASHBOARD)}
+            onRegisterSuccess={() => navigateTo(ROUTES.HOME)}
+          />
+        );
+
+      case ROUTES.TRANSACTIONS:
+        return (
+          <TransactionsScreen
+            onNavigateToPersonalExpenses={() => navigateTo(ROUTES.PERSONAL_EXPENSES)}
+            onNavigateToGroupExpenses={() => navigateTo(ROUTES.GROUP_EXPENSES)}
+            onNavigateToGroups={() => navigateTo(ROUTES.GROUPS)}
+            onNavigateToDashboard={() => navigateTo(ROUTES.HOME)}
+            onNavigateToAddExpense={() => navigateTo(ROUTES.ADD_EXPENSE)}
+            onNavigateBack={() => navigateTo(previousRoute || ROUTES.HOME)}
           />
         );
 
       case ROUTES.PERSONAL_EXPENSES:
         return (
-          <MyExpensesScreen
-            initialFilter="ALL"
-            onNavigateBack={() => navigateTo(previousRoute || ROUTES.DASHBOARD)}
+          <TransactionsScreen
+            initialTab="PERSONAL"
+            onNavigateToPersonalExpenses={() => navigateTo(ROUTES.PERSONAL_EXPENSES)}
+            onNavigateToGroupExpenses={() => navigateTo(ROUTES.GROUP_EXPENSES)}
+            onNavigateToGroups={() => navigateTo(ROUTES.GROUPS)}
+            onNavigateToDashboard={() => navigateTo(ROUTES.HOME)}
             onNavigateToAddExpense={() => navigateTo(ROUTES.ADD_EXPENSE)}
+            onNavigateBack={() => navigateTo(previousRoute || ROUTES.HOME)}
           />
         );
 
       case ROUTES.TODAY_EXPENSES:
         return (
-          <MyExpensesScreen
-            initialFilter="TODAY"
-            onNavigateBack={() => navigateTo(previousRoute || ROUTES.DASHBOARD)}
+          <TransactionsScreen
+            initialTab="PERSONAL"
+            initialTimeFilter="TODAY"
+            onNavigateToPersonalExpenses={() => navigateTo(ROUTES.PERSONAL_EXPENSES)}
+            onNavigateToGroupExpenses={() => navigateTo(ROUTES.GROUP_EXPENSES)}
+            onNavigateToGroups={() => navigateTo(ROUTES.GROUPS)}
+            onNavigateToDashboard={() => navigateTo(ROUTES.HOME)}
             onNavigateToAddExpense={() => navigateTo(ROUTES.ADD_EXPENSE)}
+            onNavigateBack={() => navigateTo(previousRoute || ROUTES.HOME)}
+          />
+        );
+
+      case ROUTES.GROUP_EXPENSES:
+        return (
+          <TransactionsScreen
+            initialTab="GROUP"
+            onNavigateToPersonalExpenses={() => navigateTo(ROUTES.PERSONAL_EXPENSES)}
+            onNavigateToGroupExpenses={() => navigateTo(ROUTES.GROUP_EXPENSES)}
+            onNavigateToGroups={() => navigateTo(ROUTES.GROUPS)}
+            onNavigateToDashboard={() => navigateTo(ROUTES.HOME)}
+            onNavigateToAddExpense={() => navigateTo(ROUTES.ADD_EXPENSE)}
+            onNavigateBack={() => navigateTo(previousRoute || ROUTES.HOME)}
           />
         );
 
@@ -127,7 +180,18 @@ export const AppNavigator: React.FC = () => {
       case ROUTES.EXPENSE_SUMMARY:
         return (
           <ExpenseAnalyticsScreen
-            onNavigateBack={() => navigateTo(previousRoute || ROUTES.DASHBOARD)}
+            mode="PERSONAL"
+            onNavigateBack={() => navigateTo(previousRoute || ROUTES.HOME)}
+            onNavigateToAddExpense={() => navigateTo(ROUTES.ADD_EXPENSE)}
+          />
+        );
+
+      case ROUTES.GROUP_ANALYTICS:
+        return (
+          <ExpenseAnalyticsScreen
+            mode="GROUP"
+            initialGroupId={selectedGroupId || undefined}
+            onNavigateBack={() => navigateTo(previousRoute || ROUTES.GROUPS)}
             onNavigateToAddExpense={() => navigateTo(ROUTES.ADD_EXPENSE)}
           />
         );
@@ -135,30 +199,25 @@ export const AppNavigator: React.FC = () => {
       case ROUTES.GROUPS:
         return (
           <GroupsScreen
-            onNavigateBack={() => navigateTo(previousRoute || ROUTES.DASHBOARD)}
+            onNavigateBack={() => navigateTo(previousRoute || ROUTES.HOME)}
             onSelectGroup={(id) => {
               setSelectedGroupId(id);
-              navigateTo(ROUTES.GROUP_DETAILS);
+              navigateTo(ROUTES.GROUP_BALANCES);
             }}
           />
         );
 
       case ROUTES.GROUP_DETAILS:
+      case ROUTES.GROUP_BALANCES:
+      case ROUTES.SETTLEMENTS:
         return (
-          <GroupDetailsScreen
-            groupId={selectedGroupId || ''}
+          <GroupBalancesScreen
+            groupId={selectedGroupId || undefined}
             onNavigateBack={() => navigateTo(ROUTES.GROUPS)}
-          />
-        );
-
-      case ROUTES.TRANSACTIONS:
-        return (
-          <TransactionsScreen
+            onNavigateToPersonalExpenses={() => navigateTo(ROUTES.PERSONAL_EXPENSES)}
+            onNavigateToAnalytics={() => navigateTo(ROUTES.GROUP_ANALYTICS)}
+            onNavigateToTransactions={() => navigateTo(ROUTES.TRANSACTIONS)}
             onNavigateToGroups={() => navigateTo(ROUTES.GROUPS)}
-            onNavigateToGroupDetails={(groupId) => {
-              setSelectedGroupId(groupId);
-              navigateTo(ROUTES.GROUP_DETAILS);
-            }}
           />
         );
 
@@ -169,36 +228,42 @@ export const AppNavigator: React.FC = () => {
           />
         );
 
+      case ROUTES.INVITATIONS:
+        return (
+          <InvitationsScreen />
+        );
+
       case ROUTES.ADD_EXPENSE:
         return (
           <AddExpenseScreen
-            onClose={() => setCurrentRoute(previousRoute || ROUTES.DASHBOARD)}
+            onClose={() => setCurrentRoute(previousRoute || ROUTES.HOME)}
           />
         );
 
       case ROUTES.DASHBOARD:
-        return (
-          <DashboardScreen
-            onNavigateToTransactions={() => navigateTo(ROUTES.TRANSACTIONS)}
-            onNavigateToPersonalExpenses={() => navigateTo(ROUTES.PERSONAL_EXPENSES)}
-            onNavigateToTodayExpenses={() => navigateTo(ROUTES.TODAY_EXPENSES)}
-            onNavigateToAnalytics={() => navigateTo(ROUTES.EXPENSE_ANALYTICS)}
-            onNavigateToGroups={() => navigateTo(ROUTES.GROUPS)}
-            onNavigateToAddExpense={() => navigateTo(ROUTES.ADD_EXPENSE)}
-            onNavigateToProfile={() => navigateTo(ROUTES.PROFILE)}
-            onNavigateToHome={() => navigateTo(ROUTES.HOME)}
-          />
-        );
-
       case ROUTES.HOME:
       default:
+        if (isAuthenticated) {
+          return (
+            <DashboardScreen
+              onNavigateToTransactions={() => navigateTo(ROUTES.TRANSACTIONS)}
+              onNavigateToPersonalExpenses={() => navigateTo(ROUTES.PERSONAL_EXPENSES)}
+              onNavigateToTodayExpenses={() => navigateTo(ROUTES.TODAY_EXPENSES)}
+              onNavigateToAnalytics={() => navigateTo(ROUTES.EXPENSE_ANALYTICS)}
+              onNavigateToGroups={() => navigateTo(ROUTES.GROUPS)}
+              onNavigateToGroupExpenses={() => navigateTo(ROUTES.GROUP_EXPENSES)}
+              onNavigateToAddExpense={() => navigateTo(ROUTES.ADD_EXPENSE)}
+              onNavigateToProfile={() => navigateTo(ROUTES.PROFILE)}
+              onNavigateToHome={() => navigateTo(ROUTES.HOME)}
+            />
+          );
+        }
         return (
           <HomeScreen
-            isAuthenticated={isAuthenticated}
+            isAuthenticated={false}
             userName={displayName}
             onNavigateToLogin={() => navigateTo(ROUTES.LOGIN)}
             onNavigateToRegister={() => navigateTo(ROUTES.REGISTER)}
-            onNavigateToDashboard={() => navigateTo(ROUTES.DASHBOARD)}
           />
         );
     }
@@ -207,44 +272,60 @@ export const AppNavigator: React.FC = () => {
   const showBottomNav =
     isAuthenticated &&
     currentRoute !== ROUTES.LOGIN &&
-    currentRoute !== ROUTES.REGISTER &&
-    currentRoute !== ROUTES.ADD_EXPENSE;
+    currentRoute !== ROUTES.REGISTER;
 
   return (
-    <View style={styles.container}>
-      <View style={styles.content}>{renderScreen()}</View>
+    <View className="flex-1 bg-background">
+      <View className="flex-1 relative overflow-hidden">
+        <View
+          className="flex-1"
+          style={
+            isDrawerOpen
+              ? ({
+                  filter: 'blur(3.5px)',
+                  WebkitFilter: 'blur(3.5px)',
+                  opacity: 0.88,
+                } as any)
+              : undefined
+          }
+        >
+          {renderScreen()}
+        </View>
+
+        <DashboardDrawer
+          visible={isDrawerOpen}
+          currentRoute={currentRoute}
+          onClose={() => setIsDrawerOpen(false)}
+          onSelectRoute={handleDrawerSelectRoute}
+          onLogout={handleDrawerLogout}
+        />
+      </View>
       {showBottomNav && (
         <BottomTabBar
           activeRoute={
-            currentRoute === ROUTES.PERSONAL_EXPENSES ||
-            currentRoute === ROUTES.TODAY_EXPENSES ||
-            currentRoute === ROUTES.EXPENSE_ANALYTICS ||
-            currentRoute === ROUTES.EXPENSE_SUMMARY ||
-            currentRoute === ROUTES.GROUPS ||
-            currentRoute === ROUTES.GROUP_DETAILS
-              ? ROUTES.DASHBOARD
+            isDrawerOpen
+              ? 'MENU'
+              : currentRoute === ROUTES.EXPENSE_ANALYTICS ||
+                currentRoute === ROUTES.EXPENSE_SUMMARY ||
+                currentRoute === ROUTES.GROUP_ANALYTICS
+              ? ROUTES.EXPENSE_ANALYTICS
+              : currentRoute === ROUTES.TRANSACTIONS ||
+                currentRoute === ROUTES.PERSONAL_EXPENSES ||
+                currentRoute === ROUTES.TODAY_EXPENSES ||
+                currentRoute === ROUTES.GROUP_EXPENSES
+              ? ROUTES.TRANSACTIONS
+              : currentRoute === ROUTES.HOME ||
+                currentRoute === ROUTES.DASHBOARD
+              ? ROUTES.HOME
               : currentRoute
           }
-          onNavigate={(route) => navigateTo(route as RouteNames)}
-          onOpenDrawer={() => setIsDrawerOpen(true)}
+          onNavigate={(route) => {
+            setIsDrawerOpen(false);
+            navigateTo(route as RouteNames);
+          }}
+          onOpenDrawer={() => setIsDrawerOpen((prev) => !prev)}
         />
       )}
-
-      <DashboardDrawer
-        visible={isDrawerOpen}
-        onClose={() => setIsDrawerOpen(false)}
-        onSelectRoute={handleDrawerSelectRoute}
-        onLogout={handleDrawerLogout}
-      />
     </View>
   );
 };
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  content: {
-    flex: 1,
-  },
-});

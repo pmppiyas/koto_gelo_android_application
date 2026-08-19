@@ -1,17 +1,11 @@
 import React, { useState } from 'react';
 import {
-  View,
-  Text,
-  TextInput,
   TextInputProps,
-  StyleSheet,
-  TouchableOpacity,
   StyleProp,
   ViewStyle,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
-import { colors } from '../../constants/colors';
-import { spacing, borderRadius, typography } from '../../constants/spacing';
+import { View, Text, TouchableOpacity, TextInput } from '../ui/core';
 
 export interface AppInputProps extends TextInputProps {
   label?: string;
@@ -26,85 +20,63 @@ export const AppInput: React.FC<AppInputProps> = ({
   isPassword = false,
   containerStyle,
   style,
+  onFocus,
+  onBlur,
   ...props
 }) => {
   const [isFocused, setIsFocused] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
   return (
-    <View style={[styles.container, containerStyle]}>
-      {label && <Text style={styles.label}>{label}</Text>}
+    <View className="gap-1.5 w-full" style={containerStyle as ViewStyle}>
+      {label ? (
+        <Text className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
+          {label}
+        </Text>
+      ) : null}
+
       <View
-        style={[
-          styles.inputContainer,
-          isFocused && styles.inputFocused,
-          !!error && styles.inputError,
-        ]}
+        className={`flex-row items-center bg-card border rounded-xl px-3.5 h-12 transition-all ${
+          error
+            ? 'border-destructive bg-destructive/5'
+            : isFocused
+            ? 'border-primary shadow-sm'
+            : 'border-border'
+        }`}
       >
         <TextInput
-          style={[styles.input, style]}
-          onFocus={() => setIsFocused(true)}
-          onBlur={() => setIsFocused(false)}
+          className="flex-1 text-sm text-foreground h-full"
+          onFocus={(e) => {
+            setIsFocused(true);
+            onFocus?.(e);
+          }}
+          onBlur={(e) => {
+            setIsFocused(false);
+            onBlur?.(e);
+          }}
           secureTextEntry={isPassword && !showPassword}
-          placeholderTextColor={colors.textMuted}
+          placeholderTextColor="#94A3B8"
+          style={style as any}
           {...props}
         />
         {isPassword && (
           <TouchableOpacity
-            style={styles.eyeIcon}
+            className="p-1"
             onPress={() => setShowPassword(!showPassword)}
+            activeOpacity={0.7}
           >
             <Feather
               name={showPassword ? 'eye-off' : 'eye'}
               size={18}
-              color={isFocused ? colors.primary : colors.textMuted}
+              color={isFocused ? '#2563EB' : '#94A3B8'}
             />
           </TouchableOpacity>
         )}
       </View>
-      {error && <Text style={styles.errorText}>{error}</Text>}
+
+      {error ? (
+        <Text className="text-xs text-destructive font-medium">{error}</Text>
+      ) : null}
     </View>
   );
 };
-
-const styles = StyleSheet.create({
-  container: {
-    marginBottom: spacing.md,
-  },
-  label: {
-    fontSize: typography.sm,
-    fontWeight: '500',
-    color: colors.textPrimary,
-    marginBottom: spacing.xs,
-  },
-  inputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderWidth: 1.5,
-    borderColor: colors.border,
-    borderRadius: borderRadius.md,
-    backgroundColor: colors.surface,
-  },
-  inputFocused: {
-    borderColor: colors.primary,
-  },
-  inputError: {
-    borderColor: colors.danger,
-  },
-  input: {
-    flex: 1,
-    paddingVertical: 12,
-    paddingHorizontal: spacing.md,
-    fontSize: typography.md,
-    color: colors.textPrimary,
-  },
-  eyeIcon: {
-    padding: spacing.sm,
-    marginRight: spacing.xs,
-  },
-  errorText: {
-    fontSize: typography.xs,
-    color: colors.danger,
-    marginTop: spacing.xs,
-  },
-});

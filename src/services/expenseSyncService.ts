@@ -1,8 +1,26 @@
 import { localExpenseService } from './localExpenseService';
 import { expenseService } from './expenseService';
+import { groupService } from './groupService';
 import { LocalExpense } from '../features/expenses/expense.types';
+import { formatExpenseDateForServer } from '../utils/date';
 
 let isSyncing = false;
+
+async function syncExpenseToServer(expense: LocalExpense): Promise<any> {
+  if (expense.type === 'GROUP' && expense.groupId) {
+    return await groupService.addGroupExpense({
+      groupId: expense.groupId,
+      amount: expense.amount,
+      category: expense.category,
+      subcategory: expense.subcategory || undefined,
+      title: expense.title || undefined,
+      note: expense.note || undefined,
+      expenseDate: formatExpenseDateForServer(expense.date),
+      splitType: 'EQUAL',
+    });
+  }
+  return await expenseService.createPersonalExpense(expense);
+}
 
 export const expenseSyncService = {
   getIsSyncing(): boolean {
@@ -32,7 +50,7 @@ export const expenseSyncService = {
 
       for (const expense of pending) {
         try {
-          const result = await expenseService.createPersonalExpense(expense);
+          const result = await syncExpenseToServer(expense);
           const serverId = result?.id || result?.expense?.id || `srv_${Date.now()}`;
 
           await localExpenseService.markExpenseAsSynced(expense.localId, serverId);
@@ -92,7 +110,7 @@ export const expenseSyncService = {
     dispatch?: (action: any) => void
   ): Promise<boolean> {
     try {
-      const result = await expenseService.createPersonalExpense(expense);
+      const result = await syncExpenseToServer(expense);
       const serverId = result?.id || result?.expense?.id || `srv_${Date.now()}`;
 
       await localExpenseService.markExpenseAsSynced(expense.localId, serverId);

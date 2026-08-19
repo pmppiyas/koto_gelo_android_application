@@ -1,24 +1,24 @@
 import React from 'react';
-import { Text, StyleSheet, TextStyle } from 'react-native';
-import { colors } from '../../theme/colors';
-import { typography } from '../../theme/typography';
+import { TextStyle } from 'react-native';
+import { Text } from '../ui/core';
+import { formatCurrency } from '../../utils/currency';
 
 export interface CurrencyDisplayProps {
+  amount: number;
   currency?: string;
   style?: TextStyle;
+  className?: string;
 }
 
 export const CurrencyDisplay: React.FC<CurrencyDisplayProps> = ({
+  amount,
   currency = 'BDT',
   style,
+  className,
 }) => {
-  return <Text style={[styles.currency, style]}>{currency}</Text>;
+  return (
+    <Text className={`font-bold text-foreground ${className || ''}`} style={style}>
+      {formatCurrency(amount, currency)}
+    </Text>
+  );
 };
-
-const styles = StyleSheet.create({
-  currency: {
-    fontSize: typography.fontSizes.sm,
-    fontWeight: typography.fontWeights.medium,
-    color: colors.textSecondary,
-  },
-});

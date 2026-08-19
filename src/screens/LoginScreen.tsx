@@ -1,18 +1,9 @@
 import React, { useState } from 'react';
-import { 
-  View, 
-  Text, 
-  StyleSheet, 
-  SafeAreaView, 
-  KeyboardAvoidingView, 
-  Platform, 
-  ScrollView, 
-  TouchableOpacity 
-} from 'react-native';
-import { colors } from '../constants/colors';
-import { spacing, borderRadius, typography } from '../constants/spacing';
-import { AppInput } from '../components/common/AppInput';
-import { AppButton } from '../components/common/AppButton';
+import { Platform } from 'react-native';
+import { Feather } from '@expo/vector-icons';
+import { View, Text, TouchableOpacity, ScrollView, SafeAreaView, TextInput, KeyboardAvoidingView, Button } from '../components/ui';
+import { Logo } from '../components/common/Logo';
+import { Loading } from '../components/common/Loading';
 import { useAuth } from '../store/hooks';
 import { isValidUsername, isValidPassword } from '../utils/validation';
 
@@ -30,6 +21,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
   const { signin, isLoading, error, clearError } = useAuth();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [validationError, setValidationError] = useState('');
 
   const handleLogin = async () => {
@@ -54,67 +46,91 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
   const displayError = validationError || error;
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView className="flex-1 bg-background relative">
+      {isLoading && (
+        <Loading
+          isOverlay
+          message="Signing into your account..."
+          subtitle="Verifying credentials & syncing your data"
+        />
+      )}
+
       <KeyboardAvoidingView 
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.keyboardAvoid}
+        className="flex-1"
       >
-        <ScrollView contentContainerStyle={styles.scrollContent}>
-          <TouchableOpacity style={styles.backButton} onPress={onNavigateToHome}>
-            <Text style={styles.backButtonText}>← Back to Home</Text>
+        <ScrollView contentContainerClassName="px-6 py-4 justify-center min-h-full max-w-[420px] self-center w-full" showsVerticalScrollIndicator={false}>
+          <TouchableOpacity className="flex-row items-center gap-1.5 self-start mb-4 py-1" onPress={onNavigateToHome}>
+            <Feather name="arrow-left" size={16} color="#64748B" />
+            <Text className="text-xs font-semibold text-muted-foreground">Back to Home</Text>
           </TouchableOpacity>
 
-          <View style={styles.header}>
-            <View style={styles.logoBadge}>
-              <Text style={styles.logoText}>৳</Text>
-            </View>
-            <Text style={styles.title}>Welcome Back</Text>
-            <Text style={styles.subtitle}>Sign in to continue</Text>
+          <View className="items-center mb-5">
+            <Logo size="sm" showSubtitle={false} className="mb-2.5" />
+            <Text className="text-xl font-black text-foreground">Welcome Back</Text>
+            <Text className="text-xs text-muted-foreground mt-0.5">Sign in to your account</Text>
           </View>
 
           {displayError ? (
-            <View style={styles.errorBanner}>
-              <Text style={styles.errorText}>{displayError}</Text>
+            <View className="flex-row items-center gap-2 bg-rose-50 p-3 rounded-xl mb-3.5 border border-rose-200">
+              <Feather name="alert-circle" size={15} color="#EF4444" />
+              <Text className="text-xs text-destructive font-medium flex-1">{displayError}</Text>
             </View>
           ) : null}
 
-          <View style={styles.formCard}>
-            <AppInput
-              label="Username"
-              placeholder="Enter your username"
-              value={username}
-              onChangeText={setUsername}
-              autoCapitalize="none"
-              containerStyle={styles.inputContainer}
-            />
-            
-            <AppInput
-              label="Password"
-              placeholder="Enter your password"
-              value={password}
-              onChangeText={setPassword}
-              isPassword
-              containerStyle={styles.inputContainer}
-            />
+          <View className="bg-card rounded-2xl p-5 border border-border shadow-xs gap-3.5">
+            <View className="gap-1">
+              <Text className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
+                Username
+              </Text>
+              <View className="flex-row items-center bg-background border border-border rounded-xl px-3 h-11">
+                <Feather name="user" size={15} color="#94A3B8" style={{ marginRight: 8 }} />
+                <TextInput
+                  className="flex-1 text-sm text-foreground h-full"
+                  placeholder="Enter username"
+                  placeholderTextColor="#94A3B8"
+                  value={username}
+                  onChangeText={setUsername}
+                  autoCapitalize="none"
+                />
+              </View>
+            </View>
 
-            <TouchableOpacity style={styles.forgotPassword}>
-              <Text style={styles.forgotPasswordText}>Forgot password?</Text>
-            </TouchableOpacity>
+            <View className="gap-1">
+              <Text className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
+                Password
+              </Text>
+              <View className="flex-row items-center bg-background border border-border rounded-xl px-3 h-11">
+                <Feather name="lock" size={15} color="#94A3B8" style={{ marginRight: 8 }} />
+                <TextInput
+                  className="flex-1 text-sm text-foreground h-full"
+                  placeholder="Enter password"
+                  placeholderTextColor="#94A3B8"
+                  value={password}
+                  onChangeText={setPassword}
+                  secureTextEntry={!showPassword}
+                />
+                <TouchableOpacity onPress={() => setShowPassword(!showPassword)} activeOpacity={0.7} className="p-1">
+                  <Feather name={showPassword ? 'eye-off' : 'eye'} size={15} color="#94A3B8" />
+                </TouchableOpacity>
+              </View>
+            </View>
 
-            <AppButton
-              title="Sign In"
-              variant="primary"
-              size="lg"
+            <Button
+              variant="default"
+              className="w-full py-3 rounded-xl mt-1.5 bg-primary"
+              textClassName="text-white font-bold text-xs"
               onPress={handleLogin}
-              loading={isLoading}
-              style={styles.loginBtn}
-            />
+              isLoading={isLoading}
+            >
+              Sign In
+            </Button>
           </View>
 
-          <View style={styles.footer}>
-            <Text style={styles.footerText}>Don't have an account? </Text>
-            <TouchableOpacity onPress={onNavigateToRegister}>
-              <Text style={styles.footerLink}>Create account</Text>
+          <View className="flex-row justify-center items-center mt-6 gap-1.5">
+            <Text className="text-xs text-muted-foreground">Don't have an account?</Text>
+            <TouchableOpacity onPress={onNavigateToRegister} activeOpacity={0.7} className="py-1">
+              <Text className="text-xs font-bold text-primary">Sign up</Text>
             </TouchableOpacity>
           </View>
         </ScrollView>
@@ -122,111 +138,3 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
     </SafeAreaView>
   );
 };
-
-const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  keyboardAvoid: {
-    flex: 1,
-  },
-  scrollContent: {
-    flexGrow: 1,
-    padding: spacing.lg,
-    justifyContent: 'center',
-  },
-  backButton: {
-    position: 'absolute',
-    top: spacing.xl,
-    left: spacing.lg,
-    zIndex: 1,
-  },
-  backButtonText: {
-    color: colors.textSecondary,
-    fontSize: typography.md,
-    fontWeight: '500',
-  },
-  header: {
-    alignItems: 'center',
-    marginBottom: spacing.xxl,
-    marginTop: spacing.xxl * 2,
-  },
-  logoBadge: {
-    width: 52,
-    height: 52,
-    backgroundColor: colors.primary,
-    borderRadius: borderRadius.md,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: spacing.lg,
-  },
-  logoText: {
-    color: colors.surface,
-    fontSize: typography.xl,
-    fontWeight: 'bold',
-  },
-  title: {
-    fontSize: typography.xxl,
-    fontWeight: 'bold',
-    color: colors.textPrimary,
-    marginBottom: spacing.xs,
-  },
-  subtitle: {
-    fontSize: typography.md,
-    color: colors.textSecondary,
-  },
-  errorBanner: {
-    backgroundColor: colors.dangerLight,
-    borderLeftWidth: 4,
-    borderLeftColor: colors.danger,
-    padding: spacing.md,
-    borderRadius: borderRadius.sm,
-    marginBottom: spacing.lg,
-  },
-  errorText: {
-    color: colors.danger,
-    fontSize: typography.sm,
-  },
-  formCard: {
-    backgroundColor: colors.surfaceCard,
-    borderRadius: borderRadius.xl,
-    padding: spacing.xl,
-    borderWidth: 1,
-    borderColor: colors.border,
-    shadowColor: colors.textPrimary,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  inputContainer: {
-    marginBottom: spacing.md,
-  },
-  forgotPassword: {
-    alignSelf: 'flex-end',
-    marginBottom: spacing.lg,
-  },
-  forgotPasswordText: {
-    color: colors.primary,
-    fontSize: typography.sm,
-    fontWeight: '600',
-  },
-  loginBtn: {
-    marginTop: spacing.sm,
-  },
-  footer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    marginTop: spacing.xl,
-  },
-  footerText: {
-    color: colors.textSecondary,
-    fontSize: typography.md,
-  },
-  footerLink: {
-    color: colors.primary,
-    fontSize: typography.md,
-    fontWeight: '600',
-  },
-});

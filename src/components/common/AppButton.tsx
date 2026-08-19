@@ -1,15 +1,11 @@
 import React, { ReactNode } from 'react';
 import {
-  TouchableOpacity,
-  Text,
-  StyleSheet,
   ActivityIndicator,
   ViewStyle,
   TextStyle,
   StyleProp,
 } from 'react-native';
-import { colors } from '../../constants/colors';
-import { spacing, borderRadius, typography } from '../../constants/spacing';
+import { View, Text, TouchableOpacity } from '../ui/core';
 
 export interface AppButtonProps {
   title: string;
@@ -23,6 +19,34 @@ export interface AppButtonProps {
   icon?: ReactNode;
 }
 
+const variantStyles: Record<string, string> = {
+  primary: 'bg-primary border border-primary shadow-sm',
+  secondary: 'bg-emerald-600 border border-emerald-600 shadow-sm',
+  outline: 'bg-background border border-border',
+  ghost: 'bg-transparent border-0',
+  danger: 'bg-destructive border border-destructive shadow-sm',
+};
+
+const textVariantStyles: Record<string, string> = {
+  primary: 'text-primary-foreground font-bold',
+  secondary: 'text-white font-bold',
+  outline: 'text-foreground font-semibold',
+  ghost: 'text-foreground font-semibold',
+  danger: 'text-destructive-foreground font-bold',
+};
+
+const sizeStyles: Record<string, string> = {
+  sm: 'px-3 py-1.5 rounded-lg',
+  md: 'px-4 py-2.5 rounded-xl',
+  lg: 'px-6 py-3.5 rounded-2xl',
+};
+
+const textSizeStyles: Record<string, string> = {
+  sm: 'text-xs',
+  md: 'text-sm',
+  lg: 'text-base',
+};
+
 export const AppButton: React.FC<AppButtonProps> = ({
   title,
   onPress,
@@ -34,69 +58,28 @@ export const AppButton: React.FC<AppButtonProps> = ({
   textStyle,
   icon,
 }) => {
-  const getVariantStyle = () => {
-    switch (variant) {
-      case 'secondary':
-        return styles.secondaryBtn;
-      case 'outline':
-        return styles.outlineBtn;
-      case 'ghost':
-        return styles.ghostBtn;
-      case 'danger':
-        return styles.dangerBtn;
-      case 'primary':
-      default:
-        return styles.primaryBtn;
-    }
-  };
-
-  const getVariantTextStyle = () => {
-    switch (variant) {
-      case 'secondary':
-      case 'danger':
-      case 'primary':
-        return styles.textLight;
-      case 'outline':
-      case 'ghost':
-        return styles.textPrimary;
-      default:
-        return styles.textLight;
-    }
-  };
-
-  const getSizeStyle = () => {
-    switch (size) {
-      case 'sm':
-        return styles.sizeSm;
-      case 'lg':
-        return styles.sizeLg;
-      case 'md':
-      default:
-        return styles.sizeMd;
-    }
-  };
-
   return (
     <TouchableOpacity
-      style={[
-        styles.button,
-        getVariantStyle(),
-        getSizeStyle(),
-        disabled && styles.disabledBtn,
-        style,
-      ]}
+      className={`flex-row items-center justify-center gap-2 ${
+        variantStyles[variant]
+      } ${sizeStyles[size]} ${disabled || loading ? 'opacity-50' : ''}`}
       onPress={onPress}
       disabled={disabled || loading}
       activeOpacity={0.8}
+      style={style as ViewStyle}
     >
       {loading ? (
         <ActivityIndicator
-          color={variant === 'outline' || variant === 'ghost' ? colors.primary : '#FFFFFF'}
+          size="small"
+          color={variant === 'outline' || variant === 'ghost' ? '#2563EB' : '#FFFFFF'}
         />
       ) : (
         <>
-          {icon}
-          <Text style={[styles.text, getVariantTextStyle(), textStyle]}>
+          {icon ? <View>{icon}</View> : null}
+          <Text
+            className={`text-center ${textVariantStyles[variant]} ${textSizeStyles[size]}`}
+            style={textStyle as TextStyle}
+          >
             {title}
           </Text>
         </>
@@ -104,77 +87,3 @@ export const AppButton: React.FC<AppButtonProps> = ({
     </TouchableOpacity>
   );
 };
-
-const styles = StyleSheet.create({
-  button: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: spacing.sm,
-  },
-  primaryBtn: {
-    backgroundColor: colors.primary,
-    shadowColor: colors.primary,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 3,
-    elevation: 2,
-  },
-  secondaryBtn: {
-    backgroundColor: colors.secondary,
-    shadowColor: colors.secondary,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 3,
-    elevation: 2,
-  },
-  outlineBtn: {
-    backgroundColor: 'transparent',
-    borderWidth: 1.5,
-    borderColor: colors.primary,
-    shadowColor: colors.primary,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
-  },
-  ghostBtn: {
-    backgroundColor: 'transparent',
-  },
-  dangerBtn: {
-    backgroundColor: colors.danger,
-    shadowColor: colors.danger,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 3,
-    elevation: 2,
-  },
-  disabledBtn: {
-    opacity: 0.6,
-  },
-  sizeSm: {
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.md,
-    borderRadius: borderRadius.md,
-  },
-  sizeMd: {
-    paddingVertical: 12,
-    paddingHorizontal: spacing.lg,
-    borderRadius: borderRadius.md,
-  },
-  sizeLg: {
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.xl,
-    borderRadius: borderRadius.lg,
-  },
-  text: {
-    fontSize: typography.md,
-    fontWeight: '600',
-  },
-  textLight: {
-    color: '#FFFFFF',
-  },
-  textPrimary: {
-    color: colors.primary,
-  },
-});

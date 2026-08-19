@@ -1,33 +1,18 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
-import { colors } from '../../theme/colors';
-import { spacing } from '../../theme/spacing';
-import { typography } from '../../theme/typography';
-import { useNetworkStatus } from '../../hooks/useNetworkStatus';
+import { Feather } from '@expo/vector-icons';
+import { View, Text } from '../ui/core';
 
-export const OfflineBanner: React.FC = () => {
-  const { isConnected } = useNetworkStatus();
+export interface OfflineBannerProps {
+  message?: string;
+}
 
-  if (isConnected) return null;
-
+export const OfflineBanner: React.FC<OfflineBannerProps> = ({
+  message = 'You are currently offline. Changes are saved locally.',
+}) => {
   return (
-    <View style={styles.banner}>
-      <Text style={styles.text}>You are currently offline. Changes will sync once reconnected.</Text>
+    <View className="bg-amber-50 px-4 py-2.5 flex-row items-center justify-center gap-2 border-b border-amber-200">
+      <Feather name="wifi-off" size={14} color="#D97706" />
+      <Text className="text-xs font-semibold text-amber-800 text-center flex-1">{message}</Text>
     </View>
   );
 };
-
-const styles = StyleSheet.create({
-  banner: {
-    backgroundColor: colors.warning,
-    paddingVertical: spacing.xs + 2,
-    paddingHorizontal: spacing.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  text: {
-    color: '#000000',
-    fontSize: typography.fontSizes.xs,
-    fontWeight: typography.fontWeights.medium,
-  },
-});

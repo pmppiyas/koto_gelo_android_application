@@ -1,18 +1,15 @@
 import React, { useState } from 'react';
+import { Modal, Platform } from 'react-native';
+import { Feather } from '@expo/vector-icons';
 import {
   View,
   Text,
-  StyleSheet,
-  Modal,
-  TextInput,
   TouchableOpacity,
+  TextInput,
+  KeyboardAvoidingView,
   ScrollView,
-  ActivityIndicator,
-  Alert,
-} from 'react-native';
-import { Feather } from '@expo/vector-icons';
-import { colors } from '../../constants/colors';
-import { spacing, borderRadius, typography } from '../../constants/spacing';
+  Button,
+} from '../ui';
 import { groupService, CreateGroupPayload } from '../../services/groupService';
 
 export interface CreateGroupModalProps {
@@ -22,14 +19,49 @@ export interface CreateGroupModalProps {
 }
 
 const GROUP_TYPES = [
-  { id: 'MESS', label: 'Mess / Hostel', emoji: '🍲', desc: 'Meals, rent & utilities' },
-  { id: 'FRIENDS', label: 'Friends', emoji: '👥', desc: 'Hangouts, dining & parties' },
+  {
+    id: 'MESS',
+    label: 'Mess / Hostel',
+    emoji: '🍲',
+    desc: 'Meals, rent & utilities',
+  },
+  {
+    id: 'FRIENDS',
+    label: 'Friends',
+    emoji: '👥',
+    desc: 'Hangouts, dining & parties',
+  },
   { id: 'TOUR', label: 'Tour', emoji: '🎒', desc: 'Travel & vacation trips' },
-  { id: 'TRIP', label: 'Trip / Outing', emoji: '✈️', desc: 'Day trips & events' },
-  { id: 'FAMILY', label: 'Family', emoji: '👨‍👩‍👧', desc: 'Household shared expenses' },
-  { id: 'OFFICE', label: 'Office', emoji: '💼', desc: 'Work lunches & team events' },
-  { id: 'ROOMMATES', label: 'Roommates', emoji: '🏠', desc: 'Flat rent, bills & wifi' },
-  { id: 'STUDENTS', label: 'Students', emoji: '🎓', desc: 'Study projects & events' },
+  {
+    id: 'TRIP',
+    label: 'Trip / Outing',
+    emoji: '✈️',
+    desc: 'Day trips & events',
+  },
+  {
+    id: 'FAMILY',
+    label: 'Family',
+    emoji: '👨‍👩‍👧',
+    desc: 'Household shared expenses',
+  },
+  {
+    id: 'OFFICE',
+    label: 'Office',
+    emoji: '💼',
+    desc: 'Work lunches & team events',
+  },
+  {
+    id: 'ROOMMATES',
+    label: 'Roommates',
+    emoji: '🏠',
+    desc: 'Flat rent, bills & wifi',
+  },
+  {
+    id: 'STUDENTS',
+    label: 'Students',
+    emoji: '🎓',
+    desc: 'Study projects & events',
+  },
   { id: 'OTHER', label: 'Other', emoji: '📁', desc: 'General shared expenses' },
 ] as const;
 
@@ -40,7 +72,8 @@ export const CreateGroupModal: React.FC<CreateGroupModalProps> = ({
 }) => {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
-  const [selectedType, setSelectedType] = useState<CreateGroupPayload['type']>('MESS');
+  const [selectedType, setSelectedType] =
+    useState<CreateGroupPayload['type']>('MESS');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
 
@@ -77,7 +110,9 @@ export const CreateGroupModal: React.FC<CreateGroupModalProps> = ({
       onGroupCreated();
       onClose();
     } catch (err: any) {
-      setError(err?.message || 'Failed to create group. Please check connection.');
+      setError(
+        err?.message || 'Failed to create group. Please check connection.',
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -90,292 +125,120 @@ export const CreateGroupModal: React.FC<CreateGroupModalProps> = ({
       animationType="slide"
       onRequestClose={handleClose}
     >
-      <View style={styles.overlay}>
-        <View style={styles.sheetContainer}>
-          <View style={styles.header}>
-            <View style={styles.headerTitleGroup}>
-              <View style={styles.headerIconCircle}>
-                <Feather name="users" size={20} color={colors.primary} />
+      <View className="flex-1 bg-slate-950/60 justify-end">
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          className="w-full"
+        >
+          <View className="bg-card rounded-t-3xl p-5 max-h-[85%] border-t border-border shadow-2xl">
+            <View className="flex-row items-center justify-between pb-3 border-b border-border">
+              <View className="flex-row items-center gap-2.5">
+                <View className="w-10 h-10 rounded-full bg-primary-light items-center justify-center">
+                  <Feather name="users" size={20} color="#2563EB" />
+                </View>
+                <Text className="text-lg font-bold text-foreground">
+                  Create New Group
+                </Text>
               </View>
-              <Text style={styles.headerTitle}>Create New Group</Text>
+              <TouchableOpacity
+                onPress={handleClose}
+                className="p-1"
+                activeOpacity={0.7}
+              >
+                <Feather name="x" size={20} color="#64748B" />
+              </TouchableOpacity>
             </View>
 
-            <TouchableOpacity
-              onPress={handleClose}
-              style={styles.closeBtn}
-              activeOpacity={0.7}
-            >
-              <Feather name="x" size={20} color={colors.textPrimary} />
-            </TouchableOpacity>
-          </View>
-
-          <ScrollView
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={styles.scrollBody}
-          >
             {error ? (
-              <View style={styles.errorBanner}>
-                <Feather name="alert-circle" size={16} color={colors.danger} />
-                <Text style={styles.errorText}>{error}</Text>
+              <View className="flex-row items-center gap-2 bg-rose-50 p-3 rounded-xl mt-3 border border-rose-200">
+                <Feather name="alert-circle" size={15} color="#EF4444" />
+                <Text className="text-xs text-destructive font-medium flex-1">
+                  {error}
+                </Text>
               </View>
             ) : null}
 
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>GROUP NAME *</Text>
+            <ScrollView showsVerticalScrollIndicator={false} className="my-3">
+              <Text className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1.5 mt-1">
+                GROUP NAME *
+              </Text>
               <TextInput
-                style={styles.textInput}
-                placeholder="e.g. Uttara Mess, Sajek Tour, Room 402"
-                placeholderTextColor={colors.textMuted}
+                className="bg-background border border-border rounded-xl px-4 py-3 text-sm text-foreground mb-4"
+                placeholder="e.g. Uttara Mess, Cox's Bazar Tour"
+                placeholderTextColor="#94A3B8"
                 value={name}
-                onChangeText={(text) => {
-                  setName(text);
-                  setError('');
-                }}
-                maxLength={80}
+                onChangeText={setName}
+                maxLength={60}
               />
-            </View>
 
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>GROUP TYPE</Text>
-              <View style={styles.typeGrid}>
-                {GROUP_TYPES.map((type) => {
+              <Text className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1.5">
+                GROUP TYPE
+              </Text>
+              <View className="flex-row flex-wrap gap-2 mb-4">
+                {GROUP_TYPES.map(type => {
                   const isSelected = selectedType === type.id;
                   return (
                     <TouchableOpacity
                       key={type.id}
-                      style={[
-                        styles.typeCard,
-                        isSelected && styles.typeCardSelected,
-                      ]}
-                      onPress={() => setSelectedType(type.id)}
-                      activeOpacity={0.8}
+                      className={`flex-row items-center gap-1.5 px-3 py-2 rounded-xl border ${
+                        isSelected
+                          ? 'bg-primary-light border-primary'
+                          : 'bg-background border-border'
+                      }`}
+                      onPress={() => setSelectedType(type.id as any)}
+                      activeOpacity={0.7}
                     >
-                      <Text style={styles.typeEmoji}>{type.emoji}</Text>
-                      <View style={styles.typeInfo}>
-                        <Text
-                          style={[
-                            styles.typeLabel,
-                            isSelected && styles.typeLabelSelected,
-                          ]}
-                          numberOfLines={1}
-                        >
-                          {type.label}
-                        </Text>
-                        <Text style={styles.typeDesc} numberOfLines={1}>
-                          {type.desc}
-                        </Text>
-                      </View>
-                      {isSelected ? (
-                        <View style={styles.selectedCheck}>
-                          <Feather name="check" size={12} color="#FFFFFF" />
-                        </View>
-                      ) : null}
+                      <Text className="text-base">{type.emoji}</Text>
+                      <Text
+                        className={`text-xs ${
+                          isSelected
+                            ? 'text-primary font-bold'
+                            : 'text-muted-foreground font-medium'
+                        }`}
+                      >
+                        {type.label}
+                      </Text>
                     </TouchableOpacity>
                   );
                 })}
               </View>
-            </View>
 
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>DESCRIPTION (OPTIONAL)</Text>
+              <Text className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1.5">
+                DESCRIPTION (OPTIONAL)
+              </Text>
               <TextInput
-                style={[styles.textInput, styles.textAreaInput]}
-                placeholder="Add rules, location, purpose or details..."
-                placeholderTextColor={colors.textMuted}
+                className="bg-background border border-border rounded-xl px-4 py-3 text-sm text-foreground h-20"
+                placeholder="Brief note about group members, flat rules, or trip plan..."
+                placeholderTextColor="#94A3B8"
                 value={description}
                 onChangeText={setDescription}
                 multiline
-                numberOfLines={3}
-                maxLength={500}
+                textAlignVertical="top"
+                maxLength={200}
               />
-            </View>
+            </ScrollView>
 
-            <TouchableOpacity
-              style={[styles.createBtn, isSubmitting && styles.createBtnDisabled]}
-              onPress={handleCreate}
-              disabled={isSubmitting}
-              activeOpacity={0.8}
-            >
-              {isSubmitting ? (
-                <ActivityIndicator size="small" color="#FFFFFF" />
-              ) : (
-                <>
-                  <Feather name="plus-circle" size={18} color="#FFFFFF" />
-                  <Text style={styles.createBtnText}>Create Group</Text>
-                </>
-              )}
-            </TouchableOpacity>
-          </ScrollView>
-        </View>
+            <View className="flex-row items-center gap-3 pt-3 border-t border-border">
+              <Button
+                variant="outline"
+                className="flex-1 rounded-xl py-3"
+                onPress={handleClose}
+                disabled={isSubmitting}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="default"
+                className="flex-1 rounded-xl py-3"
+                onPress={handleCreate}
+                isLoading={isSubmitting}
+              >
+                Create Group
+              </Button>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
       </View>
     </Modal>
   );
 };
-
-const styles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.55)',
-    justifyContent: 'flex-end',
-  },
-  sheetContainer: {
-    backgroundColor: colors.surface,
-    borderTopLeftRadius: borderRadius.xxl,
-    borderTopRightRadius: borderRadius.xxl,
-    maxHeight: '90%',
-    paddingBottom: spacing.xl,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.borderLight,
-  },
-  headerTitleGroup: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-  },
-  headerIconCircle: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: colors.primaryLight,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerTitle: {
-    fontSize: typography.md + 1,
-    fontWeight: '800',
-    color: colors.textPrimary,
-  },
-  closeBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.background,
-  },
-  scrollBody: {
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.md,
-    paddingBottom: spacing.lg,
-    gap: spacing.md,
-  },
-  errorBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs + 2,
-    backgroundColor: colors.dangerLight,
-    padding: spacing.sm + 2,
-    borderRadius: borderRadius.md,
-  },
-  errorText: {
-    fontSize: typography.xs,
-    color: colors.danger,
-    fontWeight: '600',
-    flex: 1,
-  },
-  inputGroup: {
-    gap: 6,
-  },
-  inputLabel: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: colors.textMuted,
-    letterSpacing: 0.8,
-  },
-  textInput: {
-    backgroundColor: colors.background,
-    borderWidth: 1.5,
-    borderColor: colors.border,
-    borderRadius: borderRadius.md,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm + 2,
-    fontSize: typography.sm,
-    color: colors.textPrimary,
-  },
-  textAreaInput: {
-    minHeight: 80,
-    textAlignVertical: 'top',
-    paddingTop: spacing.sm + 2,
-  },
-  typeGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.xs + 2,
-  },
-  typeCard: {
-    width: '48.5%',
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.background,
-    borderWidth: 1.5,
-    borderColor: colors.border,
-    borderRadius: borderRadius.md,
-    padding: spacing.sm,
-    gap: spacing.xs + 2,
-    position: 'relative',
-  },
-  typeCardSelected: {
-    borderColor: colors.primary,
-    backgroundColor: colors.primaryLight,
-  },
-  typeEmoji: {
-    fontSize: 20,
-  },
-  typeInfo: {
-    flex: 1,
-  },
-  typeLabel: {
-    fontSize: typography.xs,
-    fontWeight: '700',
-    color: colors.textPrimary,
-  },
-  typeLabelSelected: {
-    color: colors.primary,
-  },
-  typeDesc: {
-    fontSize: 9,
-    color: colors.textMuted,
-    marginTop: 1,
-  },
-  selectedCheck: {
-    position: 'absolute',
-    top: 4,
-    right: 4,
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    backgroundColor: colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  createBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: spacing.xs + 2,
-    backgroundColor: colors.primary,
-    paddingVertical: spacing.md,
-    borderRadius: borderRadius.full,
-    marginTop: spacing.sm,
-    shadowColor: colors.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  createBtnDisabled: {
-    opacity: 0.7,
-  },
-  createBtnText: {
-    color: '#FFFFFF',
-    fontSize: typography.sm + 1,
-    fontWeight: '800',
-  },
-});

@@ -1,9 +1,7 @@
 import React, { useMemo } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, ScrollView, StatusBar, TouchableOpacity } from 'react-native';
+import { StatusBar } from 'react-native';
 import { Feather } from '@expo/vector-icons';
-import { colors } from '../constants/colors';
-import { spacing, borderRadius, typography, BOTTOM_TAB_HEIGHT } from '../constants/spacing';
-import { EXPENSE_CATEGORIES } from '../constants/expense';
+import { View, Text, TouchableOpacity, ScrollView, SafeAreaView } from '../components/ui/core';
 import { BalanceCard } from '../components/dashboard/BalanceCard';
 import { SummaryCard } from '../components/dashboard/SummaryCard';
 import { RecentTransactions } from '../components/dashboard/RecentTransactions';
@@ -11,6 +9,8 @@ import { demoBalanceSummary, demoTransactions } from '../data/demoData';
 import { useAuth, useExpenses } from '../store/hooks';
 import { Transaction, BalanceSummary } from '../types/transaction';
 import { getLocalDateString } from '../utils/date';
+import { EXPENSE_CATEGORIES } from '../constants/expense';
+import { BOTTOM_TAB_HEIGHT, spacing } from '../constants/spacing';
 
 export interface DashboardScreenProps {
   onNavigateToTransactions?: () => void;
@@ -18,6 +18,7 @@ export interface DashboardScreenProps {
   onNavigateToTodayExpenses?: () => void;
   onNavigateToAnalytics?: () => void;
   onNavigateToGroups?: () => void;
+  onNavigateToGroupExpenses?: () => void;
   onNavigateToAddExpense?: () => void;
   onNavigateToProfile?: () => void;
   onNavigateToHome?: () => void;
@@ -29,6 +30,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
   onNavigateToTodayExpenses,
   onNavigateToAnalytics,
   onNavigateToGroups,
+  onNavigateToGroupExpenses,
   onNavigateToAddExpense,
   onNavigateToProfile,
 }) => {
@@ -49,263 +51,129 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
   }, []);
 
   const dynamicSummary: BalanceSummary = useMemo(() => {
-    const baseExpense = demoBalanceSummary.totalExpense;
-    const combinedExpense = baseExpense + totalExpenseAmount;
-    const baseBalance = demoBalanceSummary.totalBalance;
-    const combinedBalance = Math.max(0, baseBalance - totalExpenseAmount);
-    const combinedSavings = Math.max(0, demoBalanceSummary.savings - totalExpenseAmount);
-
+    const totalExp = totalExpenseAmount > 0 ? totalExpenseAmount : demoBalanceSummary.totalExpense;
     return {
-      totalBalance: combinedBalance,
+      totalBalance: Math.max(0, demoBalanceSummary.totalIncome - totalExp),
       totalIncome: demoBalanceSummary.totalIncome,
-      totalExpense: combinedExpense,
-      savings: combinedSavings,
-      youOwe: demoBalanceSummary.youOwe,
+      totalExpense: totalExp,
+      savings: Math.max(0, demoBalanceSummary.totalIncome - totalExp),
       youAreOwed: demoBalanceSummary.youAreOwed,
-      currency: 'BDT',
+      youOwe: demoBalanceSummary.youOwe,
     };
   }, [totalExpenseAmount]);
 
   const unifiedRecentTransactions: Transaction[] = useMemo(() => {
-    const today = getLocalDateString();
-    const localConverted: Transaction[] = expenses.map((e) => {
-      const catInfo = categoryMap[e.category] || categoryMap[e.category.toLowerCase()];
+    if (!expenses || expenses.length === 0) {
+      return demoTransactions.slice(0, 5);
+    }
+    const realTransactions: Transaction[] = expenses.slice(0, 5).map((e) => {
+      const catInfo = categoryMap[e.category] || { name: e.category, emoji: '📦', icon: 'credit-card' as const };
       return {
-        id: e.localId,
-        title: e.title || catInfo?.name || e.category,
-        category: catInfo?.name || e.category,
-        amount: Number(e.amount),
-        type: 'expense',
-        date: e.date === today ? 'Today' : e.date,
-        icon: catInfo?.icon || 'coffee',
+        id: e.id || e.localId || String(Math.random()),
+        title: e.title || e.category,
+        amount: e.amount,
+        type: 'expense' as const,
+        category: e.category,
+        date: e.date ? e.date.slice(0, 10) : (e as any).expenseDate ? (e as any).expenseDate.slice(0, 10) : getLocalDateString(),
+        icon: catInfo.icon,
       };
     });
-
-    return [...localConverted, ...demoTransactions].slice(0, 5);
+    return realTransactions;
   }, [expenses, categoryMap]);
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
+    <SafeAreaView className="flex-1 bg-background">
+      <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
       <ScrollView 
-        contentContainerStyle={[
-          styles.scrollContent,
-          { paddingBottom: BOTTOM_TAB_HEIGHT + spacing.lg }
-        ]}
+        contentContainerClassName="p-4 gap-4"
+        contentContainerStyle={{ paddingBottom: BOTTOM_TAB_HEIGHT + spacing.sm }}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.header}>
-          <View>
-            <Text style={styles.greetingText}>Good morning,</Text>
-            <Text style={styles.userName}>{displayName}</Text>
+        <View className="flex-row justify-between items-center py-1">
+          <View className="flex-1 pr-2">
+            <Text className="text-xs text-muted-foreground font-medium">Good morning,</Text>
+            <Text className="text-xl font-extrabold text-foreground" numberOfLines={1}>{displayName}</Text>
           </View>
-          <View style={styles.headerRight}>
-            <TouchableOpacity 
-              style={styles.avatarCircle}
-              onPress={onNavigateToProfile}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.avatarInitial}>{initial}</Text>
+          <View className="flex-row items-center gap-2">
+            <TouchableOpacity className="w-10 h-10 rounded-full bg-card border border-border items-center justify-center shadow-xs" activeOpacity={0.7}>
+              <Feather name="bell" size={18} color="#0F172A" />
             </TouchableOpacity>
-            
-            <TouchableOpacity style={styles.iconBtn} activeOpacity={0.7}>
-              <Feather name="bell" size={20} color={colors.textPrimary} />
+            <TouchableOpacity
+              className="w-10 h-10 rounded-full bg-primary-light border border-indigo-200 items-center justify-center shadow-xs"
+              onPress={onNavigateToProfile}
+              activeOpacity={0.7}
+            >
+              <Feather name="user" size={18} color="#4F46E5" />
             </TouchableOpacity>
           </View>
         </View>
 
         {pendingExpenses.length > 0 && (
           <TouchableOpacity 
-            style={styles.offlineBanner}
+            className="flex-row items-center justify-between bg-amber-50 p-3 rounded-2xl border border-amber-200"
             onPress={syncExpenses}
             disabled={isSyncing}
             activeOpacity={0.8}
           >
-            <View style={styles.offlineBannerLeft}>
+            <View className="flex-row items-center gap-2 flex-1">
               <Feather name="cloud-off" size={16} color="#B45309" />
-              <Text style={styles.offlineBannerText}>
+              <Text className="text-xs text-amber-900 font-semibold flex-1">
                 {pendingExpenses.length} expense{pendingExpenses.length > 1 ? 's' : ''} waiting to sync
               </Text>
             </View>
-            <View style={styles.syncNowBtn}>
-              <Text style={styles.syncNowText}>{isSyncing ? 'Syncing...' : 'Sync Now'}</Text>
+            <View className="bg-amber-600 px-3 py-1 rounded-full">
+              <Text className="text-xs text-white font-bold">{isSyncing ? 'Syncing...' : 'Sync Now'}</Text>
             </View>
           </TouchableOpacity>
         )}
 
-        <View style={styles.section}>
-          <BalanceCard balanceSummary={dynamicSummary} />
-        </View>
+        <BalanceCard balanceSummary={dynamicSummary} />
+        <SummaryCard balanceSummary={dynamicSummary} />
 
-        <View style={styles.section}>
-          <SummaryCard balanceSummary={dynamicSummary} />
-        </View>
-
-        <View style={styles.quickActionsContainer}>
-          <TouchableOpacity style={styles.actionItem} onPress={onNavigateToAddExpense}>
-            <View style={[styles.actionIconCircle, { backgroundColor: colors.primary }]}>
-              <Feather name="plus" size={24} color={colors.surface} />
+        <View className="flex-row justify-between gap-2 bg-card p-3.5 rounded-2xl border border-border shadow-sm">
+          <TouchableOpacity className="flex-1 items-center gap-1.5" onPress={onNavigateToAddExpense}>
+            <View className="w-12 h-12 rounded-2xl bg-primary items-center justify-center shadow-md">
+              <Feather name="plus" size={22} color="#FFFFFF" />
             </View>
-            <Text style={styles.actionLabel}>Add Expense</Text>
+            <Text className="text-[11px] font-bold text-foreground">Add Expense</Text>
           </TouchableOpacity>
           
           <TouchableOpacity 
-            style={styles.actionItem}
+            className="flex-1 items-center gap-1.5"
             onPress={onNavigateToPersonalExpenses}
           >
-            <View style={[styles.actionIconCircle, { backgroundColor: colors.secondary }]}>
-              <Feather name="credit-card" size={24} color={colors.surface} />
+            <View className="w-12 h-12 rounded-2xl bg-emerald-600 items-center justify-center shadow-md">
+              <Feather name="credit-card" size={20} color="#FFFFFF" />
             </View>
-            <Text style={styles.actionLabel}>My Expenses</Text>
+            <Text className="text-[11px] font-bold text-foreground">My Expenses</Text>
           </TouchableOpacity>
           
           <TouchableOpacity 
-            style={styles.actionItem}
+            className="flex-1 items-center gap-1.5"
             onPress={onNavigateToGroups || onNavigateToTransactions}
           >
-            <View style={[styles.actionIconCircle, { backgroundColor: colors.accent }]}>
-              <Feather name="users" size={24} color={colors.surface} />
+            <View className="w-12 h-12 rounded-2xl bg-indigo-600 items-center justify-center shadow-md">
+              <Feather name="users" size={20} color="#FFFFFF" />
             </View>
-            <Text style={styles.actionLabel}>Groups</Text>
+            <Text className="text-[11px] font-bold text-foreground">Groups</Text>
           </TouchableOpacity>
           
           <TouchableOpacity 
-            style={styles.actionItem}
+            className="flex-1 items-center gap-1.5"
             onPress={onNavigateToAnalytics || onNavigateToTransactions}
           >
-            <View style={[styles.actionIconCircle, { backgroundColor: colors.primaryDark }]}>
-              <Feather name="pie-chart" size={24} color={colors.surface} />
+            <View className="w-12 h-12 rounded-2xl bg-slate-800 items-center justify-center shadow-md">
+              <Feather name="pie-chart" size={20} color="#FFFFFF" />
             </View>
-            <Text style={styles.actionLabel}>Analytics</Text>
+            <Text className="text-[11px] font-bold text-foreground">Analytics</Text>
           </TouchableOpacity>
         </View>
 
-        <View style={styles.section}>
-          <RecentTransactions 
-            transactions={unifiedRecentTransactions} 
-            onSeeAll={onNavigateToPersonalExpenses || onNavigateToTransactions} 
-          />
-        </View>
+        <RecentTransactions 
+          transactions={unifiedRecentTransactions} 
+          onSeeAll={onNavigateToPersonalExpenses || onNavigateToTransactions} 
+        />
       </ScrollView>
     </SafeAreaView>
   );
 };
-
-const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  scrollContent: {
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.md,
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: spacing.md,
-  },
-  greetingText: {
-    fontSize: typography.sm,
-    color: colors.textSecondary,
-    marginBottom: spacing.xs,
-  },
-  userName: {
-    fontSize: typography.xl,
-    fontWeight: '800',
-    color: colors.textPrimary,
-  },
-  headerRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs + 2,
-  },
-  avatarCircle: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: colors.primaryLight,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  avatarInitial: {
-    color: colors.primary,
-    fontSize: typography.md,
-    fontWeight: 'bold',
-  },
-  iconBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: colors.surfaceCard,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  offlineBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#FEF3C7',
-    borderWidth: 1,
-    borderColor: '#FDE68A',
-    borderRadius: borderRadius.md,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    marginBottom: spacing.md,
-  },
-  offlineBannerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs + 2,
-    flex: 1,
-  },
-  offlineBannerText: {
-    fontSize: typography.xs,
-    fontWeight: '600',
-    color: '#92400E',
-  },
-  syncNowBtn: {
-    backgroundColor: '#F59E0B',
-    paddingHorizontal: spacing.sm + 2,
-    paddingVertical: 4,
-    borderRadius: borderRadius.sm,
-  },
-  syncNowText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  section: {
-    marginBottom: spacing.lg,
-  },
-  quickActionsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: spacing.xl,
-    paddingHorizontal: spacing.sm,
-  },
-  actionItem: {
-    alignItems: 'center',
-  },
-  actionIconCircle: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: spacing.sm,
-    shadowColor: colors.textPrimary,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  actionLabel: {
-    fontSize: typography.xs,
-    color: colors.textPrimary,
-    fontWeight: '500',
-  },
-});

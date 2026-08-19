@@ -1,7 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
-import { colors } from '../../constants/colors';
-import { typography } from '../../constants/spacing';
+import { View, Text } from '../ui/core';
 
 interface GroupMemberRowProps {
   name: string;
@@ -23,37 +21,32 @@ export const GroupMemberRow: React.FC<GroupMemberRowProps> = ({
   const isNegative = netBalance !== undefined && netBalance < 0;
 
   return (
-    <View style={styles.container}>
-      <View style={styles.avatar}>
-        <Text style={styles.avatarText}>{initial}</Text>
+    <View className="flex-row items-center py-2.5 border-b border-border">
+      <View className="w-10 h-10 rounded-full bg-primary-light items-center justify-center border border-blue-200">
+        <Text className="text-sm font-bold text-primary">{initial}</Text>
       </View>
 
-      <View style={styles.center}>
-        <View style={styles.nameRow}>
-          <Text style={styles.name}>
+      <View className="flex-1 ml-3">
+        <View className="flex-row items-center">
+          <Text className="text-sm font-bold text-foreground">
             {name}
             {isYou && ' (You)'}
           </Text>
           {role === 'ADMIN' && (
-            <View style={styles.badge}>
-              <Text style={styles.badgeText}>Admin</Text>
+            <View className="bg-primary-light px-1.5 py-0.5 rounded ml-1.5">
+              <Text className="text-[10px] font-semibold text-primary">Admin</Text>
             </View>
           )}
         </View>
-        <Text style={styles.username}>@{username}</Text>
+        <Text className="text-xs text-muted-foreground mt-0.5">@{username}</Text>
       </View>
 
       {netBalance !== undefined && netBalance !== 0 && (
-        <View style={styles.right}>
-          <Text
-            style={[
-              styles.balanceAmount,
-              { color: isPositive ? colors.secondary : colors.danger },
-            ]}
-          >
+        <View className="items-end">
+          <Text className={`text-sm font-bold ${isPositive ? 'text-emerald-600' : 'text-destructive'}`}>
             ৳{Math.abs(netBalance)}
           </Text>
-          <Text style={styles.balanceLabel}>
+          <Text className="text-[10px] text-muted-foreground mt-0.5">
             {isNegative ? 'owes' : 'gets back'}
           </Text>
         </View>
@@ -61,69 +54,3 @@ export const GroupMemberRow: React.FC<GroupMemberRowProps> = ({
     </View>
   );
 };
-
-const styles = StyleSheet.create({
-  container: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 0,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.borderLight,
-  },
-  avatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: colors.primaryLight,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  avatarText: {
-    fontSize: typography.sm,
-    fontWeight: 'bold',
-    color: colors.primary,
-  },
-  center: {
-    flex: 1,
-    marginLeft: 12,
-  },
-  nameRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  name: {
-    fontSize: typography.sm,
-    fontWeight: 'bold',
-    color: colors.textPrimary,
-  },
-  badge: {
-    backgroundColor: colors.primaryLight,
-    paddingHorizontal: 6,
-    borderRadius: 4,
-    marginLeft: 6,
-    paddingVertical: 1,
-  },
-  badgeText: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: colors.primary,
-  },
-  username: {
-    fontSize: typography.xs,
-    color: colors.textMuted,
-    marginTop: 2,
-  },
-  right: {
-    alignItems: 'flex-end',
-  },
-  balanceAmount: {
-    fontSize: typography.sm,
-    fontWeight: 'bold',
-  },
-  balanceLabel: {
-    fontSize: 10,
-    color: colors.textMuted,
-    marginTop: 1,
-  },
-});

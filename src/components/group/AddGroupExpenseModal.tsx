@@ -1,29 +1,30 @@
 import React, { useState } from 'react';
+import { Modal, Platform } from 'react-native';
+import { Feather } from '@expo/vector-icons';
 import {
   View,
   Text,
-  StyleSheet,
-  Modal,
   TouchableOpacity,
   TextInput,
-  ScrollView,
-  ActivityIndicator,
   KeyboardAvoidingView,
-  Platform,
-} from 'react-native';
-import { Feather } from '@expo/vector-icons';
-import { colors } from '../../constants/colors';
-import { spacing, borderRadius, typography } from '../../constants/spacing';
+  ScrollView,
+  Button,
+} from '../ui';
 import { EXPENSE_CATEGORIES } from '../../constants/expense';
 import { groupService, GroupMember } from '../../services/groupService';
-import { getLocalDateString, formatExpenseDateForServer } from '../../utils/date';
+import {
+  getLocalDateString,
+  formatExpenseDateForServer,
+} from '../../utils/date';
 
 interface AddGroupExpenseModalProps {
   visible: boolean;
   groupId: string;
   members: GroupMember[];
+  currentUserId?: string;
   onClose: () => void;
-  onExpenseAdded: () => void;
+  onSuccess?: () => void;
+  onExpenseAdded?: () => void;
 }
 
 export const AddGroupExpenseModal: React.FC<AddGroupExpenseModalProps> = ({
@@ -31,6 +32,7 @@ export const AddGroupExpenseModal: React.FC<AddGroupExpenseModalProps> = ({
   groupId,
   members,
   onClose,
+  onSuccess,
   onExpenseAdded,
 }) => {
   const [title, setTitle] = useState('');
@@ -38,14 +40,12 @@ export const AddGroupExpenseModal: React.FC<AddGroupExpenseModalProps> = ({
   const [selectedCategory, setSelectedCategory] = useState('');
   const [note, setNote] = useState('');
   const [isSaving, setIsSaving] = useState(false);
-  const [step, setStep] = useState<'form' | 'category'>('form');
 
   const reset = () => {
     setTitle('');
     setAmount('');
     setSelectedCategory('');
     setNote('');
-    setStep('form');
   };
 
   const handleClose = () => {
@@ -69,7 +69,8 @@ export const AddGroupExpenseModal: React.FC<AddGroupExpenseModalProps> = ({
         expenseDate: formatExpenseDateForServer(getLocalDateString()),
         splitType: 'EQUAL',
       });
-      onExpenseAdded();
+      onSuccess?.();
+      onExpenseAdded?.();
       handleClose();
     } catch {
       setIsSaving(false);
@@ -77,291 +78,159 @@ export const AddGroupExpenseModal: React.FC<AddGroupExpenseModalProps> = ({
   };
 
   const isValid = parseFloat(amount) > 0 && selectedCategory;
-
-  if (step === 'category') {
-    return (
-      <Modal visible={visible} transparent animationType="slide" onRequestClose={() => setStep('form')}>
-        <View style={styles.overlay}>
-          <View style={styles.sheetFull}>
-            <View style={styles.sheetHeader}>
-              <TouchableOpacity onPress={() => setStep('form')}>
-                <Feather name="arrow-left" size={22} color={colors.textPrimary} />
-              </TouchableOpacity>
-              <Text style={styles.sheetTitle}>Select Category</Text>
-              <View style={{ width: 22 }} />
-            </View>
-
-            <ScrollView contentContainerStyle={styles.categoryGrid}>
-              {EXPENSE_CATEGORIES.map((cat) => {
-                const isActive = selectedCategory === cat.name;
-                return (
-                  <TouchableOpacity
-                    key={cat.id}
-                    style={[styles.categoryItem, isActive && styles.categoryItemActive]}
-                    onPress={() => {
-                      setSelectedCategory(cat.name);
-                      setStep('form');
-                    }}
-                  >
-                    <Text style={styles.categoryEmoji}>{cat.emoji}</Text>
-                    <Text style={[styles.categoryName, isActive && styles.categoryNameActive]}>
-                      {cat.name}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
-    );
-  }
+  const numAmount = parseFloat(amount) || 0;
+  const memberCount = members.length || 1;
+  const splitAmount = numAmount > 0 ? Math.round(numAmount / memberCount) : 0;
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={handleClose}>
-      <KeyboardAvoidingView
-        style={styles.overlay}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
-        <View style={styles.sheet}>
-          <View style={styles.sheetHeader}>
-            <TouchableOpacity onPress={handleClose}>
-              <Feather name="x" size={22} color={colors.textPrimary} />
-            </TouchableOpacity>
-            <Text style={styles.sheetTitle}>Add Group Expense</Text>
-            <View style={{ width: 22 }} />
-          </View>
-
-          <ScrollView showsVerticalScrollIndicator={false}>
-            <View style={styles.amountSection}>
-              <Text style={styles.currencySymbol}>৳</Text>
-              <TextInput
-                style={styles.amountInput}
-                placeholder="0"
-                placeholderTextColor={colors.textMuted}
-                keyboardType="numeric"
-                value={amount}
-                onChangeText={setAmount}
-                autoFocus
-              />
+    <Modal
+      visible={visible}
+      transparent
+      animationType="slide"
+      onRequestClose={handleClose}
+    >
+      <View className="flex-1 bg-slate-950/60 justify-end">
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          className="w-full"
+        >
+          <View className="bg-card rounded-t-3xl p-5 max-h-[88%] border-t border-border shadow-2xl">
+            <View className="flex-row items-center justify-between pb-3 border-b border-border">
+              <View className="flex-row items-center gap-2.5">
+                <View className="w-10 h-10 rounded-full bg-primary-light items-center justify-center">
+                  <Feather name="plus-circle" size={20} color="#2563EB" />
+                </View>
+                <View>
+                  <Text className="text-lg font-bold text-foreground">
+                    Add Group Expense
+                  </Text>
+                  <Text className="text-xs text-muted-foreground">
+                    Split equally with all members
+                  </Text>
+                </View>
+              </View>
+              <TouchableOpacity
+                onPress={handleClose}
+                className="p-1"
+                activeOpacity={0.7}
+              >
+                <Feather name="x" size={20} color="#64748B" />
+              </TouchableOpacity>
             </View>
 
-            <TouchableOpacity
-              style={styles.fieldRow}
-              onPress={() => setStep('category')}
-            >
-              <Feather name="grid" size={18} color={colors.textSecondary} />
-              <Text style={[styles.fieldText, !selectedCategory && styles.fieldPlaceholder]}>
-                {selectedCategory || 'Select category'}
+            <ScrollView showsVerticalScrollIndicator={false} className="my-3">
+              <Text className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1.5 mt-1">
+                AMOUNT (৳) *
               </Text>
-              <Feather name="chevron-right" size={18} color={colors.textMuted} />
-            </TouchableOpacity>
+              <View className="flex-row items-center bg-background border-2 border-border rounded-2xl px-4 h-14 mb-2">
+                <Text className="text-2xl font-extrabold text-primary mr-2">
+                  ৳
+                </Text>
+                <TextInput
+                  className="flex-1 text-2xl font-extrabold text-foreground h-full"
+                  placeholder="0.00"
+                  placeholderTextColor="#94A3B8"
+                  keyboardType="numeric"
+                  value={amount}
+                  onChangeText={setAmount}
+                  autoFocus
+                />
+              </View>
 
-            <View style={styles.inputRow}>
-              <Feather name="edit-3" size={18} color={colors.textSecondary} />
+              {numAmount > 0 && (
+                <View className="flex-row items-center justify-between bg-primary-light px-3.5 py-2 rounded-xl border border-blue-200 mb-4">
+                  <Text className="text-xs text-primary font-semibold">
+                    Equal Split ({memberCount} members):
+                  </Text>
+                  <Text className="text-xs font-extrabold text-primary">
+                    ৳{splitAmount.toLocaleString()}/person
+                  </Text>
+                </View>
+              )}
+
+              <Text className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1.5">
+                EXPENSE TITLE / ITEM
+              </Text>
               <TextInput
-                style={styles.textField}
-                placeholder="Title (optional)"
-                placeholderTextColor={colors.textMuted}
+                className="bg-background border border-border rounded-xl px-4 py-3 text-sm text-foreground mb-4"
+                placeholder="e.g. Bazar, Lunch, Grocery, Electricity Bill"
+                placeholderTextColor="#94A3B8"
                 value={title}
                 onChangeText={setTitle}
+                maxLength={60}
               />
-            </View>
 
-            <View style={styles.inputRow}>
-              <Feather name="file-text" size={18} color={colors.textSecondary} />
+              <Text className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1.5">
+                CATEGORY *
+              </Text>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerClassName="gap-2 py-1 mb-4"
+              >
+                {EXPENSE_CATEGORIES.map(cat => {
+                  const isSelected = selectedCategory === cat.name;
+                  return (
+                    <TouchableOpacity
+                      key={cat.id}
+                      className={`flex-row items-center gap-1.5 px-3.5 py-2 rounded-xl border ${
+                        isSelected
+                          ? 'bg-primary-light border-primary'
+                          : 'bg-background border-border'
+                      }`}
+                      onPress={() => setSelectedCategory(cat.name)}
+                      activeOpacity={0.7}
+                    >
+                      <Text className="text-base">{cat.emoji}</Text>
+                      <Text
+                        className={`text-xs ${
+                          isSelected
+                            ? 'text-primary font-bold'
+                            : 'text-muted-foreground font-medium'
+                        }`}
+                      >
+                        {cat.name}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+
+              <Text className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1.5">
+                NOTE (OPTIONAL)
+              </Text>
               <TextInput
-                style={styles.textField}
-                placeholder="Note (optional)"
-                placeholderTextColor={colors.textMuted}
+                className="bg-background border border-border rounded-xl px-4 py-3 text-sm text-foreground mb-2"
+                placeholder="Additional details..."
+                placeholderTextColor="#94A3B8"
                 value={note}
                 onChangeText={setNote}
+                maxLength={100}
               />
-            </View>
+            </ScrollView>
 
-            <View style={styles.splitInfo}>
-              <Feather name="users" size={16} color={colors.primary} />
-              <Text style={styles.splitInfoText}>
-                Split equally among {members.length} member{members.length !== 1 ? 's' : ''}
-              </Text>
-              {parseFloat(amount) > 0 && members.length > 0 && (
-                <Text style={styles.splitAmount}>
-                  ৳{(parseFloat(amount) / members.length).toFixed(0)}/person
-                </Text>
-              )}
+            <View className="flex-row items-center gap-3 pt-3 border-t border-border">
+              <Button
+                variant="outline"
+                className="flex-1 rounded-xl py-3"
+                onPress={handleClose}
+                disabled={isSaving}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="default"
+                className="flex-1 rounded-xl py-3"
+                onPress={handleSave}
+                disabled={!isValid || isSaving}
+                isLoading={isSaving}
+              >
+                Add Expense
+              </Button>
             </View>
-          </ScrollView>
-
-          <TouchableOpacity
-            style={[styles.saveBtn, !isValid && styles.saveBtnDisabled]}
-            onPress={handleSave}
-            disabled={!isValid || isSaving}
-            activeOpacity={0.8}
-          >
-            {isSaving ? (
-              <ActivityIndicator color="#FFFFFF" size="small" />
-            ) : (
-              <Text style={styles.saveBtnText}>Add Expense</Text>
-            )}
-          </TouchableOpacity>
-        </View>
-      </KeyboardAvoidingView>
+          </View>
+        </KeyboardAvoidingView>
+      </View>
     </Modal>
   );
 };
-
-const styles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'flex-end',
-  },
-  sheet: {
-    backgroundColor: colors.surface,
-    borderTopLeftRadius: borderRadius.xl,
-    borderTopRightRadius: borderRadius.xl,
-    paddingHorizontal: spacing.lg,
-    paddingBottom: spacing.xl,
-    maxHeight: '85%',
-  },
-  sheetFull: {
-    backgroundColor: colors.surface,
-    borderTopLeftRadius: borderRadius.xl,
-    borderTopRightRadius: borderRadius.xl,
-    paddingHorizontal: spacing.lg,
-    paddingBottom: spacing.xl,
-    flex: 1,
-    marginTop: 60,
-  },
-  sheetHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.borderLight,
-    marginBottom: spacing.md,
-  },
-  sheetTitle: {
-    fontSize: typography.md,
-    fontWeight: '800',
-    color: colors.textPrimary,
-  },
-  amountSection: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: spacing.lg,
-    gap: spacing.xs,
-  },
-  currencySymbol: {
-    fontSize: typography.xxl,
-    fontWeight: '800',
-    color: colors.textMuted,
-  },
-  amountInput: {
-    fontSize: 40,
-    fontWeight: '800',
-    color: colors.textPrimary,
-    minWidth: 80,
-    textAlign: 'center',
-  },
-  fieldRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    paddingVertical: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.borderLight,
-  },
-  fieldText: {
-    flex: 1,
-    fontSize: typography.sm,
-    fontWeight: '600',
-    color: colors.textPrimary,
-  },
-  fieldPlaceholder: {
-    color: colors.textMuted,
-    fontWeight: '500',
-  },
-  inputRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    paddingVertical: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.borderLight,
-  },
-  textField: {
-    flex: 1,
-    fontSize: typography.sm,
-    color: colors.textPrimary,
-  },
-  splitInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    backgroundColor: colors.primaryLight,
-    padding: spacing.md,
-    borderRadius: borderRadius.md,
-    marginTop: spacing.md,
-  },
-  splitInfoText: {
-    flex: 1,
-    fontSize: typography.xs,
-    fontWeight: '600',
-    color: colors.primary,
-  },
-  splitAmount: {
-    fontSize: typography.xs,
-    fontWeight: '800',
-    color: colors.primary,
-  },
-  categoryGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.sm,
-    paddingBottom: spacing.xxl,
-  },
-  categoryItem: {
-    width: '30%',
-    alignItems: 'center',
-    paddingVertical: spacing.md,
-    borderRadius: borderRadius.md,
-    borderWidth: 1,
-    borderColor: colors.borderLight,
-  },
-  categoryItemActive: {
-    backgroundColor: colors.primaryLight,
-    borderColor: colors.primary,
-  },
-  categoryEmoji: {
-    fontSize: 24,
-    marginBottom: spacing.xs,
-  },
-  categoryName: {
-    fontSize: typography.xs,
-    fontWeight: '600',
-    color: colors.textSecondary,
-    textAlign: 'center',
-  },
-  categoryNameActive: {
-    color: colors.primary,
-    fontWeight: '700',
-  },
-  saveBtn: {
-    backgroundColor: colors.primary,
-    paddingVertical: spacing.md,
-    borderRadius: borderRadius.full,
-    alignItems: 'center',
-    marginTop: spacing.md,
-  },
-  saveBtnDisabled: {
-    opacity: 0.4,
-  },
-  saveBtnText: {
-    color: '#FFFFFF',
-    fontSize: typography.sm,
-    fontWeight: '800',
-  },
-});

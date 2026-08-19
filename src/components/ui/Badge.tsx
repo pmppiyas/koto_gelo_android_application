@@ -1,72 +1,50 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
-import { colors } from '../../theme/colors';
-import { spacing } from '../../theme/spacing';
-import { typography } from '../../theme/typography';
+import { View, Text, ViewProps, TextStyle, ViewStyle } from 'react-native';
+import { cn } from '../../lib/utils';
 
-export interface BadgeProps {
-  label: string;
-  variant?: 'primary' | 'secondary' | 'success' | 'warning' | 'error' | 'default';
+export interface BadgeProps extends ViewProps {
+  variant?: 'default' | 'secondary' | 'destructive' | 'outline' | 'success' | 'warning' | 'info';
+  children: React.ReactNode;
+  className?: string;
+  textClassName?: string;
 }
 
+const badgeVariants: Record<string, { bg: string; text: string; border: string }> = {
+  default: { bg: 'bg-primary', text: 'text-white font-bold', border: 'border-primary' },
+  secondary: { bg: 'bg-slate-100', text: 'text-slate-700 font-semibold', border: 'border-slate-200' },
+  destructive: { bg: 'bg-rose-50', text: 'text-rose-700 font-bold', border: 'border-rose-200' },
+  outline: { bg: 'bg-transparent', text: 'text-slate-700 font-medium', border: 'border-slate-300' },
+  success: { bg: 'bg-emerald-50', text: 'text-emerald-700 font-bold', border: 'border-emerald-200' },
+  warning: { bg: 'bg-amber-50', text: 'text-amber-700 font-bold', border: 'border-amber-200' },
+  info: { bg: 'bg-indigo-50', text: 'text-indigo-700 font-bold', border: 'border-indigo-200' },
+};
+
 export const Badge: React.FC<BadgeProps> = ({
-  label,
   variant = 'default',
+  children,
+  className,
+  textClassName,
+  style,
+  ...props
 }) => {
+  const v = badgeVariants[variant] || badgeVariants.default;
+
   return (
-    <View style={[styles.badge, styles[variant]]}>
-      <Text style={[styles.text, styles[`text_${variant}`]]}>{label}</Text>
+    <View
+      style={cn(
+        'flex-row items-center gap-1.5 px-2.5 py-1 rounded-full border',
+        v.bg,
+        v.border,
+        className,
+        style as ViewStyle
+      )}
+      {...props}
+    >
+      {typeof children === 'string' ? (
+        <Text style={cn('text-xs', v.text, textClassName)}>{children}</Text>
+      ) : (
+        children
+      )}
     </View>
   );
 };
-
-const styles = StyleSheet.create({
-  badge: {
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs / 2,
-    borderRadius: 12,
-    alignSelf: 'flex-start',
-  },
-  default: {
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  primary: {
-    backgroundColor: `${colors.primary}20`,
-  },
-  secondary: {
-    backgroundColor: `${colors.secondary}20`,
-  },
-  success: {
-    backgroundColor: `${colors.success}20`,
-  },
-  warning: {
-    backgroundColor: `${colors.warning}20`,
-  },
-  error: {
-    backgroundColor: `${colors.error}20`,
-  },
-  text: {
-    fontSize: typography.fontSizes.xs,
-    fontWeight: typography.fontWeights.medium,
-  },
-  text_default: {
-    color: colors.textSecondary,
-  },
-  text_primary: {
-    color: colors.primary,
-  },
-  text_secondary: {
-    color: colors.secondary,
-  },
-  text_success: {
-    color: colors.success,
-  },
-  text_warning: {
-    color: colors.warning,
-  },
-  text_error: {
-    color: colors.error,
-  },
-});

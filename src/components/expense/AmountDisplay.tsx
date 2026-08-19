@@ -1,7 +1,6 @@
 import React from 'react';
-import { Text, StyleSheet, TextStyle } from 'react-native';
-import { colors } from '../../theme/colors';
-import { typography } from '../../theme/typography';
+import { TextStyle } from 'react-native';
+import { Text } from '../ui/core';
 import { formatCurrency } from '../../utils/currency';
 
 export interface AmountDisplayProps {
@@ -10,7 +9,21 @@ export interface AmountDisplayProps {
   type?: 'income' | 'expense' | 'neutral';
   size?: 'sm' | 'md' | 'lg' | 'xl';
   style?: TextStyle;
+  className?: string;
 }
+
+const typeStyles: Record<string, string> = {
+  income: 'text-emerald-600 font-extrabold',
+  expense: 'text-destructive font-extrabold',
+  neutral: 'text-foreground font-bold',
+};
+
+const sizeStyles: Record<string, string> = {
+  sm: 'text-xs',
+  md: 'text-sm',
+  lg: 'text-base',
+  xl: 'text-xl',
+};
 
 export const AmountDisplay: React.FC<AmountDisplayProps> = ({
   amount,
@@ -18,39 +31,16 @@ export const AmountDisplay: React.FC<AmountDisplayProps> = ({
   type = 'neutral',
   size = 'md',
   style,
+  className,
 }) => {
   const formatted = formatCurrency(amount, currency);
 
   return (
-    <Text style={[styles.text, styles[type], styles[`size_${size}`], style]}>
+    <Text
+      className={`${typeStyles[type]} ${sizeStyles[size]} ${className || ''}`}
+      style={style}
+    >
       {type === 'income' ? `+${formatted}` : type === 'expense' ? `-${formatted}` : formatted}
     </Text>
   );
 };
-
-const styles = StyleSheet.create({
-  text: {
-    fontWeight: typography.fontWeights.bold,
-  },
-  income: {
-    color: colors.success,
-  },
-  expense: {
-    color: colors.error,
-  },
-  neutral: {
-    color: colors.text,
-  },
-  size_sm: {
-    fontSize: typography.fontSizes.sm,
-  },
-  size_md: {
-    fontSize: typography.fontSizes.md,
-  },
-  size_lg: {
-    fontSize: typography.fontSizes.lg,
-  },
-  size_xl: {
-    fontSize: typography.fontSizes.xxl,
-  },
-});

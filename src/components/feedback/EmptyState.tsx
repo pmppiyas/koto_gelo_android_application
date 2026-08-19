@@ -1,9 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
-import { colors } from '../../theme/colors';
-import { spacing } from '../../theme/spacing';
-import { typography } from '../../theme/typography';
-import { Button } from '../ui/Button';
+import { View, Text, Button } from '../ui';
 
 export interface EmptyStateProps {
   title: string;
@@ -21,44 +17,23 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
   icon,
 }) => {
   return (
-    <View style={styles.container}>
-      {icon ? <View style={styles.icon}>{icon}</View> : null}
-      <Text style={styles.title}>{title}</Text>
-      {description ? <Text style={styles.description}>{description}</Text> : null}
+    <View className="p-6 items-center justify-center">
+      {icon ? <View className="mb-3">{icon}</View> : null}
+      <Text className="text-base font-bold text-foreground text-center mb-1">{title}</Text>
+      {description ? (
+        <Text className="text-xs text-muted-foreground text-center leading-relaxed mb-4">
+          {description}
+        </Text>
+      ) : null}
       {actionTitle && onAction ? (
         <Button
-          title={actionTitle}
+          variant="default"
+          className="rounded-full px-5 py-2.5"
           onPress={onAction}
-          style={styles.button}
-        />
+        >
+          {actionTitle}
+        </Button>
       ) : null}
     </View>
   );
 };
-
-const styles = StyleSheet.create({
-  container: {
-    padding: spacing.xl,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  icon: {
-    marginBottom: spacing.md,
-  },
-  title: {
-    fontSize: typography.fontSizes.lg,
-    fontWeight: typography.fontWeights.bold,
-    color: colors.text,
-    textAlign: 'center',
-    marginBottom: spacing.xs,
-  },
-  description: {
-    fontSize: typography.fontSizes.sm,
-    color: colors.textSecondary,
-    textAlign: 'center',
-    marginBottom: spacing.md,
-  },
-  button: {
-    marginTop: spacing.sm,
-  },
-});

@@ -1,8 +1,6 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
 import { Feather } from '@expo/vector-icons';
-import { colors } from '../../constants/colors';
-import { spacing, borderRadius, typography } from '../../constants/spacing';
+import { View, Text } from '../ui/core';
 
 export interface AdvantageCardProps {
   advantage: {
@@ -14,38 +12,11 @@ export interface AdvantageCardProps {
 
 export const AdvantageCard: React.FC<AdvantageCardProps> = ({ advantage }) => {
   return (
-    <View style={styles.container}>
-      <View style={styles.iconWrapper}>
-        <Feather name={advantage.icon as any} size={14} color={colors.secondary} />
+    <View className="flex-row items-center bg-card py-2 px-3.5 rounded-full border border-border gap-2">
+      <View className="w-7 h-7 rounded-full bg-emerald-50 items-center justify-center">
+        <Feather name={advantage.icon as any} size={14} color="#10B981" />
       </View>
-      <Text style={styles.title}>{advantage.title}</Text>
+      <Text className="text-xs font-semibold text-foreground">{advantage.title}</Text>
     </View>
   );
 };
-
-const styles = StyleSheet.create({
-  container: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.surface,
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.md,
-    borderRadius: borderRadius.full,
-    borderWidth: 1,
-    borderColor: colors.border,
-    gap: spacing.sm,
-  },
-  iconWrapper: {
-    width: 28,
-    height: 28,
-    borderRadius: borderRadius.full,
-    backgroundColor: colors.secondaryLight,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  title: {
-    fontSize: typography.sm,
-    fontWeight: '600',
-    color: colors.textPrimary,
-  },
-});

@@ -2,10 +2,11 @@ import { useStore, RootState } from './store';
 import { authService } from '../services/authService';
 import { localExpenseService } from '../services/localExpenseService';
 import { expenseSyncService } from '../services/expenseSyncService';
-import { storage, STORAGE_KEYS } from '../config/storage';
+import { expenseService } from '../services/expenseService';
+import { groupService } from '../services/groupService';
 import { SignInPayload, SignUpPayload } from '../features/auth/auth.types';
 import { LocalExpense } from '../features/expenses/expense.types';
-import { getLocalDateString } from '../utils/date';
+import { getLocalDateString, formatExpenseDateForServer } from '../utils/date';
 
 export const useAppSelector = <T>(selector: (state: RootState) => T): T => {
   const { state } = useStore();
@@ -76,7 +77,10 @@ export const useExpenses = () => {
 
   const todayStr = getLocalDateString();
 
-  const todayExpenses = expenses.filter((e) => {
+  const personalExpenses = expenses.filter((e) => e.type !== 'GROUP');
+  const groupExpenses = expenses.filter((e) => e.type === 'GROUP');
+
+  const todayExpenses = personalExpenses.filter((e) => {
     const expenseDate = e.date ? e.date.split('T')[0] : '';
     return expenseDate === todayStr;
   });
@@ -85,7 +89,7 @@ export const useExpenses = () => {
     (e) => e.syncStatus === 'pending' || e.syncStatus === 'failed'
   );
 
-  const totalExpenseAmount = expenses.reduce((sum, e) => sum + Number(e.amount || 0), 0);
+  const totalExpenseAmount = personalExpenses.reduce((sum, e) => sum + Number(e.amount || 0), 0);
   const todayExpenseAmount = todayExpenses.reduce((sum, e) => sum + Number(e.amount || 0), 0);
 
   const addExpense = async (input: {
@@ -117,15 +121,34 @@ export const useExpenses = () => {
       updatedAt: now,
     };
 
+    if (isAuthenticated) {
+      try {
+        let result: any;
+        if (newExpense.type === 'GROUP' && newExpense.groupId) {
+          result = await groupService.addGroupExpense({
+            groupId: newExpense.groupId,
+            amount: newExpense.amount,
+            category: newExpense.category,
+            subcategory: newExpense.subcategory || undefined,
+            title: newExpense.title || undefined,
+            note: newExpense.note || undefined,
+            expenseDate: formatExpenseDateForServer(newExpense.date),
+            splitType: 'EQUAL',
+          });
+        } else {
+          result = await expenseService.createPersonalExpense(newExpense);
+        }
+        const serverId = result?.id || result?.expense?.id || `srv_${Date.now()}`;
+        const syncedExpense: LocalExpense = { ...newExpense, serverId, syncStatus: 'synced' };
+        await localExpenseService.saveExpenseLocally(syncedExpense);
+        dispatch({ type: 'expenses/addLocalExpense', payload: syncedExpense });
+        return syncedExpense;
+      } catch {
+      }
+    }
+
     await localExpenseService.saveExpenseLocally(newExpense);
     dispatch({ type: 'expenses/addLocalExpense', payload: newExpense });
-
-    const storedToken = await storage.getItem(STORAGE_KEYS.AUTH_TOKEN);
-    if (isAuthenticated || storedToken) {
-      try {
-        await expenseSyncService.syncSingleExpense(newExpense, dispatch);
-      } catch {}
-    }
 
     return newExpense;
   };
@@ -141,6 +164,8 @@ export const useExpenses = () => {
 
   return {
     expenses,
+    personalExpenses,
+    groupExpenses,
     todayExpenses,
     pendingExpenses,
     totalExpenseAmount,

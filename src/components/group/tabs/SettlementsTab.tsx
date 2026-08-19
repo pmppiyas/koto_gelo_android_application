@@ -1,17 +1,14 @@
 import React from 'react';
 import {
-  View,
-  Text,
   FlatList,
   ActivityIndicator,
   RefreshControl,
-  StyleSheet,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
-import { Settlement } from '../../../services/groupService';
+import { View, Text, TouchableOpacity } from '../../ui/core';
 import { SettlementCard } from '../SettlementCard';
-import { colors } from '../../../constants/colors';
-import { spacing, borderRadius, typography, BOTTOM_TAB_HEIGHT } from '../../../constants/spacing';
+import { Settlement } from '../../../services/groupService';
+import { BOTTOM_TAB_HEIGHT, spacing } from '../../../constants/spacing';
 
 export interface SettlementsTabProps {
   settlements: Settlement[];
@@ -32,8 +29,8 @@ export const SettlementsTab: React.FC<SettlementsTabProps> = ({
 }) => {
   if (isLoading && settlements.length === 0) {
     return (
-      <View style={styles.centered}>
-        <ActivityIndicator size="large" color={colors.primary} />
+      <View className="flex-1 justify-center items-center py-16">
+        <ActivityIndicator size="large" color="#2563EB" />
       </View>
     );
   }
@@ -41,109 +38,47 @@ export const SettlementsTab: React.FC<SettlementsTabProps> = ({
   return (
     <FlatList
       data={settlements}
-      keyExtractor={(_, index) => index.toString()}
-      contentContainerStyle={styles.listContent}
+      keyExtractor={(item, index) => `${item.from.id}-${item.to.id}-${index}`}
+      contentContainerClassName="px-4 pt-3"
+      contentContainerStyle={{ paddingBottom: BOTTOM_TAB_HEIGHT + spacing.sm }}
       showsVerticalScrollIndicator={false}
       refreshControl={
         onRefresh ? (
           <RefreshControl
             refreshing={isRefreshing}
             onRefresh={onRefresh}
-            colors={[colors.primary]}
-            tintColor={colors.primary}
+            colors={['#2563EB']}
+            tintColor="#2563EB"
           />
         ) : undefined
       }
+      ItemSeparatorComponent={() => <View className="h-2.5" />}
       ListHeaderComponent={
-        <View style={styles.infoCard}>
-          <Feather name="info" size={16} color={colors.primary} />
-          <Text style={styles.infoText}>
-            These are the minimum transfers calculated to balance all member dues.
-          </Text>
-        </View>
+        settlements.length > 0 ? (
+          <View className="flex-row items-center gap-2 bg-primary-light p-3 rounded-xl border border-blue-200 mb-3">
+            <Feather name="info" size={16} color="#2563EB" />
+            <Text className="text-xs text-primary font-medium flex-1 leading-snug">
+              These are the minimum transactions needed to settle all debts and month-end balances in the group.
+            </Text>
+          </View>
+        ) : null
       }
       renderItem={({ item }) => (
         <SettlementCard
-          fromName={item.from.name || item.from.username}
-          toName={item.to.name || item.to.username}
-          amount={item.amount}
-          isYouFrom={item.from.id === userId}
-          isYouTo={item.to.id === userId}
+          settlement={item}
+          currentUserId={userId}
           onSettle={() => onSettle(item)}
         />
       )}
-      ItemSeparatorComponent={() => <View style={styles.separator} />}
       ListEmptyComponent={
-        <View style={styles.emptyContainer}>
-          <View style={styles.emptyIconCircle}>
-            <Feather name="check-circle" size={40} color={colors.secondary} />
-          </View>
-          <Text style={styles.emptyTitle}>All Settled Up!</Text>
-          <Text style={styles.emptySubtitle}>
-            No pending debts or settlements needed in this group right now.
+        <View className="bg-card rounded-2xl p-6 items-center justify-center border border-dashed border-border mt-4">
+          <Feather name="check-circle" size={32} color="#10B981" style={{ marginBottom: 8 }} />
+          <Text className="text-base font-bold text-foreground mb-1">No Pending Settlements 🎉</Text>
+          <Text className="text-xs text-muted-foreground text-center leading-relaxed">
+            Everyone is fully squared away! When new expenses or deposits are added, optimal settlement transfers will appear here.
           </Text>
         </View>
       }
     />
   );
 };
-
-const styles = StyleSheet.create({
-  centered: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: spacing.xxl,
-  },
-  listContent: {
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.md,
-    paddingBottom: BOTTOM_TAB_HEIGHT + spacing.sm,
-  },
-  infoCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.primaryLight,
-    padding: spacing.md - 2,
-    borderRadius: borderRadius.md,
-    marginBottom: spacing.md,
-    gap: spacing.sm,
-  },
-  infoText: {
-    flex: 1,
-    fontSize: typography.xs + 1,
-    color: colors.primary,
-    fontWeight: '600',
-    lineHeight: 18,
-  },
-  separator: {
-    height: spacing.sm,
-  },
-  emptyContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: spacing.xxl,
-    paddingHorizontal: spacing.md,
-  },
-  emptyIconCircle: {
-    width: 68,
-    height: 68,
-    borderRadius: 34,
-    backgroundColor: colors.secondaryLight,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: spacing.md,
-  },
-  emptyTitle: {
-    fontSize: typography.md,
-    fontWeight: '800',
-    color: colors.textPrimary,
-    marginBottom: spacing.xs,
-  },
-  emptySubtitle: {
-    fontSize: typography.sm,
-    color: colors.textMuted,
-    textAlign: 'center',
-    lineHeight: 20,
-  },
-});
