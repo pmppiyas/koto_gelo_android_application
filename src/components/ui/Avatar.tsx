@@ -1,60 +1,67 @@
 import React from 'react';
-import { View, Text, Image, StyleSheet } from 'react-native';
-import { colors } from '../../theme/colors';
-import { typography } from '../../theme/typography';
+import { View, Text, Image, ViewProps, TextStyle, ViewStyle, ImageSourcePropType } from 'react-native';
+import { cn } from '../../lib/utils';
 
-export interface AvatarProps {
-  name?: string;
-  source?: string;
-  size?: number;
+export interface AvatarProps extends ViewProps {
+  size?: 'sm' | 'md' | 'lg' | 'xl';
+  className?: string;
+  children?: React.ReactNode;
 }
 
+const sizeClasses: Record<string, { container: string; text: string }> = {
+  sm: { container: 'w-7 h-7 rounded-full', text: 'text-xs font-bold' },
+  md: { container: 'w-10 h-10 rounded-full', text: 'text-sm font-bold' },
+  lg: { container: 'w-12 h-12 rounded-full', text: 'text-base font-bold' },
+  xl: { container: 'w-16 h-16 rounded-full', text: 'text-xl font-bold' },
+};
+
 export const Avatar: React.FC<AvatarProps> = ({
-  name = '',
-  source,
-  size = 40,
+  size = 'md',
+  className,
+  style,
+  children,
+  ...props
 }) => {
-  const initials = name
-    ? name
-        .split(' ')
-        .map(n => n[0])
-        .join('')
-        .toUpperCase()
-        .slice(0, 2)
-    : '?';
+  const s = sizeClasses[size] || sizeClasses.md;
 
   return (
     <View
-      style={[
-        styles.container,
-        {
-          width: size,
-          height: size,
-          borderRadius: size / 2,
-        },
-      ]}
-    >
-      {source ? (
-        <Image
-          source={{ uri: source }}
-          style={{ width: size, height: size, borderRadius: size / 2 }}
-        />
-      ) : (
-        <Text style={[styles.text, { fontSize: size * 0.4 }]}>{initials}</Text>
+      style={cn(
+        'items-center justify-center bg-blue-100 border border-blue-200 overflow-hidden',
+        s.container,
+        className,
+        style as ViewStyle
       )}
+      {...props}
+    >
+      {children}
     </View>
   );
 };
 
-const styles = StyleSheet.create({
-  container: {
-    backgroundColor: colors.primaryLight,
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
-  },
-  text: {
-    color: '#FFFFFF',
-    fontWeight: typography.fontWeights.semiBold,
-  },
-});
+export const AvatarImage: React.FC<{ source: ImageSourcePropType; className?: string }> = ({
+  source,
+  className,
+}) => {
+  return (
+    <Image
+      source={source}
+      style={cn('w-full h-full rounded-full', className)}
+      resizeMode="cover"
+    />
+  );
+};
+
+export const AvatarFallback: React.FC<{ children: string; size?: 'sm' | 'md' | 'lg' | 'xl'; className?: string; textClassName?: string }> = ({
+  children,
+  size = 'md',
+  className,
+  textClassName,
+}) => {
+  const s = sizeClasses[size] || sizeClasses.md;
+  return (
+    <Text style={cn('text-blue-600 font-extrabold', s.text, textClassName)}>
+      {children.slice(0, 2).toUpperCase()}
+    </Text>
+  );
+};

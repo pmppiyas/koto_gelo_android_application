@@ -1,10 +1,8 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Feather } from '@expo/vector-icons';
+import { View, Text, TouchableOpacity } from '../ui/core';
 import { Transaction } from '../../types/transaction';
 import { categoryIconMap } from '../../data/demoData';
-import { colors } from '../../constants/colors';
-import { spacing, borderRadius, typography } from '../../constants/spacing';
 
 export interface RecentTransactionsProps {
   transactions: Transaction[];
@@ -16,64 +14,64 @@ export const RecentTransactions: React.FC<RecentTransactionsProps> = ({
   onSeeAll,
 }) => {
   return (
-    <View style={styles.container}>
-      <View style={styles.headerRow}>
-        <Text style={styles.title}>Recent Activity</Text>
+    <View className="bg-card rounded-2xl border border-border p-4 mb-6 shadow-sm">
+      <View className="flex-row justify-between items-center mb-3">
+        <Text className="text-base font-bold text-foreground">Recent Expenses</Text>
         {onSeeAll && (
-          <TouchableOpacity onPress={onSeeAll}>
-            <Text style={styles.seeAllText}>See All</Text>
+          <TouchableOpacity onPress={onSeeAll} activeOpacity={0.7}>
+            <Text className="text-sm text-primary font-semibold">See All</Text>
           </TouchableOpacity>
         )}
       </View>
 
       {transactions.map((item, index) => {
         const isLast = index === transactions.length - 1;
-        
         const iconName = item.icon || categoryIconMap[item.category] || 'more-horizontal';
-        let bgStyle = {};
-        let iconColor = colors.textPrimary;
-        let amountStyle = {};
-        let amountPrefix = '';
+
+        let bgClass = 'bg-rose-50';
+        let iconColor = '#EF4444';
+        let amountColor = 'text-foreground';
+        let amountPrefix = '-';
 
         if (item.type === 'income') {
-          bgStyle = styles.bgIncome;
-          iconColor = colors.secondary;
-          amountStyle = styles.amountIncome;
+          bgClass = 'bg-emerald-50';
+          iconColor = '#10B981';
+          amountColor = 'text-emerald-600';
           amountPrefix = '+';
         } else if (item.type === 'settlement') {
-          bgStyle = styles.bgSettlement;
-          iconColor = colors.accent;
-          amountStyle = styles.amountSettlement;
+          bgClass = 'bg-amber-50';
+          iconColor = '#F59E0B';
+          amountColor = 'text-amber-600';
           amountPrefix = '+';
-        } else {
-          bgStyle = styles.bgExpense;
-          iconColor = colors.danger;
-          amountStyle = styles.amountExpense;
-          amountPrefix = '-';
         }
 
         return (
-          <View key={item.id} style={[styles.transactionItem, !isLast && styles.borderBottom]}>
-            <View style={styles.itemLeft}>
-              <View style={[styles.iconBadge, bgStyle]}>
-                <Feather name={iconName as any} size={20} color={iconColor} />
+          <View
+            key={item.id}
+            className={`flex-row justify-between items-center py-3 ${
+              !isLast ? 'border-b border-border' : ''
+            }`}
+          >
+            <View className="flex-row items-center flex-1 pr-3">
+              <View className={`w-10 h-10 rounded-xl items-center justify-center mr-3 ${bgClass}`}>
+                <Feather name={iconName as any} size={18} color={iconColor} />
               </View>
-              <View style={styles.itemCenter}>
-                <Text style={styles.itemTitle} numberOfLines={1}>
+              <View className="flex-1">
+                <Text className="text-sm font-semibold text-card-foreground mb-0.5" numberOfLines={1}>
                   {item.title}
                 </Text>
-                <Text style={styles.itemMeta}>
+                <Text className="text-xs text-muted-foreground">
                   {item.groupName ? `${item.groupName} • ` : ''}
                   {item.date}
                 </Text>
               </View>
             </View>
 
-            <View style={styles.itemRight}>
-              <Text style={[styles.itemAmount, amountStyle]}>
+            <View className="items-end">
+              <Text className={`text-sm font-bold mb-0.5 ${amountColor}`}>
                 {amountPrefix}৳{item.amount.toLocaleString('en-US')}
               </Text>
-              <Text style={styles.itemCategory}>{item.category}</Text>
+              <Text className="text-xs text-muted-foreground">{item.category}</Text>
             </View>
           </View>
         );
@@ -81,97 +79,3 @@ export const RecentTransactions: React.FC<RecentTransactionsProps> = ({
     </View>
   );
 };
-
-const styles = StyleSheet.create({
-  container: {
-    backgroundColor: colors.surface,
-    borderRadius: borderRadius.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: spacing.md,
-    marginBottom: spacing.xl,
-  },
-  headerRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: spacing.md,
-  },
-  title: {
-    fontSize: typography.md,
-    fontWeight: '700',
-    color: colors.textPrimary,
-  },
-  seeAllText: {
-    fontSize: typography.sm,
-    color: colors.primary,
-    fontWeight: '600',
-  },
-  transactionItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: spacing.sm,
-  },
-  borderBottom: {
-    borderBottomWidth: 1,
-    borderBottomColor: colors.borderLight,
-  },
-  itemLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-    paddingRight: spacing.sm,
-  },
-  iconBadge: {
-    width: 40,
-    height: 40,
-    borderRadius: borderRadius.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: spacing.sm,
-  },
-  bgIncome: {
-    backgroundColor: colors.secondaryLight,
-  },
-  bgExpense: {
-    backgroundColor: colors.dangerLight,
-  },
-  bgSettlement: {
-    backgroundColor: colors.accentLight,
-  },
-  itemCenter: {
-    flex: 1,
-  },
-  itemTitle: {
-    fontSize: typography.sm + 1,
-    fontWeight: '600',
-    color: colors.textPrimary,
-    marginBottom: 2,
-  },
-  itemMeta: {
-    fontSize: typography.xs,
-    color: colors.textSecondary,
-  },
-  itemRight: {
-    alignItems: 'flex-end',
-  },
-  itemAmount: {
-    fontSize: typography.md,
-    fontWeight: '700',
-    marginBottom: 2,
-  },
-  amountIncome: {
-    color: colors.secondary,
-  },
-  amountExpense: {
-    color: colors.textPrimary,
-  },
-  amountSettlement: {
-    color: colors.accent,
-  },
-  itemCategory: {
-    fontSize: typography.xs,
-    color: colors.textMuted,
-  },
-});

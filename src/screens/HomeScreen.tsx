@@ -1,17 +1,9 @@
-import React from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  SafeAreaView,
-  StatusBar,
-  TouchableOpacity,
-} from 'react-native';
+import React, { useState } from 'react';
+import { StatusBar } from 'react-native';
 import { Feather } from '@expo/vector-icons';
-import { colors } from '../constants/colors';
-import { spacing, borderRadius, typography, BOTTOM_TAB_HEIGHT } from '../constants/spacing';
-import { useExpenses } from '../store/hooks';
+import { View, Text, TouchableOpacity, ScrollView, SafeAreaView, Button } from '../components/ui';
+import { Logo } from '../components/common/Logo';
+import { spacing } from '../constants/spacing';
 
 export interface HomeScreenProps {
   onNavigateToLogin: () => void;
@@ -23,833 +15,562 @@ export interface HomeScreenProps {
 
 const FEATURE_CARDS = [
   {
-    icon: 'credit-card',
-    iconBg: '#DBEAFE',
+    icon: 'credit-card' as const,
+    iconBg: 'bg-indigo-50',
+    iconColor: '#4F46E5',
+    title: 'Personal Daily Tracking',
+    desc: 'Log meals, commute, shopping, and utilities in seconds with 35+ categories and smart filters.',
+  },
+  {
+    icon: 'users' as const,
+    iconBg: 'bg-blue-50',
     iconColor: '#2563EB',
-    title: 'Personal Expenses',
-    desc: 'Track daily meals, commute, shopping, and bills with 35+ categories and instant smart search.',
-  },
-  {
-    icon: 'users',
-    iconBg: '#FEF3C7',
-    iconColor: '#D97706',
     title: 'Mess & Group Splits',
-    desc: 'Split flat rent, mess grocery, tour budgets, and dining bills equally with zero manual math.',
+    desc: 'Split mess groceries, apartment rent, and tour bills equally with zero manual calculations.',
   },
   {
-    icon: 'pie-chart',
-    iconBg: '#DCFCE7',
-    iconColor: '#16A34A',
-    title: 'Visual Analytics',
-    desc: 'Understand spending trends with interactive category distribution charts and period comparisons.',
+    icon: 'pie-chart' as const,
+    iconBg: 'bg-emerald-50',
+    iconColor: '#059669',
+    title: 'Visual Spending Analytics',
+    desc: 'Understand your monthly expenditure with interactive category breakdowns and percentage bars.',
   },
   {
-    icon: 'check-circle',
-    iconBg: '#EDE9FE',
+    icon: 'check-circle' as const,
+    iconBg: 'bg-teal-50',
+    iconColor: '#0D9488',
+    title: 'Instant Debt Settlement',
+    desc: 'Know exactly who owes whom. Auto-calculate net balances and settle in one tap.',
+  },
+  {
+    icon: 'wifi-off' as const,
+    iconBg: 'bg-sky-50',
+    iconColor: '#0284C7',
+    title: 'Offline-First Storage',
+    desc: 'Add expenses anywhere with zero internet connection. Everything syncs securely when online.',
+  },
+  {
+    icon: 'shield' as const,
+    iconBg: 'bg-purple-50',
     iconColor: '#7C3AED',
-    title: 'Optimal Settlements',
-    desc: 'Smart algorithms calculate minimum transactions so members can settle debts in one tap.',
-  },
-  {
-    icon: 'wifi-off',
-    iconBg: '#FEE2E2',
-    iconColor: '#DC2626',
-    title: 'Offline-First Engine',
-    desc: 'Add expenses anywhere with zero internet. Your data syncs securely the moment you connect.',
-  },
-  {
-    icon: 'shield',
-    iconBg: '#CCFBF1',
-    iconColor: '#0F766E',
-    title: 'Privacy & Security',
-    desc: 'Your financial data is protected with encrypted authentication and bank-grade storage.',
+    title: 'Private & Secure',
+    desc: 'JWT authentication, encrypted local storage, and automatic backup protect your financial records.',
   },
 ];
 
-const GROUP_USE_CASES = [
-  { emoji: '🍲', label: 'Mess & Flat Meals', desc: 'Manage meal counts, grocery shopping & utility bills' },
-  { emoji: '🎒', label: 'Tours & Trips', desc: 'Track hotel bookings, transport & shared food costs' },
-  { emoji: '🏠', label: 'Roommates', desc: 'Split apartment rent, WiFi & maid service smoothly' },
-  { emoji: '💼', label: 'Office & Team', desc: 'Team treats, project lunches & celebration costs' },
+const POPULAR_CATEGORIES = [
+  { emoji: '🍲', name: 'Food & Dining' },
+  { emoji: '🛒', name: 'Mess Grocery' },
+  { emoji: '🏠', name: 'House Rent' },
+  { emoji: '🚗', name: 'Travel & Taxi' },
+  { emoji: '💡', name: 'Utility Bills' },
+  { emoji: '🎒', name: 'Tour & Trips' },
+  { emoji: '🛍️', name: 'Shopping' },
+  { emoji: '🏥', name: 'Medical' },
 ];
 
-const FINANCIAL_TIPS = [
+const WORKFLOW_STEPS = [
   {
-    icon: 'trending-up',
-    tag: 'Budgeting Rule',
-    title: 'The 50/30/20 Rule',
-    desc: 'Allocate 50% of your income for essentials, 30% for lifestyle wants, and save/invest the remaining 20%.',
+    step: '1',
+    title: 'Log Daily Expenses',
+    desc: 'Quickly record personal or group expenses with category tags and dates.',
+    icon: 'edit-3' as const,
   },
   {
-    icon: 'coffee',
-    tag: 'Daily Habit',
-    title: 'Track Micro-Expenses',
-    desc: 'Logging daily snacks, tea, and quick rides can uncover and save up to 25% of unmonitored monthly spending.',
+    step: '2',
+    title: 'Collaborate in Groups',
+    desc: 'Invite roommates, mess members, or tour companions with a simple invite.',
+    icon: 'user-plus' as const,
   },
   {
-    icon: 'zap',
-    tag: 'Group Harmony',
-    title: 'Instant Bill Logging',
-    desc: 'Record shared group expenses on the spot to avoid end-of-month confusion and awkward calculations.',
+    step: '3',
+    title: 'Auto Split & Settle',
+    desc: 'KotoGelo divides costs equally and tracks every member’s deposit and share.',
+    icon: 'check-square' as const,
+  },
+];
+
+const FAQS = [
+  {
+    q: 'Is KotoGelo completely free to use?',
+    a: 'Yes! KotoGelo is 100% free with unlimited personal expenses, group splits, and analytics.',
+  },
+  {
+    q: 'Can I track expenses when I have no internet connection?',
+    a: 'Absolutely. KotoGelo is built with an offline-first engine. You can log expenses offline, and they will automatically sync as soon as you reconnect.',
+  },
+  {
+    q: 'How does equal share calculation work for groups?',
+    a: 'Total group expenses are automatically divided by total members. Members who deposited more than their equal share receive money (+), while those who deposited less see their exact pending dues (-).',
+  },
+  {
+    q: 'Can I invite friends who are on other devices?',
+    a: 'Yes! You can invite members directly using their username. They can accept the invitation to instantly see the shared group balance and activity.',
   },
 ];
 
 export const HomeScreen: React.FC<HomeScreenProps> = ({
   onNavigateToLogin,
   onNavigateToRegister,
-  onNavigateToDashboard,
-  isAuthenticated = false,
-  userName = 'User',
 }) => {
-  const { totalExpenseAmount, pendingExpenses } = useExpenses();
+  const [activeDemoTab, setActiveDemoTab] = useState<'PERSONAL' | 'GROUP'>('PERSONAL');
+  const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(0);
+
+  const toggleFaq = (index: number) => {
+    setOpenFaqIndex(openFaqIndex === index ? null : index);
+  };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="dark-content" backgroundColor={colors.surface} />
+    <SafeAreaView className="flex-1 bg-background">
+      <StatusBar barStyle="dark-content" backgroundColor="#f8fafc" />
+
+      {/* Top Brand Header */}
+      <View className="flex-row items-center justify-between px-5 py-3.5 bg-card border-b border-border shadow-xs">
+        <Logo size="sm" showSubtitle={false} />
+
+        <View className="flex-row items-center gap-2">
+          <TouchableOpacity
+            className="px-3.5 py-1.5 rounded-xl bg-slate-100"
+            onPress={onNavigateToLogin}
+            activeOpacity={0.7}
+          >
+            <Text className="text-xs font-bold text-slate-800">Sign In</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            className="px-3.5 py-1.5 rounded-xl bg-primary shadow-xs"
+            onPress={onNavigateToRegister}
+            activeOpacity={0.8}
+          >
+            <Text className="text-xs font-bold text-white">Get Started</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
       <ScrollView
-        contentContainerStyle={[
-          styles.scrollContent,
-          { paddingBottom: isAuthenticated ? BOTTOM_TAB_HEIGHT + spacing.sm : spacing.lg },
-        ]}
+        className="flex-1"
+        contentContainerClassName="p-4 gap-5"
+        contentContainerStyle={{ paddingBottom: spacing.xxl }}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.topBar}>
-          <View style={styles.logoGroup}>
-            <View style={styles.logoBadge}>
-              <Text style={styles.logoSymbol}>৳</Text>
+        {/* 1. Main Luxury Hero Banner */}
+        <View className="bg-slate-900 rounded-3xl p-6 shadow-xl border border-slate-800">
+          <View className="flex-row items-center justify-between mb-4">
+            <View className="w-12 h-12 rounded-2xl bg-indigo-500/20 border border-indigo-400/30 items-center justify-center">
+              <Text className="text-2xl font-black text-indigo-300">৳</Text>
             </View>
-            <View>
-              <Text style={styles.logoText}>KotoGelo</Text>
-              <Text style={styles.logoTagline}>Smart Financial Tracker</Text>
+            <View className="bg-indigo-500/20 px-3 py-1 rounded-full border border-indigo-400/30">
+              <Text className="text-[11px] font-bold text-indigo-200">
+                ✨ Pro Edition • 100% Free
+              </Text>
             </View>
           </View>
 
-          <View style={styles.topBarActions}>
-            {!isAuthenticated ? (
-              <TouchableOpacity
-                style={styles.loginOutlineBtn}
-                onPress={onNavigateToLogin}
-                activeOpacity={0.8}
-              >
-                <Text style={styles.loginOutlineBtnText}>Log In</Text>
-              </TouchableOpacity>
-            ) : (
-              <TouchableOpacity
-                style={styles.userBadgeBtn}
-                onPress={onNavigateToDashboard}
-                activeOpacity={0.8}
-              >
-                <View style={styles.userAvatarCircle}>
-                  <Text style={styles.userAvatarInitial}>{userName.charAt(0).toUpperCase()}</Text>
-                </View>
-                <Feather name="chevron-right" size={16} color={colors.textSecondary} />
-              </TouchableOpacity>
-            )}
+          <Text className="text-2xl font-black text-white tracking-tight leading-tight mb-2">
+            Smart Expense & Mess Tracker
+          </Text>
+
+          <Text className="text-xs text-slate-300 leading-relaxed mb-5">
+            Track every taka, split mess groceries equally, manage roommate bills, and settle group tour expenses with zero manual math.
+          </Text>
+
+          {/* Action Buttons */}
+          <View className="flex-row gap-3 mb-5">
+            <Button
+              variant="default"
+              className="flex-1 py-3 rounded-xl bg-primary"
+              textClassName="text-white font-bold text-xs"
+              onPress={onNavigateToRegister}
+            >
+              Get Started Free →
+            </Button>
+            <Button
+              variant="secondary"
+              className="flex-1 py-3 rounded-xl bg-slate-800 border border-slate-700"
+              textClassName="text-white font-bold text-xs"
+              onPress={onNavigateToLogin}
+            >
+              Sign In
+            </Button>
+          </View>
+
+          {/* Quick Highlight Stats Row */}
+          <View className="flex-row items-center justify-between pt-4 border-t border-slate-800/80">
+            <View className="items-center">
+              <Text className="text-sm font-black text-white">100%</Text>
+              <Text className="text-[10px] text-slate-400 font-medium mt-0.5">Free Always</Text>
+            </View>
+            <View className="w-[1px] h-6 bg-slate-800" />
+            <View className="items-center">
+              <Text className="text-sm font-black text-emerald-400">Offline</Text>
+              <Text className="text-[10px] text-slate-400 font-medium mt-0.5">Ready Engine</Text>
+            </View>
+            <View className="w-[1px] h-6 bg-slate-800" />
+            <View className="items-center">
+              <Text className="text-sm font-black text-indigo-300">0%</Text>
+              <Text className="text-[10px] text-slate-400 font-medium mt-0.5">Math Errors</Text>
+            </View>
           </View>
         </View>
 
-        {isAuthenticated ? (
-          <View style={styles.authHeroCard}>
-            <View style={styles.authHeroTop}>
-              <View>
-                <Text style={styles.authHeroGreeting}>Welcome Back,</Text>
-                <Text style={styles.authHeroName}>{userName}</Text>
-              </View>
-              <View style={styles.currencyBadge}>
-                <Text style={styles.currencyBadgeText}>BDT (৳)</Text>
-              </View>
+        {/* 2. Interactive Interactive Live Demo Card (Personal & Group Switcher) */}
+        <View className="bg-card rounded-3xl p-5 border border-border shadow-xs gap-3.5">
+          {/* Header with Title and Segmented Switcher */}
+          <View className="flex-row items-center justify-between">
+            <View>
+              <Text className="text-base font-extrabold text-foreground">
+                Interactive Live Preview
+              </Text>
+              <Text className="text-xs text-muted-foreground">
+                See how easy tracking & splitting feels
+              </Text>
             </View>
+            <View className="bg-primary-light px-2 py-0.5 rounded-full border border-indigo-200">
+              <Text className="text-[10px] font-bold text-primary">Live Demo</Text>
+            </View>
+          </View>
 
-            <View style={styles.authBalanceRow}>
-              <View>
-                <Text style={styles.authBalanceLabel}>Today's Recorded Expenses</Text>
-                <Text style={styles.authBalanceAmount}>৳{totalExpenseAmount.toLocaleString()}</Text>
-              </View>
-              {pendingExpenses.length > 0 && (
-                <View style={styles.offlineChip}>
-                  <Feather name="cloud-off" size={11} color="#B45309" />
-                  <Text style={styles.offlineChipText}>{pendingExpenses.length} local</Text>
-                </View>
-              )}
-            </View>
+          {/* Tab Switcher: Personal Demo vs Group Split Demo */}
+          <View className="flex-row bg-muted/60 p-1 rounded-2xl border border-border">
+            <TouchableOpacity
+              className={`flex-1 flex-row items-center justify-center gap-1.5 py-2 rounded-xl ${
+                activeDemoTab === 'PERSONAL'
+                  ? 'bg-card shadow-xs border border-border'
+                  : ''
+              }`}
+              onPress={() => setActiveDemoTab('PERSONAL')}
+              activeOpacity={0.8}
+            >
+              <Feather
+                name="credit-card"
+                size={14}
+                color={activeDemoTab === 'PERSONAL' ? '#4F46E5' : '#64748B'}
+              />
+              <Text
+                className={`text-xs font-bold ${
+                  activeDemoTab === 'PERSONAL'
+                    ? 'text-primary font-black'
+                    : 'text-muted-foreground'
+                }`}
+              >
+                Personal Tracker
+              </Text>
+            </TouchableOpacity>
 
             <TouchableOpacity
-              style={styles.dashboardCtaBtn}
-              onPress={onNavigateToDashboard}
-              activeOpacity={0.85}
+              className={`flex-1 flex-row items-center justify-center gap-1.5 py-2 rounded-xl ${
+                activeDemoTab === 'GROUP'
+                  ? 'bg-card shadow-xs border border-border'
+                  : ''
+              }`}
+              onPress={() => setActiveDemoTab('GROUP')}
+              activeOpacity={0.8}
             >
-              <Text style={styles.dashboardCtaBtnText}>Open My Dashboard</Text>
-              <Feather name="arrow-right" size={16} color="#FFFFFF" />
+              <Feather
+                name="users"
+                size={14}
+                color={activeDemoTab === 'GROUP' ? '#4F46E5' : '#64748B'}
+              />
+              <Text
+                className={`text-xs font-bold ${
+                  activeDemoTab === 'GROUP'
+                    ? 'text-primary font-black'
+                    : 'text-muted-foreground'
+                }`}
+              >
+                Mess & Group Split
+              </Text>
             </TouchableOpacity>
           </View>
-        ) : (
-          <View style={styles.guestHero}>
-            <View style={styles.heroPill}>
-              <Text style={styles.heroPillEmoji}>✨</Text>
-              <Text style={styles.heroPillText}>Your Complete Expense & Split Engine</Text>
-            </View>
 
-            <Text style={styles.heroMainTitle}>
-              Take Complete Control of Your Money.
-            </Text>
-
-            <Text style={styles.heroDescription}>
-              Track daily personal spending, split mess and tour budgets with friends, settle balances effortlessly, and gain visual financial clarity.
-            </Text>
-
-            <View style={styles.heroButtonRow}>
-              <TouchableOpacity
-                style={styles.heroPrimaryBtn}
-                onPress={onNavigateToRegister}
-                activeOpacity={0.85}
-              >
-                <Text style={styles.heroPrimaryBtnText}>Get Started Free</Text>
-                <Feather name="arrow-right" size={16} color="#FFFFFF" />
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.heroSecondaryBtn}
-                onPress={onNavigateToLogin}
-                activeOpacity={0.8}
-              >
-                <Text style={styles.heroSecondaryBtnText}>Log In</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        )}
-
-        <View style={styles.highlightBar}>
-          <View style={styles.highlightItem}>
-            <Text style={styles.highlightNum}>35+</Text>
-            <Text style={styles.highlightLabel}>Categories</Text>
-          </View>
-          <View style={styles.highlightDivider} />
-          <View style={styles.highlightItem}>
-            <Text style={styles.highlightNum}>100%</Text>
-            <Text style={styles.highlightLabel}>Offline Ready</Text>
-          </View>
-          <View style={styles.highlightDivider} />
-          <View style={styles.highlightItem}>
-            <Text style={styles.highlightNum}>0৳</Text>
-            <Text style={styles.highlightLabel}>Always Free</Text>
-          </View>
-        </View>
-
-        <View style={styles.sectionContainer}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTag}>FEATURES</Text>
-            <Text style={styles.sectionHeading}>Everything You Need to Manage Money</Text>
-            <Text style={styles.sectionSub}>Designed for seamless personal budgeting and frictionless group splits.</Text>
-          </View>
-
-          <View style={styles.featureGrid}>
-            {FEATURE_CARDS.map((f, idx) => (
-              <View key={idx} style={styles.featureCard}>
-                <View style={[styles.featureIconBox, { backgroundColor: f.iconBg }]}>
-                  <Feather name={f.icon as any} size={20} color={f.iconColor} />
-                </View>
-                <Text style={styles.featureCardTitle}>{f.title}</Text>
-                <Text style={styles.featureCardDesc}>{f.desc}</Text>
-              </View>
-            ))}
-          </View>
-        </View>
-
-        <View style={styles.sectionContainer}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTag}>HOW IT WORKS</Text>
-            <Text style={styles.sectionHeading}>Manage Finances in 3 Simple Steps</Text>
-          </View>
-
-          <View style={styles.stepsWrapper}>
-            <View style={styles.stepCard}>
-              <View style={styles.stepNumCircle}>
-                <Text style={styles.stepNumText}>1</Text>
-              </View>
-              <View style={styles.stepContent}>
-                <Text style={styles.stepTitle}>Record in Seconds</Text>
-                <Text style={styles.stepDesc}>Type the amount and pick from 35+ categories. Works even when you have no WiFi.</Text>
-              </View>
-            </View>
-
-            <View style={styles.stepCard}>
-              <View style={styles.stepNumCircle}>
-                <Text style={styles.stepNumText}>2</Text>
-              </View>
-              <View style={styles.stepContent}>
-                <Text style={styles.stepTitle}>Split with Groups</Text>
-                <Text style={styles.stepDesc}>Add flat roommates or tour buddies. KotoGelo automatically calculates equal shares.</Text>
-              </View>
-            </View>
-
-            <View style={styles.stepCard}>
-              <View style={styles.stepNumCircle}>
-                <Text style={styles.stepNumText}>3</Text>
-              </View>
-              <View style={styles.stepContent}>
-                <Text style={styles.stepTitle}>Settle Up Instantly</Text>
-                <Text style={styles.stepDesc}>View exactly who owes whom. Record payments with one tap to clear all dues.</Text>
-              </View>
-            </View>
-          </View>
-        </View>
-
-        <View style={styles.sectionContainer}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTag}>GROUP SPLITS</Text>
-            <Text style={styles.sectionHeading}>Built for Every Shared Expense</Text>
-          </View>
-
-          <View style={styles.useCaseGrid}>
-            {GROUP_USE_CASES.map((uc, idx) => (
-              <View key={idx} style={styles.useCaseCard}>
-                <Text style={styles.useCaseEmoji}>{uc.emoji}</Text>
-                <Text style={styles.useCaseLabel}>{uc.label}</Text>
-                <Text style={styles.useCaseDesc}>{uc.desc}</Text>
-              </View>
-            ))}
-          </View>
-        </View>
-
-        <View style={styles.sectionContainer}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTag}>SMART HABITS</Text>
-            <Text style={styles.sectionHeading}>Financial Wisdom & Tips</Text>
-          </View>
-
-          <View style={styles.tipsList}>
-            {FINANCIAL_TIPS.map((tip, idx) => (
-              <View key={idx} style={styles.tipCard}>
-                <View style={styles.tipHeader}>
-                  <View style={styles.tipTagBadge}>
-                    <Feather name={tip.icon as any} size={11} color={colors.primary} />
-                    <Text style={styles.tipTagText}>{tip.tag}</Text>
+          {/* TAB 1: PERSONAL EXPENSE TRACKER DEMO */}
+          {activeDemoTab === 'PERSONAL' ? (
+            <View className="gap-3 pt-1">
+              {/* Monthly Overview Card */}
+              <View className="bg-muted/40 p-4 rounded-2xl border border-border/60">
+                <View className="flex-row items-center justify-between mb-2">
+                  <View>
+                    <Text className="text-[10px] text-muted-foreground font-semibold uppercase">
+                      This Month's Spending
+                    </Text>
+                    <Text className="text-xl font-black text-foreground mt-0.5">
+                      ৳14,250
+                    </Text>
+                  </View>
+                  <View className="items-end">
+                    <Text className="text-[10px] text-muted-foreground font-semibold uppercase">
+                      Remaining Budget
+                    </Text>
+                    <Text className="text-sm font-extrabold text-emerald-600 mt-0.5">
+                      ৳5,750 Left (28%)
+                    </Text>
                   </View>
                 </View>
-                <Text style={styles.tipTitle}>{tip.title}</Text>
-                <Text style={styles.tipDesc}>{tip.desc}</Text>
+
+                {/* Visual Progress Bar */}
+                <View className="h-2 w-full bg-slate-200 rounded-full overflow-hidden mb-1.5">
+                  <View className="h-full bg-indigo-600 rounded-full" style={{ width: '71%' }} />
+                </View>
+                <View className="flex-row justify-between items-center">
+                  <Text className="text-[10px] text-muted-foreground">Monthly Budget: ৳20,000</Text>
+                  <Text className="text-[10px] font-bold text-indigo-600">71% Utilized</Text>
+                </View>
+              </View>
+
+              {/* Sample Personal Transactions Feed */}
+              <View className="gap-2">
+                <Text className="text-xs font-extrabold text-foreground px-1">
+                  Recent Personal Logs
+                </Text>
+
+                <View className="flex-row items-center justify-between p-3 bg-card rounded-xl border border-border shadow-2xs">
+                  <View className="flex-row items-center gap-2.5">
+                    <View className="w-8 h-8 rounded-xl bg-orange-50 items-center justify-center">
+                      <Text className="text-sm">🍔</Text>
+                    </View>
+                    <View>
+                      <Text className="text-xs font-bold text-foreground">Dinner with Friends</Text>
+                      <Text className="text-[10px] text-muted-foreground">Food & Dining • Today</Text>
+                    </View>
+                  </View>
+                  <Text className="text-xs font-black text-foreground">৳650</Text>
+                </View>
+
+                <View className="flex-row items-center justify-between p-3 bg-card rounded-xl border border-border shadow-2xs">
+                  <View className="flex-row items-center gap-2.5">
+                    <View className="w-8 h-8 rounded-xl bg-emerald-50 items-center justify-center">
+                      <Text className="text-sm">🛒</Text>
+                    </View>
+                    <View>
+                      <Text className="text-xs font-bold text-foreground">Weekly Mess Grocery</Text>
+                      <Text className="text-[10px] text-muted-foreground">Grocery • Yesterday</Text>
+                    </View>
+                  </View>
+                  <Text className="text-xs font-black text-foreground">৳1,420</Text>
+                </View>
+
+                <View className="flex-row items-center justify-between p-3 bg-card rounded-xl border border-border shadow-2xs">
+                  <View className="flex-row items-center gap-2.5">
+                    <View className="w-8 h-8 rounded-xl bg-sky-50 items-center justify-center">
+                      <Text className="text-sm">🚗</Text>
+                    </View>
+                    <View>
+                      <Text className="text-xs font-bold text-foreground">CNG Commute to Office</Text>
+                      <Text className="text-[10px] text-muted-foreground">Transport • 2 days ago</Text>
+                    </View>
+                  </View>
+                  <Text className="text-xs font-black text-foreground">৳180</Text>
+                </View>
+              </View>
+            </View>
+          ) : (
+            /* TAB 2: MESS & GROUP SPLIT DEMO */
+            <View className="gap-3 pt-1">
+              {/* Group Equal Share Box */}
+              <View className="bg-muted/40 p-4 rounded-2xl border border-border/60">
+                <View className="flex-row items-center justify-between mb-2">
+                  <View>
+                    <Text className="text-[10px] text-muted-foreground font-semibold uppercase">
+                      Total Mess Expense
+                    </Text>
+                    <Text className="text-xl font-black text-foreground mt-0.5">
+                      ৳12,000
+                    </Text>
+                  </View>
+                  <View className="items-end">
+                    <Text className="text-[10px] text-muted-foreground font-semibold uppercase">
+                      Equal Share (4 Members)
+                    </Text>
+                    <Text className="text-sm font-extrabold text-primary mt-0.5">
+                      ৳3,000 / person
+                    </Text>
+                  </View>
+                </View>
+
+                <View className="flex-row items-center gap-1.5 bg-primary-light px-2.5 py-1 rounded-xl border border-indigo-200">
+                  <Feather name="info" size={12} color="#4F46E5" />
+                  <Text className="text-[10px] font-bold text-primary">
+                    Equal share calculated automatically without math errors
+                  </Text>
+                </View>
+              </View>
+
+              {/* Member Settlement Breakdown Sample */}
+              <View className="gap-2">
+                <Text className="text-xs font-extrabold text-foreground px-1">
+                  Member Balances & Settlements
+                </Text>
+
+                <View className="flex-row items-center justify-between p-3 bg-card rounded-xl border border-border shadow-2xs">
+                  <View className="flex-row items-center gap-2.5">
+                    <View className="w-8 h-8 rounded-full bg-emerald-50 items-center justify-center">
+                      <Text className="text-xs font-bold text-emerald-700">T</Text>
+                    </View>
+                    <View>
+                      <Text className="text-xs font-bold text-foreground">Tanvir (Deposited ৳4,500)</Text>
+                      <Text className="text-[10px] text-muted-foreground">Paid ৳1,500 over share</Text>
+                    </View>
+                  </View>
+                  <View className="bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
+                    <Text className="text-[10px] font-bold text-emerald-700">+৳1,500 receive</Text>
+                  </View>
+                </View>
+
+                <View className="flex-row items-center justify-between p-3 bg-card rounded-xl border border-border shadow-2xs">
+                  <View className="flex-row items-center gap-2.5">
+                    <View className="w-8 h-8 rounded-full bg-rose-50 items-center justify-center">
+                      <Text className="text-xs font-bold text-rose-700">R</Text>
+                    </View>
+                    <View>
+                      <Text className="text-xs font-bold text-foreground">Rafiq (Deposited ৳2,000)</Text>
+                      <Text className="text-[10px] text-muted-foreground">Short by ৳1,000</Text>
+                    </View>
+                  </View>
+                  <View className="bg-rose-50 px-2.5 py-1 rounded-full border border-rose-200">
+                    <Text className="text-[10px] font-bold text-rose-700">-৳1,000 pay due</Text>
+                  </View>
+                </View>
+              </View>
+            </View>
+          )}
+        </View>
+
+        {/* 3. Popular Categories Carousel Showcase */}
+        <View className="gap-2.5">
+          <View className="flex-row items-center justify-between px-1">
+            <Text className="text-base font-extrabold text-foreground">Track Everything</Text>
+            <Text className="text-xs text-primary font-semibold">35+ Categories</Text>
+          </View>
+
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerClassName="gap-2 py-1">
+            {POPULAR_CATEGORIES.map((cat, idx) => (
+              <View
+                key={idx}
+                className="flex-row items-center gap-2 bg-card px-3 py-2 rounded-2xl border border-border shadow-2xs"
+              >
+                <Text className="text-lg">{cat.emoji}</Text>
+                <Text className="text-xs font-bold text-foreground">{cat.name}</Text>
+              </View>
+            ))}
+          </ScrollView>
+        </View>
+
+        {/* 4. 3-Step Workflow: How KotoGelo Works */}
+        <View className="bg-card rounded-3xl p-5 border border-border shadow-xs gap-3.5">
+          <View className="px-1">
+            <Text className="text-base font-extrabold text-foreground">How KotoGelo Works</Text>
+            <Text className="text-xs text-muted-foreground">3 simple steps to effortless expense management</Text>
+          </View>
+
+          <View className="gap-3 pt-1">
+            {WORKFLOW_STEPS.map((item, idx) => (
+              <View key={idx} className="flex-row items-start gap-3.5 bg-muted/30 p-3.5 rounded-2xl border border-border/60">
+                <View className="w-8 h-8 rounded-xl bg-primary items-center justify-center shadow-xs">
+                  <Text className="text-xs font-black text-white">{item.step}</Text>
+                </View>
+                <View className="flex-1">
+                  <Text className="text-sm font-bold text-foreground mb-0.5">{item.title}</Text>
+                  <Text className="text-xs text-muted-foreground leading-relaxed">{item.desc}</Text>
+                </View>
               </View>
             ))}
           </View>
         </View>
 
-        {!isAuthenticated && (
-          <View style={styles.bottomBanner}>
-            <Text style={styles.bottomBannerEmoji}>🚀</Text>
-            <Text style={styles.bottomBannerTitle}>Ready to Master Your Spending?</Text>
-            <Text style={styles.bottomBannerSub}>Join smart savers tracking their expenses with KotoGelo today.</Text>
-            <TouchableOpacity
-              style={styles.bottomBannerBtn}
-              onPress={onNavigateToRegister}
-              activeOpacity={0.85}
-            >
-              <Text style={styles.bottomBannerBtnText}>Create Free Account</Text>
-              <Feather name="arrow-right" size={16} color={colors.primary} />
-            </TouchableOpacity>
+        {/* 5. Core Feature Grid */}
+        <View className="gap-3">
+          <View className="flex-row items-center justify-between px-1">
+            <Text className="text-base font-extrabold text-foreground">Why KotoGelo?</Text>
+            <Text className="text-xs text-primary font-semibold">All-in-one Toolkit</Text>
           </View>
-        )}
+
+          <View className="gap-2.5">
+            {FEATURE_CARDS.map((f, idx) => (
+              <View
+                key={idx}
+                className="flex-row items-center gap-3.5 bg-card p-4 rounded-2xl border border-border shadow-xs"
+              >
+                <View className={`w-11 h-11 rounded-2xl items-center justify-center ${f.iconBg}`}>
+                  <Feather name={f.icon} size={20} color={f.iconColor} />
+                </View>
+                <View className="flex-1">
+                  <Text className="text-sm font-bold text-foreground mb-0.5">{f.title}</Text>
+                  <Text className="text-xs text-muted-foreground leading-relaxed">{f.desc}</Text>
+                </View>
+              </View>
+            ))}
+          </View>
+        </View>
+
+        {/* 6. Interactive FAQ Accordion */}
+        <View className="bg-card rounded-3xl p-5 border border-border shadow-xs gap-3">
+          <View className="px-1">
+            <Text className="text-base font-extrabold text-foreground">Frequently Asked Questions</Text>
+            <Text className="text-xs text-muted-foreground">Answers to common questions about KotoGelo</Text>
+          </View>
+
+          <View className="gap-2 pt-1">
+            {FAQS.map((faq, idx) => {
+              const isOpen = openFaqIndex === idx;
+              return (
+                <TouchableOpacity
+                  key={idx}
+                  className="bg-muted/40 rounded-2xl border border-border/60 p-3.5 active:bg-muted/60"
+                  onPress={() => toggleFaq(idx)}
+                  activeOpacity={0.8}
+                >
+                  <View className="flex-row items-center justify-between">
+                    <Text className="text-xs font-bold text-foreground flex-1 pr-2">
+                      {faq.q}
+                    </Text>
+                    <Feather
+                      name={isOpen ? 'chevron-up' : 'chevron-down'}
+                      size={16}
+                      color="#64748B"
+                    />
+                  </View>
+                  {isOpen && (
+                    <Text className="text-xs text-muted-foreground leading-relaxed mt-2.5 pt-2.5 border-t border-border/50">
+                      {faq.a}
+                    </Text>
+                  )}
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
+
+        {/* 7. Bottom Conversion CTA Card */}
+        <View className="bg-primary rounded-3xl p-6 shadow-xl items-center text-center gap-3">
+          <View className="w-12 h-12 rounded-2xl bg-white/20 items-center justify-center shadow-xs">
+            <Feather name="zap" size={24} color="#FFFFFF" />
+          </View>
+          <Text className="text-xl font-black text-white text-center">
+            Ready to Take Control of Your Money?
+          </Text>
+          <Text className="text-xs text-indigo-100 text-center leading-relaxed">
+            Join thousands tracking daily costs and splitting flat bills with complete clarity.
+          </Text>
+          <TouchableOpacity
+            className="w-full py-3.5 rounded-2xl bg-white items-center justify-center shadow-md mt-1"
+            onPress={onNavigateToRegister}
+            activeOpacity={0.8}
+          >
+            <Text className="text-xs font-extrabold text-primary">
+              Create Your Free Account →
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Footer info */}
+        <View className="items-center py-2 gap-1">
+          <Text className="text-[11px] font-bold text-muted-foreground">
+            KotoGelo • Smart Expense & Mess Tracker
+          </Text>
+          <Text className="text-[10px] text-muted-foreground/70">
+            v1.0.0 Pro Edition • Bank-Grade Privacy & Security
+          </Text>
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
 };
-
-const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: colors.surface,
-  },
-  scrollContent: {
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.sm,
-  },
-  topBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: spacing.md,
-    marginBottom: spacing.xs,
-  },
-  logoGroup: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-  },
-  logoBadge: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
-    backgroundColor: colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: colors.primary,
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.25,
-    shadowRadius: 6,
-    elevation: 3,
-  },
-  logoSymbol: {
-    fontSize: 20,
-    fontWeight: '900',
-    color: '#FFFFFF',
-  },
-  logoText: {
-    fontSize: typography.lg,
-    fontWeight: '900',
-    color: colors.textPrimary,
-    letterSpacing: -0.5,
-  },
-  logoTagline: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: colors.textMuted,
-  },
-  topBarActions: {},
-  loginOutlineBtn: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: 6,
-    borderRadius: borderRadius.full,
-    borderWidth: 1.5,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-  },
-  loginOutlineBtnText: {
-    fontSize: typography.xs,
-    fontWeight: '700',
-    color: colors.textPrimary,
-  },
-  userBadgeBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
-    backgroundColor: colors.background,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 4,
-    borderRadius: borderRadius.full,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  userAvatarCircle: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  userAvatarInitial: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: '#FFFFFF',
-  },
-  authHeroCard: {
-    backgroundColor: colors.primary,
-    borderRadius: borderRadius.xl,
-    padding: spacing.lg,
-    marginBottom: spacing.lg,
-    shadowColor: colors.primary,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.25,
-    shadowRadius: 12,
-    elevation: 6,
-  },
-  authHeroTop: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: spacing.md,
-  },
-  authHeroGreeting: {
-    fontSize: typography.xs,
-    fontWeight: '600',
-    color: '#93C5FD',
-  },
-  authHeroName: {
-    fontSize: typography.xl,
-    fontWeight: '900',
-    color: '#FFFFFF',
-  },
-  currencyBadge: {
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: borderRadius.full,
-  },
-  currencyBadgeText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  authBalanceRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-end',
-    marginBottom: spacing.lg,
-    paddingTop: spacing.xs,
-  },
-  authBalanceLabel: {
-    fontSize: typography.xs,
-    fontWeight: '600',
-    color: '#BFDBFE',
-    marginBottom: 2,
-  },
-  authBalanceAmount: {
-    fontSize: 32,
-    fontWeight: '900',
-    color: '#FFFFFF',
-  },
-  offlineChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-    backgroundColor: '#FEF3C7',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: borderRadius.sm,
-  },
-  offlineChipText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#B45309',
-  },
-  dashboardCtaBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: spacing.xs + 2,
-    backgroundColor: 'rgba(255, 255, 255, 0.18)',
-    paddingVertical: spacing.md - 2,
-    borderRadius: borderRadius.full,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
-  },
-  dashboardCtaBtnText: {
-    fontSize: typography.sm,
-    fontWeight: '800',
-    color: '#FFFFFF',
-  },
-  guestHero: {
-    paddingVertical: spacing.md,
-    marginBottom: spacing.md,
-  },
-  heroPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: colors.primaryLight,
-    alignSelf: 'flex-start',
-    paddingHorizontal: spacing.md - 2,
-    paddingVertical: 5,
-    borderRadius: borderRadius.full,
-    marginBottom: spacing.md,
-  },
-  heroPillEmoji: {
-    fontSize: 12,
-  },
-  heroPillText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: colors.primary,
-  },
-  heroMainTitle: {
-    fontSize: 30,
-    fontWeight: '900',
-    color: colors.textPrimary,
-    lineHeight: 38,
-    marginBottom: spacing.sm,
-    letterSpacing: -0.5,
-  },
-  heroDescription: {
-    fontSize: typography.sm,
-    color: colors.textSecondary,
-    lineHeight: 22,
-    marginBottom: spacing.lg,
-  },
-  heroButtonRow: {
-    flexDirection: 'row',
-    gap: spacing.sm,
-  },
-  heroPrimaryBtn: {
-    flex: 1.3,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: spacing.xs + 2,
-    backgroundColor: colors.primary,
-    paddingVertical: spacing.md - 2,
-    borderRadius: borderRadius.full,
-    shadowColor: colors.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  heroPrimaryBtnText: {
-    fontSize: typography.sm,
-    fontWeight: '800',
-    color: '#FFFFFF',
-  },
-  heroSecondaryBtn: {
-    flex: 0.9,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.surface,
-    paddingVertical: spacing.md - 2,
-    borderRadius: borderRadius.full,
-    borderWidth: 1.5,
-    borderColor: colors.border,
-  },
-  heroSecondaryBtnText: {
-    fontSize: typography.sm,
-    fontWeight: '700',
-    color: colors.textPrimary,
-  },
-  highlightBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.background,
-    borderRadius: borderRadius.lg,
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.sm,
-    marginBottom: spacing.xl,
-    borderWidth: 1,
-    borderColor: colors.borderLight,
-  },
-  highlightItem: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  highlightNum: {
-    fontSize: typography.lg,
-    fontWeight: '900',
-    color: colors.primary,
-    marginBottom: 2,
-  },
-  highlightLabel: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: colors.textMuted,
-  },
-  highlightDivider: {
-    width: 1,
-    height: 24,
-    backgroundColor: colors.border,
-  },
-  sectionContainer: {
-    marginBottom: spacing.xxl,
-  },
-  sectionHeader: {
-    marginBottom: spacing.md,
-  },
-  sectionTag: {
-    fontSize: 10,
-    fontWeight: '800',
-    color: colors.primary,
-    letterSpacing: 1,
-    marginBottom: 4,
-  },
-  sectionHeading: {
-    fontSize: typography.xl,
-    fontWeight: '900',
-    color: colors.textPrimary,
-    letterSpacing: -0.3,
-    marginBottom: 4,
-  },
-  sectionSub: {
-    fontSize: typography.xs + 1,
-    color: colors.textSecondary,
-    lineHeight: 18,
-  },
-  featureGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.sm,
-  },
-  featureCard: {
-    width: '48%',
-    backgroundColor: colors.surface,
-    borderRadius: borderRadius.lg,
-    padding: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.borderLight,
-    shadowColor: colors.shadow,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.03,
-    shadowRadius: 4,
-    elevation: 1,
-  },
-  featureIconBox: {
-    width: 38,
-    height: 38,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: spacing.sm,
-  },
-  featureCardTitle: {
-    fontSize: typography.sm,
-    fontWeight: '800',
-    color: colors.textPrimary,
-    marginBottom: 4,
-  },
-  featureCardDesc: {
-    fontSize: 11,
-    color: colors.textSecondary,
-    lineHeight: 16,
-  },
-  stepsWrapper: {
-    gap: spacing.sm,
-  },
-  stepCard: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    backgroundColor: colors.surface,
-    padding: spacing.md,
-    borderRadius: borderRadius.lg,
-    borderWidth: 1,
-    borderColor: colors.borderLight,
-    gap: spacing.md,
-  },
-  stepNumCircle: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: colors.primaryLight,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 2,
-  },
-  stepNumText: {
-    fontSize: typography.sm,
-    fontWeight: '900',
-    color: colors.primary,
-  },
-  stepContent: {
-    flex: 1,
-  },
-  stepTitle: {
-    fontSize: typography.sm + 1,
-    fontWeight: '800',
-    color: colors.textPrimary,
-    marginBottom: 2,
-  },
-  stepDesc: {
-    fontSize: typography.xs,
-    color: colors.textSecondary,
-    lineHeight: 18,
-  },
-  useCaseGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.sm,
-  },
-  useCaseCard: {
-    width: '48%',
-    backgroundColor: colors.surface,
-    borderRadius: borderRadius.lg,
-    padding: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.borderLight,
-  },
-  useCaseEmoji: {
-    fontSize: 26,
-    marginBottom: spacing.xs,
-  },
-  useCaseLabel: {
-    fontSize: typography.xs + 1,
-    fontWeight: '800',
-    color: colors.textPrimary,
-    marginBottom: 2,
-  },
-  useCaseDesc: {
-    fontSize: 10,
-    color: colors.textMuted,
-    lineHeight: 14,
-  },
-  tipsList: {
-    gap: spacing.sm,
-  },
-  tipCard: {
-    backgroundColor: colors.surface,
-    borderRadius: borderRadius.lg,
-    padding: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.borderLight,
-    borderLeftWidth: 4,
-    borderLeftColor: colors.primary,
-  },
-  tipHeader: {
-    marginBottom: spacing.xs,
-  },
-  tipTagBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: colors.primaryLight,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-    alignSelf: 'flex-start',
-  },
-  tipTagText: {
-    fontSize: 9,
-    fontWeight: '800',
-    color: colors.primary,
-    textTransform: 'uppercase',
-  },
-  tipTitle: {
-    fontSize: typography.sm + 1,
-    fontWeight: '800',
-    color: colors.textPrimary,
-    marginBottom: 2,
-  },
-  tipDesc: {
-    fontSize: typography.xs,
-    color: colors.textSecondary,
-    lineHeight: 18,
-  },
-  bottomBanner: {
-    backgroundColor: colors.primaryDark,
-    borderRadius: borderRadius.xl,
-    padding: spacing.xl,
-    alignItems: 'center',
-    marginBottom: spacing.md,
-    shadowColor: colors.primaryDark,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
-    elevation: 6,
-  },
-  bottomBannerEmoji: {
-    fontSize: 32,
-    marginBottom: spacing.xs,
-  },
-  bottomBannerTitle: {
-    fontSize: typography.lg,
-    fontWeight: '900',
-    color: '#FFFFFF',
-    textAlign: 'center',
-    marginBottom: spacing.xs,
-  },
-  bottomBannerSub: {
-    fontSize: typography.xs,
-    color: '#93C5FD',
-    textAlign: 'center',
-    lineHeight: 18,
-    marginBottom: spacing.lg,
-    paddingHorizontal: spacing.sm,
-  },
-  bottomBannerBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs + 2,
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: spacing.xl,
-    paddingVertical: spacing.md - 2,
-    borderRadius: borderRadius.full,
-  },
-  bottomBannerBtnText: {
-    fontSize: typography.sm,
-    fontWeight: '800',
-    color: colors.primaryDark,
-  },
-});

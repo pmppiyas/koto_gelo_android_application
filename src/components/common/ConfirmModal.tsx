@@ -1,15 +1,7 @@
 import React from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  Modal,
-  TouchableOpacity,
-  ActivityIndicator,
-} from 'react-native';
+import { Modal } from 'react-native';
 import { Feather } from '@expo/vector-icons';
-import { colors } from '../../constants/colors';
-import { spacing, borderRadius, typography } from '../../constants/spacing';
+import { View, Text, Button } from '../ui';
 
 export interface ConfirmModalProps {
   visible: boolean;
@@ -36,163 +28,45 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
   onConfirm,
   onClose,
 }) => {
-  const getVariantStyles = () => {
-    switch (confirmVariant) {
-      case 'primary':
-        return {
-          iconColor: colors.primary,
-          iconBg: colors.primaryLight,
-          btnBg: colors.primary,
-        };
-      case 'warning':
-        return {
-          iconColor: '#B45309',
-          iconBg: '#FEF3C7',
-          btnBg: '#F59E0B',
-        };
-      case 'danger':
-      default:
-        return {
-          iconColor: colors.danger,
-          iconBg: colors.dangerLight,
-          btnBg: colors.danger,
-        };
-    }
-  };
+  const isPrimary = confirmVariant === 'primary';
+  const isWarning = confirmVariant === 'warning';
+  const isDanger = confirmVariant === 'danger';
 
-  const variant = getVariantStyles();
+  const iconColor = isPrimary ? '#2563EB' : isWarning ? '#D97706' : '#EF4444';
+  const iconBg = isPrimary ? 'bg-blue-50' : isWarning ? 'bg-amber-50' : 'bg-red-50';
 
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="fade"
-      onRequestClose={onClose}
-    >
-      <View style={styles.overlay}>
-        <View style={styles.dialogContainer}>
-          <View style={[styles.iconCircle, { backgroundColor: variant.iconBg }]}>
-            <Feather name={iconName} size={28} color={variant.iconColor} />
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <View className="flex-1 bg-slate-950/60 justify-center items-center p-6">
+        <View className="w-full max-w-sm bg-card rounded-3xl p-6 items-center shadow-xl border border-border">
+          <View className={`w-16 h-16 rounded-full items-center justify-center mb-4 ${iconBg}`}>
+            <Feather name={iconName} size={28} color={iconColor} />
           </View>
 
-          <Text style={styles.titleText}>{title}</Text>
-          <Text style={styles.messageText}>{message}</Text>
+          <Text className="text-lg font-bold text-foreground text-center mb-1">{title}</Text>
+          <Text className="text-xs text-muted-foreground text-center leading-relaxed mb-6">{message}</Text>
 
-          <View style={styles.actionsRow}>
-            <TouchableOpacity
-              style={styles.cancelBtn}
+          <View className="flex-row items-center gap-3 w-full">
+            <Button
+              variant="outline"
+              className="flex-1 rounded-full py-3"
               onPress={onClose}
               disabled={isLoading}
-              activeOpacity={0.7}
             >
-              <Text style={styles.cancelBtnText}>{cancelText}</Text>
-            </TouchableOpacity>
+              {cancelText}
+            </Button>
 
-            <TouchableOpacity
-              style={[
-                styles.confirmBtn,
-                { backgroundColor: variant.btnBg },
-                isLoading && styles.btnDisabled,
-              ]}
+            <Button
+              variant={isDanger ? 'destructive' : isPrimary ? 'default' : 'secondary'}
+              className="flex-1 rounded-full py-3"
               onPress={onConfirm}
-              disabled={isLoading}
-              activeOpacity={0.8}
+              isLoading={isLoading}
             >
-              {isLoading ? (
-                <ActivityIndicator size="small" color="#FFFFFF" />
-              ) : (
-                <Text style={styles.confirmBtnText}>{confirmText}</Text>
-              )}
-            </TouchableOpacity>
+              {confirmText}
+            </Button>
           </View>
         </View>
       </View>
     </Modal>
   );
 };
-
-const styles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.55)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: spacing.xl,
-  },
-  dialogContainer: {
-    width: '100%',
-    maxWidth: 380,
-    backgroundColor: colors.surface,
-    borderRadius: borderRadius.xxl,
-    padding: spacing.xl,
-    alignItems: 'center',
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.25,
-    shadowRadius: 20,
-    elevation: 8,
-  },
-  iconCircle: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: spacing.md,
-  },
-  titleText: {
-    fontSize: typography.lg,
-    fontWeight: '800',
-    color: colors.textPrimary,
-    textAlign: 'center',
-    marginBottom: spacing.xs + 2,
-  },
-  messageText: {
-    fontSize: typography.sm,
-    color: colors.textSecondary,
-    textAlign: 'center',
-    lineHeight: 20,
-    marginBottom: spacing.xl,
-  },
-  actionsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    width: '100%',
-  },
-  cancelBtn: {
-    flex: 1,
-    paddingVertical: spacing.md - 2,
-    borderRadius: borderRadius.full,
-    borderWidth: 1.5,
-    borderColor: colors.border,
-    backgroundColor: colors.background,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  cancelBtnText: {
-    fontSize: typography.sm,
-    fontWeight: '700',
-    color: colors.textSecondary,
-  },
-  confirmBtn: {
-    flex: 1.2,
-    paddingVertical: spacing.md - 2,
-    borderRadius: borderRadius.full,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: colors.shadow,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  confirmBtnText: {
-    fontSize: typography.sm,
-    fontWeight: '800',
-    color: '#FFFFFF',
-  },
-  btnDisabled: {
-    opacity: 0.6,
-  },
-});

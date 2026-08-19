@@ -40,6 +40,7 @@ export const API_ENDPOINTS = {
   GROUP: {
     BASE: `${API_BASE_URL}/group`,
     EXPENSES: `${API_BASE_URL}/group/expenses`,
+    DEPOSITS: `${API_BASE_URL}/group/deposits`,
     SUMMARY: `${API_BASE_URL}/group/expenses/summary`,
     SETTLE: `${API_BASE_URL}/group/expenses/settle`,
     INVITATIONS: `${API_BASE_URL}/group/invitations`,

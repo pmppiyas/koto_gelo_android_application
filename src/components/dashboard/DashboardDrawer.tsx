@@ -1,22 +1,18 @@
 import React, { useState } from 'react';
+import { TouchableWithoutFeedback, Dimensions, Platform } from 'react-native';
+import { Feather } from '@expo/vector-icons';
 import {
   View,
   Text,
-  StyleSheet,
-  Modal,
   TouchableOpacity,
   ScrollView,
   SafeAreaView,
-  Dimensions,
-  TouchableWithoutFeedback,
-} from 'react-native';
-import { Feather } from '@expo/vector-icons';
-import { colors } from '../../constants/colors';
-import { spacing, borderRadius, typography } from '../../constants/spacing';
-import { useAuth } from '../../store/hooks';
+} from '../ui/core';
+import { Logo } from '../common/Logo';
 
 const { width } = Dimensions.get('window');
-const DRAWER_WIDTH = Math.min(width * 0.8, 320);
+// Slimmer and sleeker drawer width with comfortable room for larger text
+const DRAWER_WIDTH = Math.min(width * 0.76, 290);
 
 export interface MenuItem {
   title: string;
@@ -24,6 +20,8 @@ export interface MenuItem {
   route?: string;
   action?: string;
   href?: string;
+  iconColor?: string;
+  iconBg?: string;
 }
 
 export interface MenuSection {
@@ -38,14 +36,8 @@ export interface DashboardDrawerProps {
   onClose: () => void;
   onSelectRoute?: (route: string) => void;
   onLogout?: () => void;
+  currentRoute?: string;
 }
-
-const DASHBOARD_MENU: MenuItem = {
-  title: 'Dashboard',
-  icon: 'home',
-  route: 'DASHBOARD',
-  href: '/dashboard',
-};
 
 const SECTIONS: MenuSection[] = [
   {
@@ -58,18 +50,24 @@ const SECTIONS: MenuSection[] = [
         icon: 'credit-card',
         route: 'PERSONAL_EXPENSES',
         href: '/expenses/personal',
+        iconColor: '#059669',
+        iconBg: 'bg-emerald-50',
       },
       {
         title: "Today's Expenses",
         icon: 'calendar',
         route: 'TODAY_EXPENSES',
         href: '/expenses/personal?filter=today',
+        iconColor: '#0284C7',
+        iconBg: 'bg-sky-50',
       },
       {
         title: 'Expense Analytics',
         icon: 'pie-chart',
         route: 'EXPENSE_ANALYTICS',
         href: '/expenses/analytics',
+        iconColor: '#4F46E5',
+        iconBg: 'bg-indigo-50',
       },
     ],
   },
@@ -83,82 +81,120 @@ const SECTIONS: MenuSection[] = [
         icon: 'users',
         route: 'GROUPS',
         href: '/group',
-      },
-      {
-        title: 'Group Expenses',
-        icon: 'file-text',
-        route: 'GROUP_EXPENSES',
-        href: '/group/expenses',
-      },
-      {
-        title: 'Balances',
-        icon: 'layers',
-        route: 'GROUP_BALANCES',
-        href: '/group/expenses/balance',
-      },
-      {
-        title: 'Settlements',
-        icon: 'check-circle',
-        route: 'SETTLEMENTS',
-        href: '/group/expenses/settle',
-      },
-      {
-        title: 'History',
-        icon: 'clock',
-        route: 'GROUP_HISTORY',
-        href: '/group/expenses/history',
+        iconColor: '#4F46E5',
+        iconBg: 'bg-indigo-50',
       },
       {
         title: 'Invitations',
         icon: 'mail',
         route: 'INVITATIONS',
         href: '/group/invitations/my',
+        iconColor: '#2563EB',
+        iconBg: 'bg-blue-50',
       },
     ],
   },
 ];
 
-const BOTTOM_ITEMS: MenuItem[] = [
+const ACCOUNT_ITEMS: MenuItem[] = [
   {
     title: 'Profile',
     icon: 'user',
     route: 'PROFILE',
     href: '/user/me',
+    iconColor: '#475569',
+    iconBg: 'bg-slate-100',
   },
   {
     title: 'Settings',
     icon: 'settings',
     route: 'SETTINGS',
     href: '/settings',
+    iconColor: '#475569',
+    iconBg: 'bg-slate-100',
   },
   {
     title: 'Logout',
     icon: 'log-out',
     action: 'LOGOUT',
+    iconColor: '#EF4444',
+    iconBg: 'bg-rose-100',
   },
 ];
 
 export const DashboardDrawer: React.FC<DashboardDrawerProps> = ({
   visible,
+  currentRoute,
   onClose,
   onSelectRoute,
   onLogout,
 }) => {
-  const { user } = useAuth();
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     PERSONAL: true,
     GROUP: true,
   });
-
-  const displayName = user?.name || user?.username || 'User';
-  const displayEmail = user?.email || `@${user?.username || 'user'}`;
-  const initial = displayName.charAt(0).toUpperCase();
 
   const toggleSection = (sectionTitle: string) => {
     setExpandedSections((prev) => ({
       ...prev,
       [sectionTitle]: !prev[sectionTitle],
     }));
+  };
+
+  const isItemActive = (item: MenuItem) => {
+    if (!item.route || !currentRoute) return false;
+    if (item.route === currentRoute) return true;
+
+    if (
+      item.route === 'GROUPS' &&
+      (currentRoute === 'Groups' ||
+        currentRoute === 'GroupBalances' ||
+        currentRoute === 'GroupDetails' ||
+        currentRoute === 'GROUPS' ||
+        currentRoute === 'GROUP_BALANCES' ||
+        currentRoute === 'GROUP_DETAILS')
+    ) {
+      return true;
+    }
+    if (
+      item.route === 'PERSONAL_EXPENSES' &&
+      (currentRoute === 'PersonalExpenses' ||
+        currentRoute === 'Transactions' ||
+        currentRoute === 'PERSONAL_EXPENSES' ||
+        currentRoute === 'TRANSACTIONS')
+    ) {
+      return true;
+    }
+    if (
+      item.route === 'TODAY_EXPENSES' &&
+      (currentRoute === 'TodayExpenses' || currentRoute === 'TODAY_EXPENSES')
+    ) {
+      return true;
+    }
+    if (
+      item.route === 'EXPENSE_ANALYTICS' &&
+      (currentRoute === 'ExpenseAnalytics' ||
+        currentRoute === 'ExpenseSummary' ||
+        currentRoute === 'GroupAnalytics' ||
+        currentRoute === 'EXPENSE_ANALYTICS' ||
+        currentRoute === 'EXPENSE_SUMMARY' ||
+        currentRoute === 'GROUP_ANALYTICS')
+    ) {
+      return true;
+    }
+    if (
+      item.route === 'INVITATIONS' &&
+      (currentRoute === 'Invitations' || currentRoute === 'INVITATIONS')
+    ) {
+      return true;
+    }
+    if (
+      item.route === 'PROFILE' &&
+      (currentRoute === 'Profile' || currentRoute === 'PROFILE')
+    ) {
+      return true;
+    }
+    return false;
   };
 
   const handleItemPress = (item: MenuItem) => {
@@ -170,285 +206,189 @@ export const DashboardDrawer: React.FC<DashboardDrawerProps> = ({
     }
   };
 
+  if (!visible) return null;
+
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="fade"
-      onRequestClose={onClose}
-    >
-      <View style={styles.overlay}>
-        <TouchableWithoutFeedback onPress={onClose}>
-          <View style={styles.backdrop} />
-        </TouchableWithoutFeedback>
+    <View className="absolute inset-0 z-50 flex-row justify-end">
+      <TouchableWithoutFeedback onPress={onClose}>
+        <View
+          className="absolute inset-0"
+          style={
+            {
+              backgroundColor: 'rgba(15, 23, 42, 0.15)',
+              backdropFilter: 'blur(4px)',
+              WebkitBackdropFilter: 'blur(4px)',
+            } as any
+          }
+        />
+      </TouchableWithoutFeedback>
 
-        <SafeAreaView style={styles.drawerContainer}>
-          <View style={styles.drawerContent}>
-            <View style={styles.drawerHeader}>
-              <View style={styles.userInfoRow}>
-                <View style={styles.avatar}>
-                  <Text style={styles.avatarText}>{initial}</Text>
-                </View>
-                <View style={styles.userDetails}>
-                  <Text style={styles.userName} numberOfLines={1}>
-                    {displayName}
-                  </Text>
-                  <Text style={styles.userEmail} numberOfLines={1}>
-                    {displayEmail}
-                  </Text>
-                </View>
-              </View>
-              <TouchableOpacity onPress={onClose} style={styles.closeBtn} activeOpacity={0.7}>
-                <Feather name="x" size={20} color={colors.textSecondary} />
-              </TouchableOpacity>
-            </View>
+      <SafeAreaView
+        className="h-full bg-card shadow-2xl border-l border-border rounded-l-3xl overflow-hidden"
+        style={{ width: DRAWER_WIDTH }}
+      >
+        <View className="flex-1 flex-col">
+          {/* Top Brand Header with Close Button */}
+          <View className="flex-row items-center justify-between px-4 py-3.5 border-b border-border bg-card">
+            <Logo size="sm" showSubtitle={false} />
+            <TouchableOpacity
+              onPress={onClose}
+              className="w-8 h-8 rounded-full bg-muted/80 items-center justify-center shadow-xs"
+              activeOpacity={0.7}
+            >
+              <Feather name="x" size={18} color="#64748B" />
+            </TouchableOpacity>
+          </View>
 
-            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollBody}>
-              <TouchableOpacity
-                style={[styles.menuItem, styles.activeMenuItem]}
-                onPress={() => handleItemPress(DASHBOARD_MENU)}
-                activeOpacity={0.7}
-              >
-                <View style={[styles.itemIconBadge, styles.activeItemIconBadge]}>
-                  <Feather name={DASHBOARD_MENU.icon} size={18} color="#FFFFFF" />
-                </View>
-                <Text style={[styles.menuItemText, styles.activeMenuItemText]}>
-                  {DASHBOARD_MENU.title}
-                </Text>
-              </TouchableOpacity>
+          {/* Scrollable Container with clean sections */}
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            contentContainerClassName="p-3 gap-2"
+            contentContainerStyle={{
+              paddingBottom: Platform.OS === 'ios' ? 36 : 28,
+            }}
+            className="flex-1"
+          >
 
-              <View style={styles.divider} />
+            {/* Sections (Personal & Group) */}
+            {SECTIONS.map((section) => {
+              const isExpanded = !!expandedSections[section.title];
+              return (
+                <View key={section.title} className="mb-1">
+                  <TouchableOpacity
+                    className="flex-row items-center justify-between px-2.5 py-2"
+                    onPress={() => section.collapsible && toggleSection(section.title)}
+                    activeOpacity={section.collapsible ? 0.7 : 1}
+                  >
+                    <Text className="text-xs font-black text-slate-500 tracking-wider uppercase">
+                      {section.title}
+                    </Text>
+                    {section.collapsible && (
+                      <Feather
+                        name={isExpanded ? 'chevron-up' : 'chevron-down'}
+                        size={14}
+                        color="#94A3B8"
+                      />
+                    )}
+                  </TouchableOpacity>
 
-              {SECTIONS.map((section) => {
-                const isExpanded = !!expandedSections[section.title];
-                return (
-                  <View key={section.title} style={styles.sectionContainer}>
-                    <TouchableOpacity
-                      style={styles.sectionHeader}
-                      onPress={() => section.collapsible && toggleSection(section.title)}
-                      activeOpacity={section.collapsible ? 0.7 : 1}
-                    >
-                      <Text style={styles.sectionTitle}>{section.title}</Text>
-                      {section.collapsible && (
-                        <Feather
-                          name={isExpanded ? 'chevron-up' : 'chevron-down'}
-                          size={16}
-                          color={colors.textMuted}
-                        />
-                      )}
-                    </TouchableOpacity>
-
-                    {isExpanded && (
-                      <View style={styles.sectionItems}>
-                        {section.items.map((item) => (
+                  {isExpanded && (
+                    <View className="gap-1 mt-0.5">
+                      {section.items.map((item) => {
+                        const isActive = isItemActive(item);
+                        return (
                           <TouchableOpacity
                             key={item.title}
-                            style={styles.menuItem}
+                            className={`flex-row items-center gap-3 px-3 py-2.5 rounded-xl border ${
+                              isActive
+                                ? 'bg-primary-light border-indigo-200 shadow-2xs'
+                                : 'border-transparent active:bg-muted/60'
+                            }`}
                             onPress={() => handleItemPress(item)}
                             activeOpacity={0.7}
                           >
-                            <View style={styles.itemIconBadge}>
-                              <Feather name={item.icon} size={16} color={colors.primary} />
+                            <View
+                              className={`w-8 h-8 rounded-xl items-center justify-center shadow-xs ${
+                                isActive
+                                  ? 'bg-primary shadow-xs'
+                                  : item.iconBg || 'bg-muted'
+                              }`}
+                            >
+                              <Feather
+                                name={item.icon}
+                                size={16}
+                                color={isActive ? '#FFFFFF' : item.iconColor || '#4F46E5'}
+                              />
                             </View>
-                            <Text style={styles.menuItemText}>{item.title}</Text>
+                            <Text
+                              className={`text-sm flex-1 ${
+                                isActive
+                                  ? 'text-primary font-black'
+                                  : 'text-foreground font-bold'
+                              }`}
+                              numberOfLines={1}
+                            >
+                              {item.title}
+                            </Text>
+                            {isActive && (
+                              <View className="w-1.5 h-1.5 rounded-full bg-primary" />
+                            )}
                           </TouchableOpacity>
-                        ))}
-                      </View>
-                    )}
-                  </View>
-                );
-              })}
-            </ScrollView>
-
-            <View style={styles.bottomSection}>
-              <View style={styles.divider} />
-              {BOTTOM_ITEMS.map((item) => {
-                const isLogout = item.action === 'LOGOUT';
-                return (
-                  <TouchableOpacity
-                    key={item.title}
-                    style={[styles.menuItem, isLogout && styles.logoutMenuItem]}
-                    onPress={() => handleItemPress(item)}
-                    activeOpacity={0.7}
-                  >
-                    <View style={[styles.itemIconBadge, isLogout && styles.logoutIconBadge]}>
-                      <Feather
-                        name={item.icon}
-                        size={16}
-                        color={isLogout ? colors.danger : colors.textSecondary}
-                      />
+                        );
+                      })}
                     </View>
-                    <Text style={[styles.menuItemText, isLogout && styles.logoutText]}>
-                      {item.title}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
+                  )}
+                </View>
+              );
+            })}
+
+            <View className="h-[1px] bg-border/70 my-1" />
+
+            {/* Account Section: Profile, Settings, Logout */}
+            <View className="mb-1">
+              <Text className="text-xs font-black text-slate-500 tracking-wider uppercase px-2.5 py-2">
+                ACCOUNT
+              </Text>
+              <View className="gap-1 mt-0.5">
+                {ACCOUNT_ITEMS.map((item) => {
+                  const isLogout = item.action === 'LOGOUT';
+                  const isActive = isItemActive(item);
+                  return (
+                    <TouchableOpacity
+                      key={item.title}
+                      className={`flex-row items-center gap-3 px-3 py-2.5 rounded-xl border ${
+                        isLogout
+                          ? 'bg-rose-50 border-rose-200 mt-1'
+                          : isActive
+                          ? 'bg-primary-light border-indigo-200 shadow-2xs'
+                          : 'border-transparent active:bg-muted/60'
+                      }`}
+                      onPress={() => handleItemPress(item)}
+                      activeOpacity={0.7}
+                    >
+                      <View
+                        className={`w-8 h-8 rounded-xl items-center justify-center shadow-xs ${
+                          isLogout
+                            ? 'bg-rose-100'
+                            : isActive
+                            ? 'bg-primary shadow-xs'
+                            : item.iconBg || 'bg-muted'
+                        }`}
+                      >
+                        <Feather
+                          name={item.icon}
+                          size={16}
+                          color={
+                            isLogout
+                              ? '#EF4444'
+                              : isActive
+                              ? '#FFFFFF'
+                              : item.iconColor || '#4F46E5'
+                          }
+                        />
+                      </View>
+                      <Text
+                        className={`text-sm flex-1 ${
+                          isLogout
+                            ? 'text-destructive font-black'
+                            : isActive
+                            ? 'text-primary font-black'
+                            : 'text-foreground font-bold'
+                        }`}
+                      >
+                        {item.title}
+                      </Text>
+                      {isActive && !isLogout && (
+                        <View className="w-1.5 h-1.5 rounded-full bg-primary" />
+                      )}
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
             </View>
-          </View>
-        </SafeAreaView>
-      </View>
-    </Modal>
+          </ScrollView>
+        </View>
+      </SafeAreaView>
+    </View>
   );
 };
-
-const styles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-  },
-  backdrop: {
-    position: 'absolute',
-    top: 0,
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: 'rgba(15, 23, 42, 0.45)',
-  },
-  drawerContainer: {
-    width: DRAWER_WIDTH,
-    height: '100%',
-    backgroundColor: colors.surface,
-    shadowColor: colors.shadow,
-    shadowOffset: { width: -4, height: 0 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 16,
-  },
-  drawerContent: {
-    flex: 1,
-    display: 'flex',
-    flexDirection: 'column',
-  },
-  drawerHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.lg,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.borderLight,
-    backgroundColor: colors.background,
-  },
-  userInfoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-    marginRight: spacing.xs,
-  },
-  avatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: spacing.sm,
-  },
-  avatarText: {
-    fontSize: typography.md,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  userDetails: {
-    flex: 1,
-  },
-  userName: {
-    fontSize: typography.sm + 1,
-    fontWeight: '700',
-    color: colors.textPrimary,
-  },
-  userEmail: {
-    fontSize: typography.xs,
-    color: colors.textSecondary,
-    marginTop: 1,
-  },
-  closeBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.surfaceCard,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  scrollBody: {
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.md,
-  },
-  menuItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: spacing.sm + 1,
-    paddingHorizontal: spacing.sm,
-    borderRadius: borderRadius.md,
-    marginBottom: 2,
-  },
-  activeMenuItem: {
-    backgroundColor: colors.primaryLight,
-  },
-  itemIconBadge: {
-    width: 30,
-    height: 30,
-    borderRadius: borderRadius.sm,
-    backgroundColor: colors.borderLight,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: spacing.sm + 2,
-  },
-  activeItemIconBadge: {
-    backgroundColor: colors.primary,
-  },
-  menuItemText: {
-    fontSize: typography.sm + 1,
-    fontWeight: '600',
-    color: colors.textPrimary,
-  },
-  activeMenuItemText: {
-    color: colors.primary,
-    fontWeight: '700',
-  },
-  divider: {
-    height: 1,
-    backgroundColor: colors.borderLight,
-    marginVertical: spacing.sm,
-    marginHorizontal: spacing.xs,
-  },
-  sectionContainer: {
-    marginBottom: spacing.sm,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs + 2,
-    marginBottom: spacing.xs,
-  },
-  sectionTitle: {
-    fontSize: typography.xs,
-    fontWeight: '700',
-    color: colors.textMuted,
-    letterSpacing: 0.8,
-  },
-  sectionItems: {
-    paddingLeft: spacing.xs,
-  },
-  bottomSection: {
-    paddingHorizontal: spacing.sm,
-    paddingBottom: spacing.md,
-    backgroundColor: colors.surface,
-  },
-  logoutMenuItem: {
-    marginTop: 2,
-  },
-  logoutIconBadge: {
-    backgroundColor: colors.dangerLight,
-  },
-  logoutText: {
-    color: colors.danger,
-    fontWeight: '600',
-  },
-});

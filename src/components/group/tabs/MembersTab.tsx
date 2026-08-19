@@ -1,17 +1,13 @@
 import React from 'react';
 import {
-  View,
-  Text,
   FlatList,
   ActivityIndicator,
   RefreshControl,
-  StyleSheet,
 } from 'react-native';
-import { Feather } from '@expo/vector-icons';
-import { GroupMember, GroupBalance } from '../../../services/groupService';
+import { View, Text } from '../../ui/core';
 import { GroupMemberRow } from '../GroupMemberRow';
-import { colors } from '../../../constants/colors';
-import { spacing, borderRadius, typography, BOTTOM_TAB_HEIGHT } from '../../../constants/spacing';
+import { GroupMember, GroupBalance } from '../../../services/groupService';
+import { BOTTOM_TAB_HEIGHT, spacing } from '../../../constants/spacing';
 
 export interface MembersTabProps {
   members: GroupMember[];
@@ -32,126 +28,68 @@ export const MembersTab: React.FC<MembersTabProps> = ({
 }) => {
   if (isLoading && members.length === 0) {
     return (
-      <View style={styles.centered}>
-        <ActivityIndicator size="large" color={colors.primary} />
+      <View className="flex-1 justify-center items-center py-16">
+        <ActivityIndicator size="large" color="#2563EB" />
       </View>
     );
   }
 
-  const renderHeader = () => (
-    <View style={styles.headerRow}>
-      <View style={styles.headerLeft}>
-        <Feather name="users" size={16} color={colors.primary} />
-        <Text style={styles.headerText}>Group Members</Text>
-      </View>
-      <View style={styles.countBadge}>
-        <Text style={styles.countBadgeText}>{members.length} Total</Text>
-      </View>
-    </View>
-  );
-
-  const renderItem = ({ item }: { item: GroupMember }) => {
-    const memberBalance = balance?.balances?.find((b) => b.userId === item.userId);
-
-    return (
-      <View style={styles.memberCard}>
-        <GroupMemberRow
-          name={item.user.name || item.user.username}
-          username={item.user.username}
-          role={item.role}
-          isYou={item.userId === userId}
-          netBalance={memberBalance?.net}
-        />
-      </View>
-    );
-  };
+  const balanceMap = new Map<string, number>();
+  if (balance?.balances) {
+    for (const b of balance.balances) {
+      balanceMap.set(b.userId, b.net);
+    }
+  }
 
   return (
     <FlatList
       data={members}
       keyExtractor={(item) => item.id}
-      renderItem={renderItem}
-      ListHeaderComponent={renderHeader}
-      contentContainerStyle={styles.listContent}
+      contentContainerClassName="px-4 pt-3"
+      contentContainerStyle={{ paddingBottom: BOTTOM_TAB_HEIGHT + spacing.sm }}
       showsVerticalScrollIndicator={false}
       refreshControl={
         onRefresh ? (
           <RefreshControl
             refreshing={isRefreshing}
             onRefresh={onRefresh}
-            colors={[colors.primary]}
-            tintColor={colors.primary}
+            colors={['#2563EB']}
+            tintColor="#2563EB"
           />
         ) : undefined
       }
-      ItemSeparatorComponent={() => <View style={styles.separator} />}
+      ListHeaderComponent={
+        <View className="flex-row items-center justify-between bg-card p-3.5 rounded-xl border border-border mb-3 shadow-sm">
+          <Text className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
+            Total Members
+          </Text>
+          <Text className="text-xs font-bold text-primary bg-primary-light px-2.5 py-0.5 rounded-full border border-blue-200">
+            {members.length} people
+          </Text>
+        </View>
+      }
+      renderItem={({ item }) => {
+        const isYou = item.userId === userId;
+        const net = balanceMap.get(item.userId);
+
+        return (
+          <GroupMemberRow
+            name={item.user.name || item.user.username}
+            username={item.user.username}
+            role={item.role}
+            isYou={isYou}
+            netBalance={net}
+          />
+        );
+      }}
       ListEmptyComponent={
-        <View style={styles.emptyContainer}>
-          <Text style={styles.emptyText}>No members found</Text>
+        <View className="bg-card rounded-2xl p-6 items-center justify-center border border-dashed border-border mt-4">
+          <Text className="text-sm font-bold text-foreground mb-1">No Members Found</Text>
+          <Text className="text-xs text-muted-foreground text-center">
+            Invite roommates or friends to join this group.
+          </Text>
         </View>
       }
     />
   );
 };
-
-const styles = StyleSheet.create({
-  centered: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingVertical: spacing.xxl,
-  },
-  listContent: {
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.md,
-    paddingBottom: BOTTOM_TAB_HEIGHT + spacing.sm,
-  },
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: spacing.md,
-  },
-  headerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs + 2,
-  },
-  headerText: {
-    fontSize: typography.md,
-    fontWeight: '800',
-    color: colors.textPrimary,
-  },
-  countBadge: {
-    backgroundColor: colors.surface,
-    paddingHorizontal: spacing.sm + 2,
-    paddingVertical: 4,
-    borderRadius: borderRadius.full,
-    borderWidth: 1,
-    borderColor: colors.borderLight,
-  },
-  countBadgeText: {
-    fontSize: typography.xs,
-    fontWeight: '700',
-    color: colors.textSecondary,
-  },
-  memberCard: {
-    backgroundColor: colors.surface,
-    borderRadius: borderRadius.md,
-    paddingHorizontal: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.borderLight,
-  },
-  separator: {
-    height: spacing.sm,
-  },
-  emptyContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: spacing.xxl,
-  },
-  emptyText: {
-    fontSize: typography.sm,
-    color: colors.textMuted,
-  },
-});

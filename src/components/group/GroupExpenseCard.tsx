@@ -1,7 +1,5 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { colors } from '../../constants/colors';
-import { spacing, typography } from '../../constants/spacing';
+import { View, Text, TouchableOpacity } from '../ui/core';
 
 interface GroupExpenseCardProps {
   title: string;
@@ -46,86 +44,31 @@ export const GroupExpenseCard: React.FC<GroupExpenseCardProps> = ({
 
   return (
     <TouchableOpacity
-      style={styles.card}
+      className="flex-row items-center bg-card rounded-xl p-3 border border-border shadow-sm"
       onPress={onPress}
       activeOpacity={onPress ? 0.7 : 1}
       disabled={!onPress}
     >
-      <View style={styles.emojiCircle}>
-        <Text style={styles.emoji}>{getCategoryEmoji(category)}</Text>
+      <View className="w-11 h-11 rounded-full bg-primary-light items-center justify-center">
+        <Text className="text-lg">{getCategoryEmoji(category)}</Text>
       </View>
 
-      <View style={styles.center}>
-        <Text style={styles.title} numberOfLines={1}>
+      <View className="flex-1 mx-3">
+        <Text className="text-sm font-bold text-foreground" numberOfLines={1}>
           {title}
         </Text>
-        <Text style={styles.paidBy} numberOfLines={1}>
-          Paid by {displayName}
+        <Text className="text-xs text-muted-foreground mt-0.5" numberOfLines={1}>
+          Paid by <Text className={isYou ? 'font-bold text-primary' : ''}>{displayName}</Text>
         </Text>
-        <Text style={styles.meta}>
+        <Text className="text-xs text-muted-foreground mt-0.5">
           {date} • {participantCount} people
         </Text>
       </View>
 
-      <View style={styles.right}>
-        <Text style={styles.amount}>-৳{amount.toLocaleString()}</Text>
-        <Text style={styles.split}>৳{perPerson.toLocaleString()}/person</Text>
+      <View className="items-end">
+        <Text className="text-sm font-extrabold text-primary">-৳{amount.toLocaleString()}</Text>
+        <Text className="text-xs text-muted-foreground mt-0.5">৳{perPerson.toLocaleString()}/person</Text>
       </View>
     </TouchableOpacity>
   );
 };
-
-const styles = StyleSheet.create({
-  card: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.surface,
-    borderRadius: 12,
-    padding: spacing.md - 4,
-    borderWidth: 1,
-    borderColor: colors.borderLight,
-  },
-  emojiCircle: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: colors.primaryLight,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  emoji: {
-    fontSize: 20,
-  },
-  center: {
-    flex: 1,
-    marginHorizontal: spacing.sm + 4,
-  },
-  title: {
-    fontSize: typography.sm,
-    fontWeight: '700',
-    color: colors.textPrimary,
-  },
-  paidBy: {
-    fontSize: typography.xs,
-    color: colors.textMuted,
-    marginTop: 2,
-  },
-  meta: {
-    fontSize: typography.xs,
-    color: colors.textMuted,
-    marginTop: 2,
-  },
-  right: {
-    alignItems: 'flex-end',
-  },
-  amount: {
-    fontSize: typography.sm,
-    fontWeight: '700',
-    color: colors.primary,
-  },
-  split: {
-    fontSize: typography.xs - 1,
-    color: colors.textMuted,
-    marginTop: 2,
-  },
-});

@@ -1,8 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { colors } from '../../theme/colors';
-import { spacing } from '../../theme/spacing';
-import { typography } from '../../theme/typography';
+import { View, Text, Button } from '../ui';
 
 export interface ErrorMessageProps {
   message: string;
@@ -11,42 +8,20 @@ export interface ErrorMessageProps {
 
 export const ErrorMessage: React.FC<ErrorMessageProps> = ({ message, onRetry }) => {
   return (
-    <View style={styles.container}>
-      <Text style={styles.text}>{message}</Text>
-      {onRetry ? (
-        <TouchableOpacity onPress={onRetry} style={styles.retryButton}>
-          <Text style={styles.retryText}>Try Again</Text>
-        </TouchableOpacity>
-      ) : null}
+    <View className="p-4 bg-destructive/10 rounded-2xl border border-destructive/20 items-center justify-center m-4">
+      <Text className="text-xs font-semibold text-destructive text-center mb-2 leading-relaxed">
+        {message}
+      </Text>
+      {onRetry && (
+        <Button
+          variant="outline"
+          size="sm"
+          className="rounded-full px-4 py-1.5"
+          onPress={onRetry}
+        >
+          Retry
+        </Button>
+      )}
     </View>
   );
 };
-
-const styles = StyleSheet.create({
-  container: {
-    padding: spacing.md,
-    backgroundColor: `${colors.error}15`,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: `${colors.error}40`,
-    marginVertical: spacing.sm,
-    alignItems: 'center',
-  },
-  text: {
-    color: colors.error,
-    fontSize: typography.fontSizes.sm,
-    textAlign: 'center',
-  },
-  retryButton: {
-    marginTop: spacing.sm,
-    paddingVertical: spacing.xs,
-    paddingHorizontal: spacing.md,
-    backgroundColor: colors.error,
-    borderRadius: 4,
-  },
-  retryText: {
-    color: '#FFFFFF',
-    fontSize: typography.fontSizes.xs,
-    fontWeight: typography.fontWeights.semiBold,
-  },
-});

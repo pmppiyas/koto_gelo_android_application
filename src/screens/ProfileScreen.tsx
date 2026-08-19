@@ -1,11 +1,10 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, StatusBar, ScrollView, TouchableOpacity } from 'react-native';
+import { StatusBar } from 'react-native';
 import { Feather } from '@expo/vector-icons';
-import { colors } from '../constants/colors';
-import { spacing, borderRadius, typography, BOTTOM_TAB_HEIGHT } from '../constants/spacing';
+import { View, Text, TouchableOpacity, ScrollView, SafeAreaView, Button } from '../components/ui';
 import { useAuth } from '../store/hooks';
-import { AppButton } from '../components/common/AppButton';
 import { appConfig } from '../config/appConfig';
+import { BOTTOM_TAB_HEIGHT, spacing } from '../constants/spacing';
 
 export interface ProfileScreenProps {
   onNavigateToHome: () => void;
@@ -13,216 +12,118 @@ export interface ProfileScreenProps {
 
 export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onNavigateToHome }) => {
   const { user, logout } = useAuth();
-  
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
-  const [offlineEnabled, setOfflineEnabled] = useState(false);
+  const [offlineEnabled, setOfflineEnabled] = useState(true);
 
   const handleLogout = async () => {
     await logout();
     onNavigateToHome();
   };
 
-  const getInitial = () => {
-    if (user?.name) return user.name.charAt(0).toUpperCase();
-    if (user?.email) return user.email.charAt(0).toUpperCase();
-    return '?';
-  };
-
-  const renderSectionHeader = (title: string) => (
-    <Text style={styles.sectionHeader}>{title}</Text>
-  );
-
-  const renderRowItem = (icon: keyof typeof Feather.glyphMap, label: string, showArrow: boolean = true, rightContent?: React.ReactNode) => (
-    <TouchableOpacity style={styles.rowItem} activeOpacity={showArrow ? 0.7 : 1}>
-      <View style={styles.rowItemLeft}>
-        <Feather name={icon} size={20} color={colors.textSecondary} style={styles.rowIcon} />
-        <Text style={styles.rowLabel}>{label}</Text>
-      </View>
-      <View style={styles.rowItemRight}>
-        {rightContent}
-        {showArrow && <Feather name="chevron-right" size={20} color={colors.textMuted} />}
-      </View>
-    </TouchableOpacity>
-  );
-
-  const renderToggle = (enabled: boolean, onToggle: (val: boolean) => void) => (
-    <TouchableOpacity 
-      activeOpacity={0.8} 
-      onPress={() => onToggle(!enabled)}
-      style={[styles.toggle, enabled && styles.toggleActive]}
-    >
-      <View style={[styles.toggleThumb, enabled && styles.toggleThumbActive]} />
-    </TouchableOpacity>
-  );
+  const displayName = user?.name || user?.username || 'User';
+  const initial = displayName.charAt(0).toUpperCase();
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
-      <ScrollView 
-        style={styles.container} 
-        contentContainerStyle={styles.contentContainer}
+    <SafeAreaView className="flex-1 bg-background">
+      <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
+      <ScrollView
+        className="flex-1"
+        contentContainerClassName="p-4 gap-4"
+        contentContainerStyle={{ paddingBottom: BOTTOM_TAB_HEIGHT + spacing.sm }}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.profileHeader}>
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>{getInitial()}</Text>
+        <View className="bg-card rounded-3xl p-6 items-center border border-border shadow-sm">
+          <View className="w-20 h-20 rounded-full bg-primary-light border-2 border-primary items-center justify-center mb-3">
+            <Text className="text-3xl font-extrabold text-primary">{initial}</Text>
           </View>
-          <Text style={styles.userName}>{user?.name || 'User Name'}</Text>
-          <Text style={styles.userEmail}>{user?.email || 'user@example.com'}</Text>
+          <Text className="text-xl font-bold text-foreground">{displayName}</Text>
+          <Text className="text-xs text-muted-foreground mt-0.5">@{user?.username}</Text>
+          {user?.phone ? (
+            <View className="flex-row items-center gap-1.5 mt-2 bg-muted px-3 py-1 rounded-full">
+              <Feather name="phone" size={12} color="#64748B" />
+              <Text className="text-xs text-muted-foreground">{user.phone}</Text>
+            </View>
+          ) : null}
         </View>
 
-        <View style={styles.sectionCard}>
-          {renderSectionHeader('Account')}
-          {renderRowItem('user', 'Personal Information')}
-          {renderRowItem('shield', 'Security')}
-        </View>
+        <View className="gap-2">
+          <Text className="text-xs font-bold text-muted-foreground uppercase tracking-wider px-1">
+            PREFERENCES
+          </Text>
+          <View className="bg-card rounded-2xl border border-border overflow-hidden shadow-sm">
+            <View className="flex-row items-center justify-between p-4 border-b border-border">
+              <View className="flex-row items-center gap-3">
+                <View className="w-8 h-8 rounded-lg bg-blue-50 items-center justify-center">
+                  <Feather name="bell" size={16} color="#2563EB" />
+                </View>
+                <Text className="text-sm font-semibold text-foreground">Notifications</Text>
+              </View>
+              <TouchableOpacity
+                className={`w-11 h-6 rounded-full p-0.5 justify-center ${
+                  notificationsEnabled ? 'bg-primary items-end' : 'bg-muted items-start'
+                }`}
+                onPress={() => setNotificationsEnabled(!notificationsEnabled)}
+                activeOpacity={0.8}
+              >
+                <View className="w-5 h-5 rounded-full bg-white shadow-sm" />
+              </TouchableOpacity>
+            </View>
 
-        <View style={styles.sectionCard}>
-          {renderSectionHeader('Preferences')}
-          {renderRowItem('bell', 'Notifications', false, renderToggle(notificationsEnabled, setNotificationsEnabled))}
-          {renderRowItem('dollar-sign', 'Currency', true, <Text style={styles.currencyText}>BDT (৳)</Text>)}
-          {renderRowItem('wifi-off', 'Offline Mode', false, renderToggle(offlineEnabled, setOfflineEnabled))}
-        </View>
-
-        <View style={styles.sectionCard}>
-          {renderSectionHeader('App')}
-          {renderRowItem('info', 'About KotoGelo')}
-          {renderRowItem('help-circle', 'Help & Support')}
-          <View style={styles.versionContainer}>
-            <Text style={styles.versionText}>Version {appConfig?.version || '1.0.0'}</Text>
+            <View className="flex-row items-center justify-between p-4">
+              <View className="flex-row items-center gap-3">
+                <View className="w-8 h-8 rounded-lg bg-emerald-50 items-center justify-center">
+                  <Feather name="cloud-off" size={16} color="#10B981" />
+                </View>
+                <Text className="text-sm font-semibold text-foreground">Offline Mode Sync</Text>
+              </View>
+              <TouchableOpacity
+                className={`w-11 h-6 rounded-full p-0.5 justify-center ${
+                  offlineEnabled ? 'bg-emerald-600 items-end' : 'bg-muted items-start'
+                }`}
+                onPress={() => setOfflineEnabled(!offlineEnabled)}
+                activeOpacity={0.8}
+              >
+                <View className="w-5 h-5 rounded-full bg-white shadow-sm" />
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
 
-        <View style={styles.logoutContainer}>
-          <AppButton 
-            title="Log Out" 
-            variant="danger" 
-            size="lg" 
-            style={styles.logoutButton}
-            onPress={handleLogout}
-          />
+        <View className="gap-2">
+          <Text className="text-xs font-bold text-muted-foreground uppercase tracking-wider px-1">
+            ABOUT & SUPPORT
+          </Text>
+          <View className="bg-card rounded-2xl border border-border overflow-hidden shadow-sm">
+            <TouchableOpacity className="flex-row items-center justify-between p-4 border-b border-border" activeOpacity={0.7}>
+              <View className="flex-row items-center gap-3">
+                <View className="w-8 h-8 rounded-lg bg-purple-50 items-center justify-center">
+                  <Feather name="help-circle" size={16} color="#8B5CF6" />
+                </View>
+                <Text className="text-sm font-semibold text-foreground">Help & FAQ</Text>
+              </View>
+              <Feather name="chevron-right" size={18} color="#94A3B8" />
+            </TouchableOpacity>
+
+            <TouchableOpacity className="flex-row items-center justify-between p-4" activeOpacity={0.7}>
+              <View className="flex-row items-center gap-3">
+                <View className="w-8 h-8 rounded-lg bg-slate-100 items-center justify-center">
+                  <Feather name="info" size={16} color="#64748B" />
+                </View>
+                <Text className="text-sm font-semibold text-foreground">App Version</Text>
+              </View>
+              <Text className="text-xs font-bold text-muted-foreground">{appConfig.version || 'v1.0.0'}</Text>
+            </TouchableOpacity>
+          </View>
         </View>
+
+        <Button
+          variant="destructive"
+          className="w-full py-3.5 rounded-2xl mt-2"
+          onPress={handleLogout}
+        >
+          Log Out
+        </Button>
       </ScrollView>
     </SafeAreaView>
   );
 };
-
-const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  container: {
-    flex: 1,
-  },
-  contentContainer: {
-    paddingBottom: BOTTOM_TAB_HEIGHT + spacing.lg,
-    paddingHorizontal: spacing.md,
-  },
-  profileHeader: {
-    alignItems: 'center',
-    paddingVertical: spacing.xl,
-  },
-  avatar: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: colors.primaryLight,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: spacing.sm,
-  },
-  avatarText: {
-    fontSize: typography.xxl,
-    fontWeight: '700',
-    color: colors.primary,
-  },
-  userName: {
-    fontSize: typography.xl,
-    fontWeight: '700',
-    color: colors.textPrimary,
-    marginBottom: spacing.xs,
-  },
-  userEmail: {
-    fontSize: typography.sm,
-    color: colors.textSecondary,
-  },
-  sectionCard: {
-    backgroundColor: colors.surfaceCard,
-    borderRadius: borderRadius.lg,
-    paddingVertical: spacing.sm,
-    marginBottom: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.borderLight,
-  },
-  sectionHeader: {
-    fontSize: typography.md,
-    fontWeight: '700',
-    color: colors.textPrimary,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-  },
-  rowItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.md,
-  },
-  rowItemLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  rowIcon: {
-    marginRight: spacing.md,
-  },
-  rowLabel: {
-    fontSize: typography.md,
-    color: colors.textPrimary,
-  },
-  rowItemRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-  },
-  currencyText: {
-    fontSize: typography.sm,
-    color: colors.textSecondary,
-  },
-  versionContainer: {
-    paddingVertical: spacing.md,
-    alignItems: 'center',
-  },
-  versionText: {
-    fontSize: typography.sm,
-    color: colors.textMuted,
-  },
-  logoutContainer: {
-    marginTop: spacing.md,
-    marginBottom: spacing.xl,
-  },
-  logoutButton: {
-    width: '100%',
-  },
-  toggle: {
-    width: 44,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: colors.border,
-    padding: 2,
-    justifyContent: 'center',
-  },
-  toggleActive: {
-    backgroundColor: colors.primary,
-  },
-  toggleThumb: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: '#FFFFFF',
-    transform: [{ translateX: 0 }],
-  },
-  toggleThumbActive: {
-    transform: [{ translateX: 20 }],
-  },
-});

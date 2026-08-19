@@ -38,6 +38,7 @@ export interface Group {
 }
 
 export interface GroupExpense {
+  groupId: void | undefined;
   id: string;
   title?: string | null;
   amount: number;
@@ -64,9 +65,41 @@ export interface GroupExpense {
   createdAt: string;
 }
 
+export interface GroupDeposit {
+  id: string;
+  groupId: string;
+  userId: string;
+  recordedById: string;
+  amount: number;
+  depositDate: string;
+  method: 'CASH' | 'BKASH' | 'NAGAD' | 'ROCKET' | 'BANK' | 'OTHER';
+  note?: string | null;
+  status: 'ACTIVE' | 'CANCELLED';
+  user: {
+    id: string;
+    username: string;
+    name?: string | null;
+    avatarUrl?: string | null;
+  };
+  recordedBy?: {
+    id: string;
+    username: string;
+    name?: string | null;
+  };
+  group?: {
+    id: string;
+    name: string;
+    type: string;
+  };
+  createdAt: string;
+}
+
 export interface GroupBalance {
   totalExpenses: number;
+  totalDeposits?: number;
+  remainingFund?: number;
   totalMembers: number;
+  yourDeposited?: number;
   yourSpending: number;
   yourShare: number;
   netBalance: number;
@@ -74,6 +107,7 @@ export interface GroupBalance {
     userId: string;
     username: string;
     name?: string | null;
+    totalDeposited?: number;
     paid: number;
     owes: number;
     net: number;
@@ -84,6 +118,15 @@ export interface Settlement {
   from: { id: string; username: string; name?: string | null };
   to: { id: string; username: string; name?: string | null };
   amount: number;
+}
+
+export interface CreateGroupDepositPayload {
+  groupId: string;
+  userId: string;
+  amount: number;
+  depositDate?: string;
+  method?: 'CASH' | 'BKASH' | 'NAGAD' | 'ROCKET' | 'BANK' | 'OTHER';
+  note?: string;
 }
 
 export interface CreateGroupPayload {
@@ -231,6 +274,54 @@ export const groupService = {
     return apiRequest(API_ENDPOINTS.GROUP.SETTLE, {
       method: 'POST',
       body: JSON.stringify(payload),
+    });
+  },
+
+  async deleteGroupExpense(expenseId: string): Promise<any> {
+    return apiRequest(`${API_ENDPOINTS.GROUP.EXPENSES}/${expenseId}`, {
+      method: 'DELETE',
+    });
+  },
+
+  async getGroupDeposits(groupId?: string, query?: Record<string, any>): Promise<any> {
+    let url = API_ENDPOINTS.GROUP.DEPOSITS;
+    const params = new URLSearchParams();
+    if (groupId && groupId !== 'ALL') {
+      params.append('groupId', groupId);
+    }
+    if (query) {
+      Object.entries(query).forEach(([k, v]) => {
+        if (v !== undefined && v !== null && v !== '') {
+          params.append(k, String(v));
+        }
+      });
+    }
+    const qs = params.toString();
+    if (qs) url += `?${qs}`;
+    return apiRequest(url);
+  },
+
+  async getGroupDepositSummary(groupId: string): Promise<any> {
+    return apiRequest(`${API_ENDPOINTS.GROUP.DEPOSITS}/${groupId}/summary`);
+  },
+
+  async addGroupDeposit(payload: CreateGroupDepositPayload): Promise<any> {
+    return apiRequest(API_ENDPOINTS.GROUP.DEPOSITS, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
+
+  async updateGroupDeposit(depositId: string, payload: Partial<CreateGroupDepositPayload>): Promise<any> {
+    return apiRequest(`${API_ENDPOINTS.GROUP.DEPOSITS}/${depositId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    });
+  },
+
+  async deleteGroupDeposit(depositId: string): Promise<any> {
+    return apiRequest(`${API_ENDPOINTS.GROUP.DEPOSITS}/${depositId}`, {
+      method: 'DELETE',
     });
   },
 

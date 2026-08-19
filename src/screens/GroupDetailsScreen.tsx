@@ -1,16 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  SafeAreaView,
   StatusBar,
-  TouchableOpacity,
   ActivityIndicator,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
-import { colors } from '../constants/colors';
-import { spacing, borderRadius, typography } from '../constants/spacing';
+import { View, Text, TouchableOpacity, SafeAreaView, ScrollView } from '../components/ui/core';
 import {
   groupService,
   Group,
@@ -20,10 +14,12 @@ import {
 } from '../services/groupService';
 import { useAuth } from '../store/hooks';
 import { OverviewTab } from '../components/group/tabs/OverviewTab';
+import { DepositsTab } from '../components/group/tabs/DepositsTab';
 import { ExpensesTab } from '../components/group/tabs/ExpensesTab';
 import { SettlementsTab } from '../components/group/tabs/SettlementsTab';
 import { MembersTab } from '../components/group/tabs/MembersTab';
 import { AddGroupExpenseModal } from '../components/group/AddGroupExpenseModal';
+import { AddGroupDepositModal } from '../components/group/AddGroupDepositModal';
 import { ConfirmModal } from '../components/common/ConfirmModal';
 
 const TYPE_EMOJI: Record<string, string> = {
@@ -38,8 +34,15 @@ const TYPE_EMOJI: Record<string, string> = {
   OTHER: '📁',
 };
 
-const TABS = ['Overview', 'Expenses', 'Settlements', 'Members'] as const;
-type TabName = typeof TABS[number];
+const TABS = [
+  { id: 'Overview', label: 'Overview' },
+  { id: 'Deposits', label: 'Deposits' },
+  { id: 'Expenses', label: 'Expenses' },
+  { id: 'Settlements', label: 'Settlements' },
+  { id: 'Members', label: 'Members' },
+] as const;
+
+type TabId = (typeof TABS)[number]['id'];
 
 export interface GroupDetailsScreenProps {
   groupId: string;
@@ -53,47 +56,46 @@ export const GroupDetailsScreen: React.FC<GroupDetailsScreenProps> = ({
   const { user } = useAuth();
   const userId = user?.id || '';
 
-  const [activeTab, setActiveTab] = useState<TabName>('Overview');
+  const [activeTab, setActiveTab] = useState<TabId>('Overview');
   const [group, setGroup] = useState<Group | null>(null);
   const [balance, setBalance] = useState<GroupBalance | null>(null);
   const [expenses, setExpenses] = useState<GroupExpense[]>([]);
   const [settlements, setSettlements] = useState<Settlement[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [isAddExpenseOpen, setIsAddExpenseOpen] = useState(false);
-  const [settlingItem, setSettlingItem] = useState<Settlement | null>(null);
+  const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
+  const [isDepositModalOpen, setIsDepositModalOpen] = useState(false);
+  const [settlingTarget, setSettlingTarget] = useState<Settlement | null>(null);
   const [isSettling, setIsSettling] = useState(false);
 
-  const fetchGroupData = useCallback(async (refresh = false) => {
-    if (refresh) {
+  const fetchAllData = useCallback(async (isRefresh = false) => {
+    if (isRefresh) {
       setIsRefreshing(true);
     } else {
       setIsLoading(true);
     }
 
     try {
-      const [groupRes, balanceRes, expensesRes, settlementsRes] = await Promise.allSettled([
+      const [groupRes, balRes, expRes, setRes] = await Promise.allSettled([
         groupService.getGroupById(groupId),
         groupService.getGroupBalance(groupId),
         groupService.getGroupExpenses(groupId, { limit: 50 }),
-        groupService.getGroupSettlements(groupId),
+        groupService.getSettlementPlan(groupId),
       ]);
 
       if (groupRes.status === 'fulfilled') setGroup(groupRes.value);
-      if (balanceRes.status === 'fulfilled') setBalance(balanceRes.value);
-      if (expensesRes.status === 'fulfilled') {
-        const val = expensesRes.value;
+      if (balRes.status === 'fulfilled') setBalance(balRes.value);
+      if (expRes.status === 'fulfilled') {
+        const val = expRes.value;
         const list =
           val?.history ||
-          val?.expenses ||
           val?.data?.history ||
+          val?.expenses ||
           val?.data?.expenses ||
-          (Array.isArray(val) ? val : []);
-        setExpenses(Array.isArray(list) ? list : []);
+          (Array.isArray(val?.data) ? val.data : Array.isArray(val) ? val : []);
+        setExpenses(list);
       }
-      if (settlementsRes.status === 'fulfilled') {
-        setSettlements(Array.isArray(settlementsRes.value) ? settlementsRes.value : []);
-      }
+      if (setRes.status === 'fulfilled') setSettlements(setRes.value?.settlements || []);
     } catch {} finally {
       setIsLoading(false);
       setIsRefreshing(false);
@@ -101,262 +103,202 @@ export const GroupDetailsScreen: React.FC<GroupDetailsScreenProps> = ({
   }, [groupId]);
 
   useEffect(() => {
-    fetchGroupData();
-  }, [fetchGroupData]);
+    fetchAllData();
+  }, [fetchAllData]);
 
-  const handleExpenseAdded = () => {
-    fetchGroupData(true);
+  const handleRefresh = () => {
+    fetchAllData(true);
   };
 
-  const handleSettleUp = async () => {
-    if (!settlingItem) return;
+  const handleSettleConfirm = async () => {
+    if (!settlingTarget) return;
     setIsSettling(true);
     try {
-      await groupService.settlePayment({
-        groupId,
-        toUserId: settlingItem.to.id,
-        amount: settlingItem.amount,
+      await groupService.settleDebt(groupId, {
+        toUserId: settlingTarget.to.id,
+        amount: settlingTarget.amount,
       });
-      setSettlingItem(null);
-      fetchGroupData(true);
+      setSettlingTarget(null);
+      fetchAllData(true);
     } catch {} finally {
       setIsSettling(false);
     }
   };
 
-  const members = group?.members || [];
-  const emoji = TYPE_EMOJI[group?.type || 'OTHER'] || '📁';
-
-  const renderTab = () => {
-    switch (activeTab) {
-      case 'Overview':
-        return (
-          <OverviewTab
-            balance={balance}
-            settlements={settlements}
-            members={members}
-            isLoading={isLoading}
-            isRefreshing={isRefreshing}
-            onRefresh={() => fetchGroupData(true)}
-            userId={userId}
-            onAddExpense={() => setIsAddExpenseOpen(true)}
-            onSettleUp={(s) => setSettlingItem(s)}
-          />
-        );
-      case 'Expenses':
-        return (
-          <ExpensesTab
-            expenses={expenses}
-            isLoading={isLoading}
-            isRefreshing={isRefreshing}
-            onRefresh={() => fetchGroupData(true)}
-            userId={userId}
-            onAddExpense={() => setIsAddExpenseOpen(true)}
-          />
-        );
-      case 'Settlements':
-        return (
-          <SettlementsTab
-            settlements={settlements}
-            isLoading={isLoading}
-            isRefreshing={isRefreshing}
-            onRefresh={() => fetchGroupData(true)}
-            userId={userId}
-            onSettle={(s) => setSettlingItem(s)}
-          />
-        );
-      case 'Members':
-        return (
-          <MembersTab
-            members={members}
-            balance={balance}
-            isLoading={isLoading}
-            isRefreshing={isRefreshing}
-            onRefresh={() => fetchGroupData(true)}
-            userId={userId}
-          />
-        );
-    }
-  };
-
-  if (isLoading && !group) {
-    return (
-      <SafeAreaView style={styles.safeArea}>
-        <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
-        <View style={styles.loadingCenter}>
-          <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={styles.loadingText}>Loading group...</Text>
-        </View>
-      </SafeAreaView>
-    );
-  }
+  const emoji = group?.type ? TYPE_EMOJI[group.type] || '📁' : '📁';
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="dark-content" backgroundColor={colors.surface} />
+    <SafeAreaView className="flex-1 bg-background">
+      <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
 
-      <View style={styles.header}>
-        <TouchableOpacity onPress={onNavigateBack} style={styles.backBtn} activeOpacity={0.7}>
-          <Feather name="arrow-left" size={20} color={colors.textPrimary} />
+      <View className="flex-row items-center justify-between px-4 py-3 bg-card border-b border-border">
+        <TouchableOpacity
+          onPress={onNavigateBack}
+          className="w-9 h-9 rounded-full bg-muted items-center justify-center mr-2"
+          activeOpacity={0.7}
+        >
+          <Feather name="arrow-left" size={18} color="#0F172A" />
         </TouchableOpacity>
 
-        <View style={styles.headerCenter}>
-          <Text style={styles.headerEmoji}>{emoji}</Text>
-          <Text style={styles.headerTitle} numberOfLines={1}>
-            {group?.name || 'Group'}
+        <View className="flex-1">
+          <View className="flex-row items-center gap-1.5">
+            <Text className="text-base">{emoji}</Text>
+            <Text className="text-base font-bold text-foreground" numberOfLines={1}>
+              {group?.name || 'Group Details'}
+            </Text>
+          </View>
+          <Text className="text-xs text-muted-foreground">
+            {group?.members?.length || 1} member{group?.members?.length === 1 ? '' : 's'}
           </Text>
         </View>
 
-        <TouchableOpacity
-          style={styles.addBtn}
-          onPress={() => setIsAddExpenseOpen(true)}
-          activeOpacity={0.8}
+        <View className="flex-row items-center gap-1.5">
+          <TouchableOpacity
+            className="w-9 h-9 rounded-full bg-emerald-50 items-center justify-center border border-emerald-200"
+            onPress={() => setIsDepositModalOpen(true)}
+            activeOpacity={0.7}
+          >
+            <Feather name="download" size={16} color="#16A34A" />
+          </TouchableOpacity>
+          <TouchableOpacity
+            className="w-9 h-9 rounded-full bg-primary items-center justify-center shadow-sm"
+            onPress={() => setIsExpenseModalOpen(true)}
+            activeOpacity={0.7}
+          >
+            <Feather name="plus" size={18} color="#FFFFFF" />
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      <View className="bg-card border-b border-border">
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerClassName="px-3 py-2 gap-1.5"
         >
-          <Feather name="plus" size={18} color="#FFFFFF" />
-        </TouchableOpacity>
+          {TABS.map((tab) => {
+            const isActive = activeTab === tab.id;
+            return (
+              <TouchableOpacity
+                key={tab.id}
+                className={`px-3.5 py-1.5 rounded-full ${
+                  isActive ? 'bg-primary' : 'bg-muted'
+                }`}
+                onPress={() => setActiveTab(tab.id)}
+                activeOpacity={0.7}
+              >
+                <Text
+                  className={`text-xs font-bold ${
+                    isActive ? 'text-primary-foreground' : 'text-muted-foreground'
+                  }`}
+                >
+                  {tab.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
       </View>
 
-      <View style={styles.tabBar}>
-        {TABS.map((tab) => {
-          const isActive = activeTab === tab;
-          return (
-            <TouchableOpacity
-              key={tab}
-              style={[styles.tabItem, isActive && styles.tabItemActive]}
-              onPress={() => setActiveTab(tab)}
-              activeOpacity={0.7}
-            >
-              <Text style={[styles.tabText, isActive && styles.tabTextActive]}>
-                {tab}
-              </Text>
-              {isActive && <View style={styles.activeTabIndicator} />}
-            </TouchableOpacity>
-          );
-        })}
-      </View>
+      {isLoading && !group ? (
+        <View className="flex-1 justify-center items-center gap-3">
+          <ActivityIndicator size="large" color="#2563EB" />
+          <Text className="text-xs text-muted-foreground">Loading group data...</Text>
+        </View>
+      ) : (
+        <View className="flex-1">
+          {activeTab === 'Overview' && (
+            <OverviewTab
+              balance={balance}
+              settlements={settlements}
+              members={group?.members || []}
+              isLoading={isLoading}
+              isRefreshing={isRefreshing}
+              onRefresh={handleRefresh}
+              userId={userId}
+              onAddDeposit={() => setIsDepositModalOpen(true)}
+              onAddExpense={() => setIsExpenseModalOpen(true)}
+              onSettleUp={(s) => setSettlingTarget(s)}
+            />
+          )}
 
-      <View style={styles.tabContent}>
-        {renderTab()}
-      </View>
+          {activeTab === 'Deposits' && (
+            <DepositsTab
+              groupId={groupId}
+              members={group?.members || []}
+              currentUserId={userId}
+              onOpenAddDepositModal={() => setIsDepositModalOpen(true)}
+            />
+          )}
+
+          {activeTab === 'Expenses' && (
+            <ExpensesTab
+              expenses={expenses}
+              isLoading={isLoading}
+              isRefreshing={isRefreshing}
+              onRefresh={handleRefresh}
+              userId={userId}
+              onAddExpense={() => setIsExpenseModalOpen(true)}
+            />
+          )}
+
+          {activeTab === 'Settlements' && (
+            <SettlementsTab
+              settlements={settlements}
+              isLoading={isLoading}
+              isRefreshing={isRefreshing}
+              onRefresh={handleRefresh}
+              userId={userId}
+              onSettle={(s) => setSettlingTarget(s)}
+            />
+          )}
+
+          {activeTab === 'Members' && (
+            <MembersTab
+              members={group?.members || []}
+              balance={balance}
+              isLoading={isLoading}
+              isRefreshing={isRefreshing}
+              onRefresh={handleRefresh}
+              userId={userId}
+            />
+          )}
+        </View>
+      )}
 
       <AddGroupExpenseModal
-        visible={isAddExpenseOpen}
+        visible={isExpenseModalOpen}
         groupId={groupId}
-        members={members}
-        onClose={() => setIsAddExpenseOpen(false)}
-        onExpenseAdded={handleExpenseAdded}
+        members={group?.members || []}
+        onClose={() => setIsExpenseModalOpen(false)}
+        onExpenseAdded={handleRefresh}
+      />
+
+      <AddGroupDepositModal
+        visible={isDepositModalOpen}
+        groupId={groupId}
+        members={group?.members || []}
+        currentUserId={userId}
+        onClose={() => setIsDepositModalOpen(false)}
+        onSuccess={handleRefresh}
       />
 
       <ConfirmModal
-        visible={settlingItem !== null}
-        title="Settle Payment"
+        visible={settlingTarget !== null}
+        title="Confirm Settlement"
         message={
-          settlingItem
-            ? `Pay ৳${settlingItem.amount.toLocaleString()} to ${settlingItem.to.name || settlingItem.to.username}?`
+          settlingTarget
+            ? `Are you sure you want to mark ৳${settlingTarget.amount.toLocaleString()} as settled with ${
+                settlingTarget.to.name || settlingTarget.to.username
+              }?`
             : ''
         }
-        confirmText="Pay Now"
+        confirmText="Confirm Settle"
         confirmVariant="primary"
-        iconName="check-circle"
         isLoading={isSettling}
-        onConfirm={handleSettleUp}
-        onClose={() => setSettlingItem(null)}
+        onConfirm={handleSettleConfirm}
+        onClose={() => setSettlingTarget(null)}
       />
     </SafeAreaView>
   );
 };
-
-const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  loadingCenter: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: spacing.sm,
-  },
-  loadingText: {
-    fontSize: typography.sm,
-    color: colors.textSecondary,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md - 2,
-    backgroundColor: colors.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.borderLight,
-    gap: spacing.sm,
-  },
-  backBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.background,
-  },
-  headerCenter: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs + 2,
-  },
-  headerEmoji: {
-    fontSize: 20,
-  },
-  headerTitle: {
-    fontSize: typography.lg,
-    fontWeight: '800',
-    color: colors.textPrimary,
-    flex: 1,
-  },
-  addBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  tabBar: {
-    flexDirection: 'row',
-    backgroundColor: colors.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.borderLight,
-    paddingHorizontal: spacing.md,
-  },
-  tabItem: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: spacing.sm + 4,
-    position: 'relative',
-  },
-  tabItemActive: {},
-  tabText: {
-    fontSize: typography.xs + 1,
-    fontWeight: '600',
-    color: colors.textMuted,
-  },
-  tabTextActive: {
-    color: colors.primary,
-    fontWeight: '800',
-  },
-  activeTabIndicator: {
-    position: 'absolute',
-    bottom: 0,
-    left: '15%',
-    right: '15%',
-    height: 3,
-    backgroundColor: colors.primary,
-    borderTopLeftRadius: 3,
-    borderTopRightRadius: 3,
-  },
-  tabContent: {
-    flex: 1,
-  },
-});

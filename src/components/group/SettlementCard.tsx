@@ -1,56 +1,73 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Feather } from '@expo/vector-icons';
-import { colors } from '../../constants/colors';
-import { spacing, typography } from '../../constants/spacing';
+import { View, Text, TouchableOpacity } from '../ui/core';
+import { Settlement } from '../../services/groupService';
 
 interface SettlementCardProps {
-  fromName: string;
-  toName: string;
-  amount: number;
-  isYouFrom: boolean;
-  isYouTo: boolean;
+  settlement?: Settlement;
+  fromName?: string;
+  toName?: string;
+  amount?: number;
+  isYouFrom?: boolean;
+  isYouTo?: boolean;
+  currentUserId?: string;
   onSettle?: () => void;
 }
 
 const getInitial = (name: string): string => {
-  return name.charAt(0).toUpperCase();
+  return (name || 'U').charAt(0).toUpperCase();
 };
 
 export const SettlementCard: React.FC<SettlementCardProps> = ({
+  settlement,
   fromName,
   toName,
   amount,
   isYouFrom,
   isYouTo,
+  currentUserId,
   onSettle,
 }) => {
-  const displayFrom = isYouFrom ? 'You' : fromName;
-  const displayTo = isYouTo ? 'You' : toName;
-  const showSettleButton = (isYouFrom || isYouTo) && onSettle;
+  const fName = settlement?.from.name || settlement?.from.username || fromName || 'User';
+  const tName = settlement?.to.name || settlement?.to.username || toName || 'User';
+  const amt = settlement?.amount ?? amount ?? 0;
+
+  const isFrom = currentUserId ? settlement?.from.id === currentUserId : (isYouFrom ?? false);
+  const isTo = currentUserId ? settlement?.to.id === currentUserId : (isYouTo ?? false);
+
+  const displayFrom = isFrom ? 'You' : fName;
+  const displayTo = isTo ? 'You' : tName;
+  const showSettleButton = (isFrom || isTo) && onSettle;
 
   return (
-    <View style={styles.card}>
-      <View style={styles.row}>
-        <View style={styles.leftSide}>
-          <View style={styles.avatarRow}>
-            <View style={styles.avatar}>
-              <Text style={styles.avatarText}>{getInitial(fromName)}</Text>
+    <View className="bg-card border border-border rounded-xl p-3 shadow-sm">
+      <View className="flex-row items-center justify-between">
+        <View className="flex-1">
+          <View className="flex-row items-center gap-2 mb-1">
+            <View className="w-8 h-8 rounded-full bg-rose-50 items-center justify-center border border-rose-100">
+              <Text className="text-xs font-bold text-destructive">{getInitial(fName)}</Text>
             </View>
-            <Feather name="arrow-right" size={16} color="#94A3B8" />
-            <View style={styles.avatar}>
-              <Text style={styles.avatarText}>{getInitial(toName)}</Text>
+            <Feather name="arrow-right" size={14} color="#94A3B8" />
+            <View className="w-8 h-8 rounded-full bg-emerald-50 items-center justify-center border border-emerald-100">
+              <Text className="text-xs font-bold text-emerald-600">{getInitial(tName)}</Text>
             </View>
           </View>
-          <Text style={styles.namesText}>
-            {displayFrom} → {displayTo}
+          <Text className="text-xs text-muted-foreground font-medium">
+            <Text className={isFrom ? 'font-bold text-destructive' : ''}>{displayFrom}</Text>
+            {' → '}
+            <Text className={isTo ? 'font-bold text-emerald-600' : ''}>{displayTo}</Text>
           </Text>
         </View>
-        <View style={styles.rightSide}>
-          <Text style={styles.amountText}>৳{amount}</Text>
+
+        <View className="items-end">
+          <Text className="text-sm font-extrabold text-primary">৳{amt.toLocaleString()}</Text>
           {showSettleButton && (
-            <TouchableOpacity style={styles.settleButton} onPress={onSettle}>
-              <Text style={styles.settleButtonText}>Settle</Text>
+            <TouchableOpacity
+              className="bg-primary rounded-full px-3 py-1 mt-1 shadow-sm"
+              onPress={onSettle}
+              activeOpacity={0.8}
+            >
+              <Text className="text-primary-foreground text-[11px] font-bold">Settle</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -58,64 +75,3 @@ export const SettlementCard: React.FC<SettlementCardProps> = ({
     </View>
   );
 };
-
-const styles = StyleSheet.create({
-  card: {
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: '#F1F5F9',
-    borderRadius: 12,
-    padding: spacing.md - 4,
-  },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  leftSide: {
-    flex: 1,
-  },
-  avatarRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-  },
-  avatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: colors.primaryLight,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarText: {
-    fontSize: typography.sm,
-    fontWeight: '600',
-    color: colors.primary,
-  },
-  namesText: {
-    fontSize: typography.xs,
-    color: colors.textMuted,
-    marginTop: spacing.xs,
-  },
-  rightSide: {
-    alignItems: 'flex-end',
-  },
-  amountText: {
-    fontSize: typography.md,
-    fontWeight: '700',
-    color: colors.primary,
-  },
-  settleButton: {
-    backgroundColor: '#1E3A5F',
-    borderRadius: 9999,
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    marginTop: spacing.xs,
-  },
-  settleButtonText: {
-    color: colors.white,
-    fontSize: 11,
-    fontWeight: '700',
-  },
-});

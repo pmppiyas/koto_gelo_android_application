@@ -1,18 +1,14 @@
 import React from 'react';
 import {
-  View,
-  Text,
   FlatList,
   ActivityIndicator,
-  TouchableOpacity,
   RefreshControl,
-  StyleSheet,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
-import { colors } from '../../../constants/colors';
-import { spacing, borderRadius, typography, BOTTOM_TAB_HEIGHT } from '../../../constants/spacing';
+import { View, Text, TouchableOpacity } from '../../ui/core';
 import { GroupExpenseCard } from '../GroupExpenseCard';
 import { GroupExpense } from '../../../services/groupService';
+import { BOTTOM_TAB_HEIGHT, spacing } from '../../../constants/spacing';
 
 export interface ExpensesTabProps {
   expenses: GroupExpense[];
@@ -43,8 +39,8 @@ export const ExpensesTab: React.FC<ExpensesTabProps> = ({
 }) => {
   if (isLoading && expenses.length === 0) {
     return (
-      <View style={styles.centered}>
-        <ActivityIndicator size="large" color={colors.primary} />
+      <View className="flex-1 justify-center items-center py-16">
+        <ActivityIndicator size="large" color="#2563EB" />
       </View>
     );
   }
@@ -53,113 +49,53 @@ export const ExpensesTab: React.FC<ExpensesTabProps> = ({
     <FlatList
       data={expenses}
       keyExtractor={(item) => item.id}
-      contentContainerStyle={styles.listContent}
+      contentContainerClassName="px-4 pt-3"
+      contentContainerStyle={{ paddingBottom: BOTTOM_TAB_HEIGHT + spacing.sm }}
       showsVerticalScrollIndicator={false}
       refreshControl={
         onRefresh ? (
           <RefreshControl
             refreshing={isRefreshing}
             onRefresh={onRefresh}
-            colors={[colors.primary]}
-            tintColor={colors.primary}
+            colors={['#2563EB']}
+            tintColor="#2563EB"
           />
         ) : undefined
       }
-      renderItem={({ item }) => (
-        <GroupExpenseCard
-          title={item.title || item.subcategory || item.category}
-          amount={item.amount}
-          category={item.category}
-          paidByName={item.user?.name || item.user?.username || 'Member'}
-          isYou={item.user?.id === userId}
-          date={formatDate(item.expenseDate)}
-          participantCount={item.participants?.length || 1}
-        />
-      )}
-      ItemSeparatorComponent={() => <View style={styles.separator} />}
+      ItemSeparatorComponent={() => <View className="h-2.5" />}
+      renderItem={({ item }) => {
+        const isYou = item.user.id === userId;
+        const count = item.participants?.length || 1;
+
+        return (
+          <GroupExpenseCard
+            title={item.title || item.subcategory || item.category}
+            amount={item.amount}
+            category={item.category}
+            paidByName={item.user.name || item.user.username}
+            isYou={isYou}
+            date={formatDate(item.expenseDate || item.createdAt)}
+            participantCount={count}
+          />
+        );
+      }}
       ListEmptyComponent={
-        <View style={styles.emptyContainer}>
-          <View style={styles.emptyIconCircle}>
-            <Feather name="receipt" size={36} color={colors.primary} />
-          </View>
-          <Text style={styles.emptyTitle}>No Group Expenses Yet</Text>
-          <Text style={styles.emptySubtitle}>
-            Add meals, bills, rent, or tour costs to split equally with all members.
+        <View className="bg-card rounded-2xl p-6 items-center justify-center border border-dashed border-border mt-4">
+          <Feather name="file-text" size={32} color="#94A3B8" style={{ marginBottom: 8 }} />
+          <Text className="text-base font-bold text-foreground mb-1">No Group Expenses Yet</Text>
+          <Text className="text-xs text-muted-foreground text-center leading-relaxed mb-4">
+            Add meals, bills, or shared grocery costs to split with your group members.
           </Text>
           <TouchableOpacity
-            style={styles.addButton}
+            className="flex-row items-center gap-1.5 bg-primary px-4 py-2.5 rounded-full shadow-sm"
             onPress={onAddExpense}
             activeOpacity={0.8}
           >
-            <Feather name="plus" size={16} color="#FFFFFF" />
-            <Text style={styles.addButtonText}>Add Group Expense</Text>
+            <Feather name="plus" size={15} color="#FFFFFF" />
+            <Text className="text-xs font-bold text-white">Add First Expense</Text>
           </TouchableOpacity>
         </View>
       }
     />
   );
 };
-
-const styles = StyleSheet.create({
-  centered: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: spacing.xxl,
-  },
-  listContent: {
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.md,
-    paddingBottom: BOTTOM_TAB_HEIGHT + spacing.sm,
-  },
-  separator: {
-    height: spacing.sm,
-  },
-  emptyContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: spacing.xxl,
-    paddingHorizontal: spacing.md,
-  },
-  emptyIconCircle: {
-    width: 68,
-    height: 68,
-    borderRadius: 34,
-    backgroundColor: colors.primaryLight,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: spacing.md,
-  },
-  emptyTitle: {
-    fontSize: typography.md,
-    fontWeight: '800',
-    color: colors.textPrimary,
-    marginBottom: spacing.xs,
-  },
-  emptySubtitle: {
-    fontSize: typography.sm,
-    color: colors.textMuted,
-    textAlign: 'center',
-    lineHeight: 20,
-    marginBottom: spacing.lg,
-  },
-  addButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs + 2,
-    backgroundColor: colors.primary,
-    borderRadius: borderRadius.full,
-    paddingHorizontal: spacing.xl,
-    paddingVertical: spacing.md - 2,
-    shadowColor: colors.primary,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  addButtonText: {
-    color: '#FFFFFF',
-    fontSize: typography.sm,
-    fontWeight: '800',
-  },
-});

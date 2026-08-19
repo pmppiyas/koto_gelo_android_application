@@ -1,9 +1,8 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
+import { Platform } from 'react-native';
 import { Feather } from '@expo/vector-icons';
+import { View, Text, TouchableOpacity } from '../components/ui/core';
 import { ROUTES } from '../constants/routes';
-import { colors } from '../constants/colors';
-import { BOTTOM_TAB_HEIGHT, FAB_SIZE } from '../constants/spacing';
 
 export interface BottomTabBarProps {
   activeRoute: string;
@@ -22,31 +21,40 @@ export const BottomTabBar: React.FC<BottomTabBarProps> = ({
     return (
       <TouchableOpacity
         key={route}
-        style={styles.tabContainer}
+        className={`flex-1 items-center justify-center py-1.5 mx-1 rounded-xl ${
+          isActive ? 'bg-primary-light' : ''
+        }`}
         onPress={() => onNavigate(route)}
         activeOpacity={0.7}
       >
         <Feather
           name={icon}
-          size={22}
-          color={isActive ? colors.primary : colors.textMuted}
+          size={20}
+          color={isActive ? '#4F46E5' : '#94A3B8'}
         />
-        <Text style={[styles.tabLabel, isActive && styles.tabLabelActive]}>
+        <Text
+          className={`text-[11px] mt-0.5 font-medium ${
+            isActive ? 'text-primary font-bold' : 'text-muted-foreground'
+          }`}
+        >
           {label}
         </Text>
-        {isActive && <View style={styles.activeDot} />}
       </TouchableOpacity>
     );
   };
 
   return (
-    <View style={styles.container}>
+    <View
+      className={`flex-row h-16 bg-card border-t border-border shadow-lg items-center px-1 ${
+        Platform.OS === 'ios' ? 'pb-5' : 'pb-0'
+      }`}
+    >
       {renderTab(ROUTES.HOME, 'home', 'Home')}
-      {renderTab(ROUTES.TRANSACTIONS, 'list', 'Activity')}
+      {renderTab(ROUTES.TRANSACTIONS, 'credit-card', 'Expenses')}
 
-      <View style={styles.fabWrapper}>
+      <View className="flex-1 items-center justify-center">
         <TouchableOpacity
-          style={styles.fab}
+          className="-mt-6 w-14 h-14 rounded-full bg-primary items-center justify-center shadow-lg border-4 border-card"
           onPress={() => onNavigate(ROUTES.ADD_EXPENSE)}
           activeOpacity={0.8}
         >
@@ -54,75 +62,28 @@ export const BottomTabBar: React.FC<BottomTabBarProps> = ({
         </TouchableOpacity>
       </View>
 
-      {renderTab(ROUTES.DASHBOARD, 'grid', 'Dashboard')}
+      {renderTab(ROUTES.EXPENSE_ANALYTICS, 'pie-chart', 'Analytics')}
 
       <TouchableOpacity
-        style={styles.tabContainer}
+        className={`flex-1 items-center justify-center py-1.5 mx-1 rounded-xl ${
+          activeRoute === 'MENU' ? 'bg-primary-light' : ''
+        }`}
         onPress={onOpenDrawer}
         activeOpacity={0.7}
       >
-        <Feather name="menu" size={22} color={colors.textMuted} />
-        <Text style={styles.tabLabel}>Menu</Text>
+        <Feather
+          name="menu"
+          size={20}
+          color={activeRoute === 'MENU' ? '#4F46E5' : '#94A3B8'}
+        />
+        <Text
+          className={`text-[11px] mt-0.5 font-medium ${
+            activeRoute === 'MENU' ? 'text-primary font-bold' : 'text-muted-foreground'
+          }`}
+        >
+          Menu
+        </Text>
       </TouchableOpacity>
     </View>
   );
 };
-
-const styles = StyleSheet.create({
-  container: {
-    flexDirection: 'row',
-    height: BOTTOM_TAB_HEIGHT,
-    backgroundColor: colors.navBackground || colors.surface,
-    borderTopWidth: 1,
-    borderTopColor: colors.navBorder || colors.borderLight,
-    shadowColor: colors.fabShadow || '#000',
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 4,
-    elevation: 8,
-    paddingBottom: Platform.OS === 'ios' ? 20 : 0,
-  },
-  tabContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    position: 'relative',
-  },
-  tabLabel: {
-    fontSize: 11,
-    fontWeight: '500',
-    color: colors.textMuted,
-    marginTop: 4,
-  },
-  tabLabelActive: {
-    fontWeight: '700',
-    color: colors.primary,
-  },
-  activeDot: {
-    position: 'absolute',
-    bottom: Platform.OS === 'ios' ? 4 : 8,
-    width: 4,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: colors.primary,
-  },
-  fabWrapper: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  fab: {
-    position: 'absolute',
-    top: -(FAB_SIZE / 2 - 4),
-    width: FAB_SIZE,
-    height: FAB_SIZE,
-    borderRadius: FAB_SIZE / 2,
-    backgroundColor: colors.fabPrimary || colors.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: colors.fabShadow || colors.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 1,
-    shadowRadius: 8,
-    elevation: 6,
-  },
-});

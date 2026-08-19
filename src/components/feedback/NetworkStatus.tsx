@@ -1,40 +1,18 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
-import { colors } from '../../theme/colors';
-import { spacing } from '../../theme/spacing';
-import { typography } from '../../theme/typography';
-import { useNetworkStatus } from '../../hooks/useNetworkStatus';
+import { View, Text } from '../ui/core';
 
-export const NetworkStatus: React.FC = () => {
-  const { isConnected } = useNetworkStatus();
+export interface NetworkStatusProps {
+  isConnected: boolean | null;
+}
+
+export const NetworkStatus: React.FC<NetworkStatusProps> = ({ isConnected }) => {
+  if (isConnected === null || isConnected) return null;
 
   return (
-    <View style={styles.container}>
-      <View
-        style={[
-          styles.indicator,
-          { backgroundColor: isConnected ? colors.success : colors.error },
-        ]}
-      />
-      <Text style={styles.label}>{isConnected ? 'Online' : 'Offline'}</Text>
+    <View className="bg-destructive py-1.5 px-4 items-center justify-center">
+      <Text className="text-[11px] font-bold text-destructive-foreground">
+        No Internet Connection • Working in Offline Mode
+      </Text>
     </View>
   );
 };
-
-const styles = StyleSheet.create({
-  container: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: spacing.xs,
-  },
-  indicator: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    marginRight: spacing.xs,
-  },
-  label: {
-    fontSize: typography.fontSizes.xs,
-    color: colors.textSecondary,
-  },
-});
