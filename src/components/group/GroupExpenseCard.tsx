@@ -58,16 +58,18 @@ export const GroupExpenseCard: React.FC<GroupExpenseCardProps> = ({
           {title}
         </Text>
         <Text className="text-xs text-muted-foreground mt-0.5" numberOfLines={1}>
-          Paid by <Text className={isYou ? 'font-bold text-primary' : ''}>{displayName}</Text>
+          Handled by <Text className={isYou ? 'font-bold text-primary' : ''}>{displayName}</Text>
         </Text>
         <Text className="text-xs text-muted-foreground mt-0.5">
-          {date} • {participantCount} people
+          {date} • {participantCount === 1 ? 'Only 1 person' : `${participantCount} people`}
         </Text>
       </View>
 
       <View className="items-end">
         <Text className="text-sm font-extrabold text-primary">-৳{amount.toLocaleString()}</Text>
-        <Text className="text-xs text-muted-foreground mt-0.5">৳{perPerson.toLocaleString()}/person</Text>
+        <Text className="text-xs text-muted-foreground mt-0.5">
+          {participantCount === 1 ? 'Only you' : `৳${perPerson.toLocaleString()}/person`}
+        </Text>
       </View>
     </TouchableOpacity>
   );

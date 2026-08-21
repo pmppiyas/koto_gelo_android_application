@@ -1,5 +1,6 @@
 import { API_ENDPOINTS } from '../config/api';
 import { storage, STORAGE_KEYS } from '../config/storage';
+import { handleUnauthorized } from '../utils/authEvents';
 
 export interface GroupMember {
   id: string;
@@ -174,6 +175,15 @@ async function apiRequest<T>(url: string, options: RequestInit = {}): Promise<T>
     credentials: 'include',
   });
   const json = await res.json().catch(() => null);
+  if (
+    res.status === 401 ||
+    json?.message?.toLowerCase()?.includes('expired') ||
+    json?.message?.toLowerCase()?.includes('invalid token') ||
+    json?.message?.toLowerCase()?.includes('unauthorized')
+  ) {
+    handleUnauthorized();
+    throw new Error(json?.message || 'Session expired. Please sign in again.');
+  }
   if (!res.ok) {
     throw new Error(json?.message || 'Request failed');
   }
@@ -248,6 +258,15 @@ export const groupService = {
       if (qs) url += `?${qs}`;
     }
     return apiRequest(url);
+  },
+
+  async getOverallGroupSummary(): Promise<{
+    totalGroupExpenses: number;
+    totalPaidByMe: number;
+    totalMyShare: number;
+    netBalance: number;
+  }> {
+    return apiRequest(API_ENDPOINTS.GROUP.SUMMARY);
   },
 
   async getGroupBalance(groupId: string): Promise<GroupBalance> {

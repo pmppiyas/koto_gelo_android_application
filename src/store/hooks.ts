@@ -4,8 +4,8 @@ import { localExpenseService } from '../services/localExpenseService';
 import { expenseSyncService } from '../services/expenseSyncService';
 import { expenseService } from '../services/expenseService';
 import { groupService } from '../services/groupService';
-import { SignInPayload, SignUpPayload } from '../features/auth/auth.types';
-import { LocalExpense } from '../features/expenses/expense.types';
+import { SignInPayload, SignUpPayload } from './auth.types';
+import { LocalExpense } from './expense.types';
 import { getLocalDateString, formatExpenseDateForServer } from '../utils/date';
 
 export const useAppSelector = <T>(selector: (state: RootState) => T): T => {
@@ -72,7 +72,7 @@ export const useAuth = () => {
 
 export const useExpenses = () => {
   const { state, dispatch } = useStore();
-  const { expenses, isLoading, isSyncing, error, lastSyncedAt } = state.expenses;
+  const { expenses, isLoading, isSyncing, error, lastSyncedAt, newlyAddedId } = state.expenses;
   const isAuthenticated = state.auth.isAuthenticated;
 
   const todayStr = getLocalDateString();
@@ -101,6 +101,7 @@ export const useExpenses = () => {
     note?: string | null;
     type?: 'PERSONAL' | 'GROUP';
     groupId?: string | null;
+    participants?: Array<{ userId: string; shareAmount?: number }>;
   }): Promise<LocalExpense> => {
     const localId = `loc_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const now = new Date().toISOString();
@@ -117,6 +118,7 @@ export const useExpenses = () => {
       syncStatus: 'pending',
       type: input.type || 'PERSONAL',
       groupId: input.groupId || null,
+      participants: input.participants,
       createdAt: now,
       updatedAt: now,
     };
@@ -134,23 +136,79 @@ export const useExpenses = () => {
             note: newExpense.note || undefined,
             expenseDate: formatExpenseDateForServer(newExpense.date),
             splitType: 'EQUAL',
+            participants:
+              input.participants && input.participants.length > 0
+                ? input.participants
+                : undefined,
           });
         } else {
           result = await expenseService.createPersonalExpense(newExpense);
         }
         const serverId = result?.id || result?.expense?.id || `srv_${Date.now()}`;
-        const syncedExpense: LocalExpense = { ...newExpense, serverId, syncStatus: 'synced' };
+        const syncedExpense: LocalExpense = {
+          ...newExpense,
+          serverId,
+          syncStatus: 'synced',
+          participants: result?.participants || newExpense.participants,
+        };
         await localExpenseService.saveExpenseLocally(syncedExpense);
         dispatch({ type: 'expenses/addLocalExpense', payload: syncedExpense });
         return syncedExpense;
-      } catch {
-      }
+      } catch {}
     }
 
     await localExpenseService.saveExpenseLocally(newExpense);
     dispatch({ type: 'expenses/addLocalExpense', payload: newExpense });
 
     return newExpense;
+  };
+
+  const refreshExpenses = async () => {
+    if (!isAuthenticated) return;
+    try {
+      const res = await expenseService.getPersonalExpenses({ limit: 100 });
+      const serverExpenses =
+        res?.expenses ||
+        res?.data?.expenses ||
+        (Array.isArray(res?.data) ? res.data : Array.isArray(res) ? res : []);
+      if (Array.isArray(serverExpenses)) {
+        const serverMapped: LocalExpense[] = serverExpenses.map((se: any) => {
+          let formattedDate = todayStr;
+          try {
+            const rawDate = se.expenseDate || se.date || se.createdAt;
+            if (rawDate) {
+              const parsed = new Date(rawDate);
+              if (!isNaN(parsed.getTime())) {
+                formattedDate = getLocalDateString(parsed);
+              }
+            }
+          } catch {}
+
+          return {
+            localId: `srv_${se.id}`,
+            serverId: se.id,
+            amount: Number(se.amount),
+            category: se.category,
+            subcategory: se.subcategory || null,
+            title: se.title || null,
+            date: formattedDate,
+            note: se.note || null,
+            syncStatus: 'synced' as const,
+            type: 'PERSONAL',
+            groupId: se.groupId || null,
+            createdAt: se.createdAt,
+            updatedAt: se.updatedAt || se.createdAt,
+          };
+        });
+        const currentLocal = await localExpenseService.getLocalExpenses();
+        const pendingItems = currentLocal.filter(
+          (e) => e.syncStatus === 'pending' || e.syncStatus === 'failed'
+        );
+        const reconciled = [...pendingItems, ...serverMapped];
+        await localExpenseService.setLocalExpenses(reconciled);
+        dispatch({ type: 'expenses/setExpenses', payload: reconciled });
+      }
+    } catch {}
   };
 
   const deleteExpense = async (localId: string) => {
@@ -160,6 +218,15 @@ export const useExpenses = () => {
 
   const syncExpenses = async () => {
     return await expenseSyncService.syncPendingExpenses(dispatch);
+  };
+
+  const clearNewlyAddedId = () => {
+    dispatch({ type: 'expenses/setNewlyAddedId', payload: null });
+  };
+
+  const clearAllExpenses = async () => {
+    await localExpenseService.setLocalExpenses([]);
+    dispatch({ type: 'expenses/setExpenses', payload: [] });
   };
 
   return {
@@ -174,8 +241,12 @@ export const useExpenses = () => {
     isSyncing,
     error,
     lastSyncedAt,
+    newlyAddedId,
+    clearNewlyAddedId,
     addExpense,
     deleteExpense,
     syncExpenses,
+    refreshExpenses,
+    clearAllExpenses,
   };
 };

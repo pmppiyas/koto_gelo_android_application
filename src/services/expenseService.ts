@@ -2,6 +2,24 @@ import { API_ENDPOINTS } from '../config/api';
 import { storage, STORAGE_KEYS } from '../config/storage';
 import { LocalExpense } from '../features/expenses/expense.types';
 import { formatExpenseDateForServer } from '../utils/date';
+import { handleUnauthorized } from '../utils/authEvents';
+
+async function checkResponse(res: Response): Promise<any> {
+  const json = await res.json().catch(() => null);
+  if (
+    res.status === 401 ||
+    json?.message?.toLowerCase()?.includes('expired') ||
+    json?.message?.toLowerCase()?.includes('invalid token') ||
+    json?.message?.toLowerCase()?.includes('unauthorized')
+  ) {
+    handleUnauthorized();
+    throw new Error(json?.message || 'Session expired. Please sign in again.');
+  }
+  if (!res.ok) {
+    throw new Error(json?.message || `Request failed (${res.status})`);
+  }
+  return json?.data || json;
+}
 
 export const expenseService = {
   async getAuthHeaders(localId?: string): Promise<Record<string, string>> {
@@ -37,13 +55,7 @@ export const expenseService = {
       body: JSON.stringify(payload),
     });
 
-    const json = await res.json().catch(() => null);
-
-    if (!res.ok) {
-      throw new Error(json?.message || `Failed to create expense (${res.status})`);
-    }
-
-    return json?.data || json;
+    return checkResponse(res);
   },
 
   async getPersonalExpenses(query?: Record<string, any>): Promise<any> {
@@ -68,11 +80,7 @@ export const expenseService = {
       credentials: 'include',
     });
 
-    const json = await res.json().catch(() => null);
-    if (!res.ok) {
-      throw new Error(json?.message || 'Failed to fetch expenses');
-    }
-    return json?.data || json;
+    return checkResponse(res);
   },
 
   async getPersonalExpenseSummary(): Promise<any> {
@@ -83,11 +91,7 @@ export const expenseService = {
       credentials: 'include',
     });
 
-    const json = await res.json().catch(() => null);
-    if (!res.ok) {
-      throw new Error(json?.message || 'Failed to fetch summary');
-    }
-    return json?.data || json;
+    return checkResponse(res);
   },
 
   async deletePersonalExpense(id: string): Promise<any> {
@@ -98,11 +102,7 @@ export const expenseService = {
       credentials: 'include',
     });
 
-    const json = await res.json().catch(() => null);
-    if (!res.ok) {
-      throw new Error(json?.message || 'Failed to delete expense');
-    }
-    return json?.data || json;
+    return checkResponse(res);
   },
 
   async updatePersonalExpense(id: string, data: any): Promise<any> {
@@ -114,10 +114,6 @@ export const expenseService = {
       body: JSON.stringify(data),
     });
 
-    const json = await res.json().catch(() => null);
-    if (!res.ok) {
-      throw new Error(json?.message || 'Failed to update expense');
-    }
-    return json?.data || json;
+    return checkResponse(res);
   },
 };

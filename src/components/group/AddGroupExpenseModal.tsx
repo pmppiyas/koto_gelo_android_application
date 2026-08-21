@@ -31,6 +31,7 @@ export const AddGroupExpenseModal: React.FC<AddGroupExpenseModalProps> = ({
   visible,
   groupId,
   members,
+  currentUserId,
   onClose,
   onSuccess,
   onExpenseAdded,
@@ -39,7 +40,14 @@ export const AddGroupExpenseModal: React.FC<AddGroupExpenseModalProps> = ({
   const [amount, setAmount] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
   const [note, setNote] = useState('');
+  const [selectedParticipantIds, setSelectedParticipantIds] = useState<string[]>([]);
   const [isSaving, setIsSaving] = useState(false);
+
+  React.useEffect(() => {
+    if (visible && members && members.length > 0) {
+      setSelectedParticipantIds(members.map((m) => m.user?.id || m.userId));
+    }
+  }, [visible, members]);
 
   const reset = () => {
     setTitle('');
@@ -57,6 +65,7 @@ export const AddGroupExpenseModal: React.FC<AddGroupExpenseModalProps> = ({
     const parsedAmount = parseFloat(amount);
     if (!parsedAmount || parsedAmount <= 0) return;
     if (!selectedCategory) return;
+    if (selectedParticipantIds.length === 0) return;
 
     setIsSaving(true);
     try {
@@ -68,6 +77,10 @@ export const AddGroupExpenseModal: React.FC<AddGroupExpenseModalProps> = ({
         note: note.trim() || undefined,
         expenseDate: formatExpenseDateForServer(getLocalDateString()),
         splitType: 'EQUAL',
+        participants: selectedParticipantIds.map((id) => ({
+          userId: id,
+          shareAmount: Math.round(parsedAmount / selectedParticipantIds.length),
+        })),
       });
       onSuccess?.();
       onExpenseAdded?.();
@@ -77,10 +90,11 @@ export const AddGroupExpenseModal: React.FC<AddGroupExpenseModalProps> = ({
     }
   };
 
-  const isValid = parseFloat(amount) > 0 && selectedCategory;
+  const isValid =
+    parseFloat(amount) > 0 && selectedCategory && selectedParticipantIds.length > 0;
   const numAmount = parseFloat(amount) || 0;
-  const memberCount = members.length || 1;
-  const splitAmount = numAmount > 0 ? Math.round(numAmount / memberCount) : 0;
+  const participantCount = selectedParticipantIds.length || 1;
+  const splitAmount = numAmount > 0 ? Math.round(numAmount / participantCount) : 0;
 
   return (
     <Modal
@@ -105,7 +119,7 @@ export const AddGroupExpenseModal: React.FC<AddGroupExpenseModalProps> = ({
                     Add Group Expense
                   </Text>
                   <Text className="text-xs text-muted-foreground">
-                    Split equally with all members
+                    Deducted from group fund & shared by members
                   </Text>
                 </View>
               </View>
@@ -137,14 +151,99 @@ export const AddGroupExpenseModal: React.FC<AddGroupExpenseModalProps> = ({
                 />
               </View>
 
-              {numAmount > 0 && (
+              {numAmount > 0 && selectedParticipantIds.length > 0 && (
                 <View className="flex-row items-center justify-between bg-primary-light px-3.5 py-2 rounded-xl border border-blue-200 mb-4">
                   <Text className="text-xs text-primary font-semibold">
-                    Equal Split ({memberCount} members):
+                    Split between {participantCount} members:
                   </Text>
                   <Text className="text-xs font-extrabold text-primary">
                     ৳{splitAmount.toLocaleString()}/person
                   </Text>
+                </View>
+              )}
+
+              {/* Participant Selection */}
+              {members && members.length > 0 && (
+                <View className="bg-muted/40 p-3 rounded-2xl border border-border mb-4 gap-2">
+                  <View className="flex-row justify-between items-center">
+                    <View className="flex-row items-center gap-1.5">
+                      <Feather name="users" size={13} color="#4F46E5" />
+                      <Text className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
+                        Split with ({selectedParticipantIds.length}/{members.length})
+                      </Text>
+                    </View>
+                    <TouchableOpacity
+                      onPress={() => {
+                        const allIds = members.map((m) => m.user?.id || m.userId);
+                        if (selectedParticipantIds.length === allIds.length) {
+                          setSelectedParticipantIds(
+                            currentUserId ? [currentUserId] : [],
+                          );
+                        } else {
+                          setSelectedParticipantIds(allIds);
+                        }
+                      }}
+                      activeOpacity={0.7}
+                    >
+                      <Text className="text-[11px] font-bold text-primary">
+                        {selectedParticipantIds.length === members.length
+                          ? 'Deselect Others'
+                          : 'Select All'}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  <View className="flex-row flex-wrap gap-1.5 pt-0.5">
+                    {members.map((m) => {
+                      const mId = m.user?.id || m.userId;
+                      const isSelected = selectedParticipantIds.includes(mId);
+                      const isYou = mId === currentUserId;
+                      const name = isYou
+                        ? 'You'
+                        : m.user?.name || m.user?.username || 'Member';
+
+                      return (
+                        <TouchableOpacity
+                          key={mId}
+                          className={`flex-row items-center gap-1.5 px-3 py-1.5 rounded-xl border ${
+                            isSelected
+                              ? 'bg-primary-light border-primary'
+                              : 'bg-card border-border opacity-60'
+                          }`}
+                          onPress={() => {
+                            if (isSelected) {
+                              if (selectedParticipantIds.length > 1) {
+                                setSelectedParticipantIds(
+                                  selectedParticipantIds.filter((id) => id !== mId),
+                                );
+                              }
+                            } else {
+                              setSelectedParticipantIds([
+                                ...selectedParticipantIds,
+                                mId,
+                              ]);
+                            }
+                          }}
+                          activeOpacity={0.7}
+                        >
+                          <Feather
+                            name={isSelected ? 'check-circle' : 'circle'}
+                            size={12}
+                            color={isSelected ? '#4F46E5' : '#94A3B8'}
+                          />
+                          <Text
+                            className={`text-xs font-semibold ${
+                              isSelected
+                                ? 'text-primary font-bold'
+                                : 'text-muted-foreground'
+                            }`}
+                          >
+                            {name}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
                 </View>
               )}
 
@@ -168,7 +267,7 @@ export const AddGroupExpenseModal: React.FC<AddGroupExpenseModalProps> = ({
                 showsHorizontalScrollIndicator={false}
                 contentContainerClassName="gap-2 py-1 mb-4"
               >
-                {EXPENSE_CATEGORIES.map(cat => {
+                {EXPENSE_CATEGORIES.map((cat) => {
                   const isSelected = selectedCategory === cat.name;
                   return (
                     <TouchableOpacity
