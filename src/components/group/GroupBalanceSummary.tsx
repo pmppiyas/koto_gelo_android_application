@@ -55,9 +55,13 @@ export const GroupBalanceSummary: React.FC<GroupBalanceSummaryProps> = ({
       <View className="bg-slate-900 rounded-3xl p-6 shadow-xl border border-slate-800">
         <View className="flex-row items-center justify-between mb-2">
           <View className="flex-row items-center gap-2">
-            <View className="w-2 h-2 rounded-full bg-rose-400" />
+            <View
+              className={`w-2 h-2 rounded-full ${
+                remainingFund >= 0 ? 'bg-emerald-400' : 'bg-rose-400'
+              }`}
+            />
             <Text className="text-xs text-slate-400 font-semibold tracking-wider uppercase">
-              Total Expense
+              Group Balance
             </Text>
           </View>
           <View className="bg-slate-800 px-2.5 py-1 rounded-full border border-slate-700">
@@ -65,8 +69,13 @@ export const GroupBalanceSummary: React.FC<GroupBalanceSummaryProps> = ({
           </View>
         </View>
 
-        <Text className="text-3xl text-white font-black tracking-tight mt-1 mb-5">
-          ৳ {totalExpenses.toLocaleString('en-US')}
+        <Text
+          className={`text-3xl font-black tracking-tight mt-1 mb-5 ${
+            remainingFund >= 0 ? 'text-emerald-400' : 'text-rose-400'
+          }`}
+        >
+          {remainingFund >= 0 ? '+' : '-'} ৳
+          {Math.abs(remainingFund).toLocaleString('en-US')}
         </Text>
 
         <View className="flex-row items-center gap-3">

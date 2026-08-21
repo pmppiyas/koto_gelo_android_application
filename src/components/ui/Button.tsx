@@ -103,7 +103,16 @@ export const Button: React.FC<ButtonProps> = ({
               : '#FFFFFF'
           }
         />
-      ) : typeof children === 'string' ? (
+      ) : typeof children === 'string' || typeof children === 'number' ? (
+        <Text style={textStyle}>{children}</Text>
+      ) : Array.isArray(children) &&
+        children.every(
+          (c) =>
+            typeof c === 'string' ||
+            typeof c === 'number' ||
+            c == null ||
+            typeof c === 'boolean',
+        ) ? (
         <Text style={textStyle}>{children}</Text>
       ) : (
         children

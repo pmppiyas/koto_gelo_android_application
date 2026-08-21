@@ -1,5 +1,6 @@
 import { ENV } from '../../config/env';
 import { RequestConfig, ApiResponse } from './api.types';
+import { handleUnauthorized } from '../../utils/authEvents';
 
 export class BaseApi {
   protected baseUrl: string;
@@ -33,6 +34,15 @@ export class BaseApi {
         resJson = await response.json();
       } catch {
         resJson = null;
+      }
+
+      if (
+        response.status === 401 ||
+        resJson?.message?.toLowerCase()?.includes('expired') ||
+        resJson?.message?.toLowerCase()?.includes('invalid token') ||
+        resJson?.message?.toLowerCase()?.includes('unauthorized')
+      ) {
+        handleUnauthorized();
       }
 
       if (!response.ok) {

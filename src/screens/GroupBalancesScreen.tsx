@@ -98,7 +98,7 @@ export const GroupBalancesScreen: React.FC<GroupBalancesScreenProps> = ({
 }) => {
   const { user, isAuthenticated } = useAuth();
   const userId = user?.id || '';
-  const { expenses: localExpenses } = useExpenses();
+  const { expenses: localExpenses, newlyAddedId } = useExpenses();
 
   const [groups, setGroups] = useState<Group[]>([]);
   const [selectedGroupId, setSelectedGroupId] = useState<string>(
@@ -211,7 +211,8 @@ export const GroupBalancesScreen: React.FC<GroupBalancesScreenProps> = ({
         expenseDate: e.date || (e as any).expenseDate || e.createdAt || new Date().toISOString(),
         createdAt: e.createdAt || new Date().toISOString(),
         user: { id: e.userId || userId, name: user?.name, username: user?.username || 'You', avatarUrl: user?.avatarUrl },
-      });
+        participants: (e as any).participants || [],
+      } as any);
     });
 
     groupExpenses.forEach(e => { if (e.id) expenseMap.set(e.id, e); });
@@ -254,41 +255,39 @@ export const GroupBalancesScreen: React.FC<GroupBalancesScreenProps> = ({
       }
     });
 
-    // 3. Merge backend balances if present
-    if (balance?.balances && balance.balances.length > 0) {
-      balance.balances.forEach(b => {
-        const existing = memberMap.get(b.userId);
-        if (existing) {
-          if (!existing.totalDeposited || existing.totalDeposited === 0) {
-            existing.totalDeposited = b.totalDeposited ?? b.paid ?? 0;
-          }
-          existing.totalPaid = b.totalPaid ?? existing.totalPaid;
-        } else {
-          memberMap.set(b.userId, {
-            ...b,
-            name: b.name || b.username,
-            totalDeposited: b.totalDeposited ?? b.paid ?? 0,
-          });
-        }
-      });
-    }
-
-    // 4. Equal share calculation: totalExpenses divided by total members
-    const memberCount = Math.max(
+    const totalMembersCount = Math.max(
       1,
-      memberMap.size || (members.length > 0 ? members.length : 1)
+      memberMap.size || (members.length > 0 ? members.length : 1),
     );
-    const equalShare = totalExpenses / memberCount;
 
-    // 5. Calculate net balance for each member: totalDeposited - equalShare
+    // 3. Calculate actual share per member from expenses (respecting participants)
+    allExpensesList.forEach(exp => {
+      const expAmt = Number(exp.amount) || 0;
+      if (exp.participants && exp.participants.length > 0) {
+        exp.participants.forEach((p: any) => {
+          const pId = p.userId || p.user?.id;
+          if (pId && memberMap.has(pId)) {
+            const memberItem = memberMap.get(pId)!;
+            const share = Number(p.shareAmount) || expAmt / exp.participants.length;
+            memberItem.totalShare = (memberItem.totalShare || 0) + share;
+          }
+        });
+      } else {
+        const equalPart = expAmt / totalMembersCount;
+        memberMap.forEach(item => {
+          item.totalShare = (item.totalShare || 0) + equalPart;
+        });
+      }
+    });
+
+    // 4. Calculate net balance for each member: totalDeposited - totalShare
     memberMap.forEach(item => {
-      item.totalShare = equalShare;
-      item.netBalance = Math.round((item.totalDeposited || 0) - equalShare);
+      item.netBalance = Math.round((item.totalDeposited || 0) - (item.totalShare || 0));
     });
 
     const memberBalancesList = Array.from(memberMap.values());
 
-    // 6. Current User's numbers
+    // 5. Current User's numbers
     const userDepositsFromList = groupDeposits
       .filter(d => d.userId === userId || d.user?.id === userId)
       .reduce((sum, d) => sum + (Number(d.amount) || 0), 0);
@@ -299,10 +298,7 @@ export const GroupBalancesScreen: React.FC<GroupBalancesScreenProps> = ({
       balance?.yourDeposited || 0
     );
 
-    const yourShare = equalShare;
-    // Difference between what you deposited and your equal share:
-    // If you deposited more than equalShare -> you get money (Positive / Your Balance)
-    // If you deposited less than equalShare -> you must pay the rest (Negative / You need to pay)
+    const yourShare = Math.round(memberMap.get(userId)?.totalShare || 0);
     const netBalance = Math.round(yourDeposited - yourShare);
     const isPositiveBalance = netBalance >= 0;
 
@@ -310,8 +306,7 @@ export const GroupBalancesScreen: React.FC<GroupBalancesScreenProps> = ({
       totalExpenses,
       totalDeposits,
       remainingFund: totalDeposits - totalExpenses,
-      totalMembers: memberCount,
-      equalShare,
+      totalMembers: totalMembersCount,
       yourDeposited,
       yourShare,
       netBalance,
@@ -397,9 +392,15 @@ export const GroupBalancesScreen: React.FC<GroupBalancesScreenProps> = ({
             <View className="bg-slate-900 rounded-3xl p-6 shadow-xl border border-slate-800">
               <View className="flex-row items-center justify-between mb-2">
                 <View className="flex-row items-center gap-2">
-                  <View className="w-2 h-2 rounded-full bg-rose-400" />
+                  <View
+                    className={`w-2 h-2 rounded-full ${
+                      computedMetrics.remainingFund >= 0
+                        ? 'bg-emerald-400'
+                        : 'bg-rose-400'
+                    }`}
+                  />
                   <Text className="text-xs text-slate-400 font-semibold tracking-wider uppercase">
-                    Total Expense
+                    Group Balance
                   </Text>
                 </View>
                 <View className="bg-slate-800 px-2.5 py-1 rounded-full border border-slate-700">
@@ -409,8 +410,15 @@ export const GroupBalancesScreen: React.FC<GroupBalancesScreenProps> = ({
                 </View>
               </View>
 
-              <Text className="text-3xl text-white font-black tracking-tight mt-1 mb-5">
-                ৳ {computedMetrics.totalExpenses.toLocaleString('en-US')}
+              <Text
+                className={`text-3xl font-black tracking-tight mt-1 mb-5 ${
+                  computedMetrics.remainingFund >= 0
+                    ? 'text-emerald-400'
+                    : 'text-rose-400'
+                }`}
+              >
+                {computedMetrics.remainingFund >= 0 ? '+' : '-'} ৳
+                {Math.abs(computedMetrics.remainingFund).toLocaleString('en-US')}
               </Text>
 
               {/* Bottom 2 sub-boxes inside Main Card */}
@@ -423,7 +431,7 @@ export const GroupBalancesScreen: React.FC<GroupBalancesScreenProps> = ({
                       You Deposited
                     </Text>
                   </View>
-                  <Text className="text-sm font-extrabold text-emerald-400">
+                  <Text className="text-sm font-bold text-emerald-400">
                     +৳{computedMetrics.yourDeposited.toLocaleString('en-US')}
                   </Text>
                 </View>
@@ -451,7 +459,7 @@ export const GroupBalancesScreen: React.FC<GroupBalancesScreenProps> = ({
                     </Text>
                   </View>
                   <Text
-                    className={`text-sm font-extrabold ${
+                    className={`text-sm font-bold ${
                       computedMetrics.isPositiveBalance
                         ? 'text-emerald-400'
                         : 'text-rose-400'
@@ -492,12 +500,72 @@ export const GroupBalancesScreen: React.FC<GroupBalancesScreenProps> = ({
                   <View className="flex-row items-center gap-2"><Text className="text-base font-bold text-foreground">Group Expenses</Text><View className="bg-rose-50 px-2 py-0.5 rounded-full border border-rose-200"><Text className="text-[11px] font-bold text-rose-700">{computedMetrics.allExpensesList.length}</Text></View></View>
                   <TouchableOpacity className="flex-row items-center gap-1 bg-primary px-3 py-1.5 rounded-full shadow-xs" onPress={() => setIsExpenseModalOpen(true)} activeOpacity={0.8}><Feather name="plus" size={13} color="#FFFFFF" /><Text className="text-xs font-bold text-white">Add Expense</Text></TouchableOpacity>
                 </View>
-                {computedMetrics.allExpensesList.map((item, index) => (
-                  <View key={item.id || index} className={`flex-row justify-between items-center py-3 ${index !== computedMetrics.allExpensesList.length - 1 ? 'border-b border-border' : ''}`}>
-                    <View className="flex-row items-center flex-1 pr-3"><View className="w-10 h-10 rounded-xl bg-rose-50 border border-rose-100 items-center justify-center mr-3"><Feather name={(categoryMap[item.category]?.icon || 'credit-card') as any} size={18} color="#EF4444" /></View><View className="flex-1"><Text className="text-sm font-semibold text-card-foreground mb-0.5" numberOfLines={1}>{item.title || item.subcategory || item.category}</Text><Text className="text-xs text-muted-foreground">{item.user?.id === userId ? 'Paid by You' : `Paid by ${item.user?.name || 'Member'}`} • {item.expenseDate?.slice(0, 10)}</Text></View></View>
-                    <View className="items-end"><Text className="text-sm font-bold text-foreground mb-0.5">-৳{Number(item.amount).toLocaleString('en-US')}</Text><Text className="text-xs text-muted-foreground">{item.category}</Text></View>
-                  </View>
-                ))}
+                {computedMetrics.allExpensesList.map((item, index) => {
+                  const isNewlyAdded =
+                    !!newlyAddedId &&
+                    (item.id === newlyAddedId || (item as any).localId === newlyAddedId);
+                  return (
+                    <View
+                      key={item.id || index}
+                      className={`flex-row justify-between items-center py-3 px-2 rounded-xl transition-all ${
+                        isNewlyAdded
+                          ? 'bg-primary-light/70 border border-indigo-300 my-1 shadow-xs'
+                          : index !== computedMetrics.allExpensesList.length - 1
+                          ? 'border-b border-border'
+                          : ''
+                      }`}
+                    >
+                      <View className="flex-row items-center flex-1 pr-3">
+                        <View
+                          className={`w-10 h-10 rounded-xl ${
+                            isNewlyAdded
+                              ? 'bg-primary border border-indigo-500'
+                              : 'bg-rose-50 border border-rose-100'
+                          } items-center justify-center mr-3`}
+                        >
+                          <Feather
+                            name={(categoryMap[item.category]?.icon || 'credit-card') as any}
+                            size={18}
+                            color={isNewlyAdded ? '#FFFFFF' : '#EF4444'}
+                          />
+                        </View>
+                        <View className="flex-1">
+                          <View className="flex-row items-center gap-1.5">
+                            <Text
+                              className={`text-sm font-bold ${
+                                isNewlyAdded ? 'text-primary' : 'text-card-foreground'
+                              } mb-0.5`}
+                              numberOfLines={1}
+                            >
+                              {item.title || item.subcategory || item.category}
+                            </Text>
+                            {isNewlyAdded && (
+                              <View className="bg-primary px-1.5 py-0.5 rounded-full shadow-2xs">
+                                <Text className="text-[9px] font-black text-white">✨ NEW</Text>
+                              </View>
+                            )}
+                          </View>
+                          <Text className="text-xs text-muted-foreground">
+                            {item.user?.id === userId
+                              ? 'Paid by You'
+                              : `Paid by ${item.user?.name || 'Member'}`}{' '}
+                            • {item.expenseDate?.slice(0, 10)}
+                          </Text>
+                        </View>
+                      </View>
+                      <View className="items-end">
+                        <Text
+                          className={`text-sm font-extrabold ${
+                            isNewlyAdded ? 'text-primary' : 'text-foreground'
+                          } mb-0.5`}
+                        >
+                          -৳{Number(item.amount).toLocaleString('en-US')}
+                        </Text>
+                        <Text className="text-xs text-muted-foreground">{item.category}</Text>
+                      </View>
+                    </View>
+                  );
+                })}
               </View>
             )}
 

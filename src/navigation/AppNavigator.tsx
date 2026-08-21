@@ -25,18 +25,29 @@ export const AppNavigator: React.FC = () => {
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!isLoading) {
-      if (isAuthenticated) {
-        setCurrentRoute((prev) =>
-          prev === ROUTES.LOGIN || prev === ROUTES.REGISTER ? ROUTES.HOME : prev
-        );
-      } else {
-        setCurrentRoute((prev) =>
-          prev !== ROUTES.LOGIN && prev !== ROUTES.REGISTER && prev !== ROUTES.HOME
-            ? ROUTES.HOME
-            : prev
-        );
-      }
+    if (isLoading) return;
+
+    if (isAuthenticated) {
+      // After login/register or token restore → go to Dashboard
+      setCurrentRoute((prev) => {
+        if (
+          prev === ROUTES.LOGIN ||
+          prev === ROUTES.REGISTER ||
+          prev === ROUTES.HOME
+        ) {
+          return ROUTES.DASHBOARD;
+        }
+        return prev;
+      });
+    } else {
+      // Not authenticated → kick back to Login
+      setCurrentRoute((prev) => {
+        const publicRoutes: RouteNames[] = [ROUTES.HOME, ROUTES.LOGIN, ROUTES.REGISTER];
+        if (!publicRoutes.includes(prev)) {
+          return ROUTES.LOGIN;
+        }
+        return prev;
+      });
     }
   }, [isAuthenticated, isLoading]);
 
@@ -111,7 +122,7 @@ export const AppNavigator: React.FC = () => {
           <LoginScreen
             onNavigateToRegister={() => navigateTo(ROUTES.REGISTER)}
             onNavigateToHome={() => navigateTo(ROUTES.HOME)}
-            onLoginSuccess={() => navigateTo(ROUTES.HOME)}
+            onLoginSuccess={() => navigateTo(ROUTES.DASHBOARD)}
           />
         );
 
@@ -120,7 +131,7 @@ export const AppNavigator: React.FC = () => {
           <RegisterScreen
             onNavigateToLogin={() => navigateTo(ROUTES.LOGIN)}
             onNavigateToHome={() => navigateTo(ROUTES.HOME)}
-            onRegisterSuccess={() => navigateTo(ROUTES.HOME)}
+            onRegisterSuccess={() => navigateTo(ROUTES.DASHBOARD)}
           />
         );
 
@@ -233,12 +244,33 @@ export const AppNavigator: React.FC = () => {
           <InvitationsScreen />
         );
 
-      case ROUTES.ADD_EXPENSE:
+      case ROUTES.ADD_EXPENSE: {
+        const groupRoutes: RouteNames[] = [
+          ROUTES.GROUP_BALANCES,
+          ROUTES.GROUP_EXPENSES,
+          ROUTES.GROUP_ANALYTICS,
+          ROUTES.GROUPS,
+          ROUTES.SETTLEMENTS,
+          ROUTES.GROUP_DETAILS,
+        ];
+        const isFromGroupContext = groupRoutes.includes(previousRoute);
         return (
           <AddExpenseScreen
-            onClose={() => setCurrentRoute(previousRoute || ROUTES.HOME)}
+            initialType={isFromGroupContext ? 'GROUP' : 'PERSONAL'}
+            initialGroupId={isFromGroupContext && selectedGroupId ? selectedGroupId : undefined}
+            onClose={(createdType, groupId) => {
+              if (createdType === 'GROUP' && groupId) {
+                setSelectedGroupId(groupId);
+                navigateTo(ROUTES.GROUP_BALANCES);
+              } else if (createdType === 'PERSONAL' || previousRoute === ROUTES.TRANSACTIONS) {
+                navigateTo(ROUTES.TRANSACTIONS);
+              } else {
+                navigateTo(previousRoute || ROUTES.HOME);
+              }
+            }}
           />
         );
+      }
 
       case ROUTES.DASHBOARD:
       case ROUTES.HOME:
