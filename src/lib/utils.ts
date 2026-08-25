@@ -16,12 +16,17 @@ export function cn(...inputs: (ClassValue | ClassValue[])[]): StyleObject {
       } else if (typeof item === 'string') {
         classes.push(item);
       } else if (typeof item === 'object') {
-        if ('flex' in item || 'padding' in item || 'margin' in item || 'backgroundColor' in item || 'color' in item || 'width' in item || 'height' in item) {
-          rawStyles.push(item as StyleObject);
-        } else {
-          for (const [key, val] of Object.entries(item)) {
+        const entries = Object.entries(item);
+        const isClassMap =
+          entries.length > 0 &&
+          entries.every(([_, val]) => typeof val === 'boolean');
+
+        if (isClassMap) {
+          for (const [key, val] of entries) {
             if (val) classes.push(key);
           }
+        } else {
+          rawStyles.push(item as StyleObject);
         }
       }
     }

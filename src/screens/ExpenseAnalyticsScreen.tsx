@@ -8,6 +8,8 @@ import {
   SafeAreaView,
   ScrollView,
 } from '../components/ui/core';
+import { HeroStatCard } from '../components/common/HeroStatCard';
+import { DonutChart } from '../components/common/DonutChart';
 import { EXPENSE_CATEGORIES } from '../constants/expense';
 import { expenseService } from '../services/expenseService';
 import { groupService, Group } from '../services/groupService';
@@ -21,7 +23,7 @@ export interface ExpenseAnalyticsScreenProps {
   onNavigateToAddExpense?: () => void;
 }
 
-type PeriodType = 'WEEK' | 'MONTH' | 'YEAR';
+type PeriodType = 'ALL' | 'TODAY' | 'WEEK' | 'MONTH' | 'YEAR';
 
 interface ExpenseRecord {
   id: string;
@@ -32,6 +34,7 @@ interface ExpenseRecord {
   expenseDate: string;
   type: 'PERSONAL' | 'GROUP';
   groupId?: string;
+  paidById?: string;
 }
 
 const TYPE_EMOJI: Record<string, string> = {
@@ -59,6 +62,14 @@ const MONTH_NAMES = [
   'October',
   'November',
   'December',
+];
+
+const TIME_FILTERS: { id: PeriodType; label: string }[] = [
+  { id: 'MONTH', label: 'This Month' },
+  { id: 'TODAY', label: 'Today' },
+  { id: 'WEEK', label: 'This Week' },
+  { id: 'YEAR', label: 'This Year' },
+  { id: 'ALL', label: 'All Time' },
 ];
 
 const CHART_PALETTE = [
@@ -96,9 +107,12 @@ export const ExpenseAnalyticsScreen: React.FC<ExpenseAnalyticsScreenProps> = ({
   onNavigateToAddExpense,
 }) => {
   const { expenses: localExpenses, syncExpenses } = useExpenses();
-  const { isAuthenticated } = useAuth();
+  const { user, isAuthenticated } = useAuth();
+  const userId = user?.id || '';
 
-  const [activeMode, setActiveMode] = useState<'PERSONAL' | 'GROUP'>(initialMode);
+  const [activeMode, setActiveMode] = useState<'PERSONAL' | 'GROUP'>(
+    initialMode,
+  );
   const [periodType, setPeriodType] = useState<PeriodType>('MONTH');
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [groups, setGroups] = useState<Group[]>([]);
@@ -116,9 +130,9 @@ export const ExpenseAnalyticsScreen: React.FC<ExpenseAnalyticsScreenProps> = ({
 
   // Interactive Chart States
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
-  const [selectedBarMonthIndex, setSelectedBarMonthIndex] = useState<number | null>(
-    null,
-  );
+  const [selectedBarMonthIndex, setSelectedBarMonthIndex] = useState<
+    number | null
+  >(null);
   const [chartAnimProgress, setChartAnimProgress] = useState(0);
 
   useEffect(() => {
@@ -231,6 +245,7 @@ export const ExpenseAnalyticsScreen: React.FC<ExpenseAnalyticsScreenProps> = ({
                   new Date().toISOString(),
                 type: 'GROUP' as const,
                 groupId: grp.id,
+                paidById: e.user?.id || (e as any).userId,
               }));
             } catch {
               return [];
@@ -265,7 +280,10 @@ export const ExpenseAnalyticsScreen: React.FC<ExpenseAnalyticsScreenProps> = ({
 
     (localExpenses || []).forEach(e => {
       const isGroup = e.type === 'GROUP';
-      if ((activeMode === 'PERSONAL' && isGroup) || (activeMode === 'GROUP' && !isGroup)) {
+      if (
+        (activeMode === 'PERSONAL' && isGroup) ||
+        (activeMode === 'GROUP' && !isGroup)
+      ) {
         return;
       }
       if (
@@ -293,6 +311,7 @@ export const ExpenseAnalyticsScreen: React.FC<ExpenseAnalyticsScreenProps> = ({
         expenseDate: rawDate,
         type: (isGroup ? 'GROUP' : 'PERSONAL') as 'GROUP' | 'PERSONAL',
         groupId: e.groupId ?? undefined,
+        paidById: (e as any).userId,
       });
     });
 
@@ -324,12 +343,22 @@ export const ExpenseAnalyticsScreen: React.FC<ExpenseAnalyticsScreenProps> = ({
   const filteredExpenses = useMemo(() => {
     const targetYear = selectedDate.getFullYear();
     const targetMonth = selectedDate.getMonth();
+    const now = new Date();
+    const todayStr = `${now.getFullYear()}-${String(
+      now.getMonth() + 1,
+    ).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 
     return allExpenses.filter(e => {
       const d = parseExpenseDate(e.expenseDate);
       if (!d) return false;
 
-      if (periodType === 'MONTH') {
+      if (periodType === 'TODAY') {
+        const dStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(
+          2,
+          '0',
+        )}-${String(d.getDate()).padStart(2, '0')}`;
+        return dStr === todayStr;
+      } else if (periodType === 'MONTH') {
         return d.getFullYear() === targetYear && d.getMonth() === targetMonth;
       } else if (periodType === 'YEAR') {
         return d.getFullYear() === targetYear;
@@ -344,7 +373,7 @@ export const ExpenseAnalyticsScreen: React.FC<ExpenseAnalyticsScreenProps> = ({
 
         return d >= start && d <= end;
       }
-      return true;
+      return true; // ALL
     });
   }, [allExpenses, periodType, selectedDate]);
 
@@ -393,6 +422,52 @@ export const ExpenseAnalyticsScreen: React.FC<ExpenseAnalyticsScreenProps> = ({
 
     return { list, total };
   }, [filteredExpenses]);
+
+  // Overall Statistics for Hero Cards (Today, This Month, You Paid)
+  const heroStats = useMemo(() => {
+    const now = new Date();
+    const todayStr = `${now.getFullYear()}-${String(
+      now.getMonth() + 1,
+    ).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    const thisYear = now.getFullYear();
+    const thisMonth = now.getMonth();
+
+    let todayTotal = 0;
+    let thisMonthTotal = 0;
+    let youPaid = 0;
+
+    allExpenses.forEach(e => {
+      const amt = Number(e.amount) || 0;
+      const d = parseExpenseDate(e.expenseDate);
+      if (!d) return;
+
+      const dStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(
+        2,
+        '0',
+      )}-${String(d.getDate()).padStart(2, '0')}`;
+      if (dStr === todayStr) {
+        todayTotal += amt;
+      }
+      if (d.getFullYear() === thisYear && d.getMonth() === thisMonth) {
+        thisMonthTotal += amt;
+      }
+      if (userId && e.paidById === userId) {
+        youPaid += amt;
+      }
+    });
+
+    const itemsCount = filteredExpenses.length;
+    const avgPerItem =
+      itemsCount > 0 ? Math.round(categoryBreakdown.total / itemsCount) : 0;
+
+    return {
+      todayTotal,
+      thisMonthTotal,
+      youPaid,
+      itemsCount,
+      avgPerItem,
+    };
+  }, [allExpenses, filteredExpenses, categoryBreakdown.total, userId]);
 
   // Monthly Spending Bar Chart Data (Jan - Dec)
   const monthlyBarData = useMemo(() => {
@@ -464,49 +539,6 @@ export const ExpenseAnalyticsScreen: React.FC<ExpenseAnalyticsScreenProps> = ({
     );
   }, [selectedCategory, categoryBreakdown.list]);
 
-  const conicGradient = useMemo(() => {
-    if (
-      !categoryBreakdown.list ||
-      categoryBreakdown.list.length === 0 ||
-      categoryBreakdown.total === 0
-    ) {
-      return '#E2E8F0';
-    }
-
-    const currentTotalDeg = 360 * chartAnimProgress;
-
-    if (categoryBreakdown.list.length === 1) {
-      const single = categoryBreakdown.list[0];
-      if (currentTotalDeg >= 360) {
-        return `conic-gradient(${single.color} 0deg 360deg)`;
-      }
-      return `conic-gradient(${single.color} 0deg ${currentTotalDeg.toFixed(
-        1,
-      )}deg, #F1F5F9 ${currentTotalDeg.toFixed(1)}deg 360deg)`;
-    }
-
-    let currentDeg = 0;
-    const slices = categoryBreakdown.list.map(item => {
-      const deg =
-        (item.amount / categoryBreakdown.total) * currentTotalDeg;
-      const start = currentDeg;
-      const end = currentDeg + deg;
-      currentDeg = end;
-
-      const isSelected =
-        !selectedCategory || selectedCategory === item.category;
-      const sliceColor = isSelected ? item.color : `${item.color}35`;
-
-      return `${sliceColor} ${start.toFixed(1)}deg ${end.toFixed(1)}deg`;
-    });
-
-    if (currentDeg < 360) {
-      slices.push(`#F1F5F9 ${currentDeg.toFixed(1)}deg 360deg`);
-    }
-
-    return `conic-gradient(${slices.join(', ')})`;
-  }, [categoryBreakdown, chartAnimProgress, selectedCategory]);
-
   const changePeriod = (dir: -1 | 1) => {
     const next = new Date(selectedDate);
     if (periodType === 'MONTH') {
@@ -520,17 +552,21 @@ export const ExpenseAnalyticsScreen: React.FC<ExpenseAnalyticsScreenProps> = ({
   };
 
   const periodLabel = useMemo(() => {
-    if (periodType === 'MONTH') {
+    if (periodType === 'TODAY') {
+      return 'Today';
+    } else if (periodType === 'MONTH') {
       return `${
         MONTH_NAMES[selectedDate.getMonth()]
       } ${selectedDate.getFullYear()}`;
     } else if (periodType === 'YEAR') {
       return `${selectedDate.getFullYear()}`;
-    } else {
+    } else if (periodType === 'WEEK') {
       return `Week of ${selectedDate.toLocaleDateString('en-GB', {
         day: 'numeric',
         month: 'short',
       })}`;
+    } else {
+      return 'All Time';
     }
   }, [periodType, selectedDate]);
 
@@ -549,8 +585,8 @@ export const ExpenseAnalyticsScreen: React.FC<ExpenseAnalyticsScreenProps> = ({
     <SafeAreaView className="flex-1 bg-background">
       <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
 
-      {/* Header */}
-      <View className="flex-row items-center justify-between px-4 py-3 bg-card border-b border-border shadow-2xs">
+      {/* Sticky Top Header Bar (Fixed outside ScrollView) */}
+      <View className="flex-row items-center justify-between px-3 py-2 bg-card border-b border-border shadow-2xs">
         {onNavigateBack && (
           <TouchableOpacity
             onPress={onNavigateBack}
@@ -567,13 +603,13 @@ export const ExpenseAnalyticsScreen: React.FC<ExpenseAnalyticsScreenProps> = ({
           <Text className="text-xs text-muted-foreground">
             {activeMode === 'GROUP'
               ? `Spending breakdown for ${currentGroupName}`
-              : 'Your personal spending trends & category charts'}
+              : 'Your personal spending charts'}
           </Text>
         </View>
 
         {onNavigateToAddExpense && (
           <TouchableOpacity
-            className="flex-row items-center gap-1.5 bg-primary px-3.5 py-2 rounded-full shadow-sm"
+            className="flex-row items-center gap-1.5 bg-primary px-3.5 py-1.5 rounded-full shadow-sm"
             onPress={onNavigateToAddExpense}
             activeOpacity={0.8}
           >
@@ -585,9 +621,9 @@ export const ExpenseAnalyticsScreen: React.FC<ExpenseAnalyticsScreenProps> = ({
 
       <ScrollView
         className="flex-1"
-        contentContainerClassName="p-4 gap-4"
+        contentContainerClassName="px-3 py-1.5 gap-2.5"
         contentContainerStyle={{
-          paddingBottom: BOTTOM_TAB_HEIGHT + spacing.xl,
+          paddingBottom: 2,
         }}
         showsVerticalScrollIndicator={false}
         refreshControl={
@@ -599,188 +635,216 @@ export const ExpenseAnalyticsScreen: React.FC<ExpenseAnalyticsScreenProps> = ({
           />
         }
       >
-        {/* Mode Switcher: Personal vs Group */}
-        <View className="flex-row bg-muted p-1 rounded-xl">
-          <TouchableOpacity
-            className={`flex-1 py-2 items-center rounded-lg ${
-              activeMode === 'PERSONAL'
-                ? 'bg-primary-light border border-indigo-200 shadow-xs'
-                : ''
-            }`}
-            onPress={() => setActiveMode('PERSONAL')}
-            activeOpacity={0.7}
-          >
-            <Text
-              className={`text-xs font-bold ${
-                activeMode === 'PERSONAL' ? 'text-primary' : 'text-muted-foreground'
-              }`}
-            >
-              Personal
-            </Text>
-          </TouchableOpacity>
+        {/* 1. Shared Hero Summary Stat Card */}
+        <HeroStatCard
+          title={
+            activeMode === 'PERSONAL'
+              ? periodType === 'MONTH' || periodType === 'ALL'
+                ? 'Total Spend'
+                : `Total Spend (${periodLabel})`
+              : `Group Spend (${periodLabel})`
+          }
+          badge={periodLabel}
+          dotColor="bg-emerald-400"
+          mainAmount={categoryBreakdown.total}
+          subtitle={
+            activeMode === 'PERSONAL'
+              ? `Total ${filteredExpenses.length} transactions in ${periodLabel}`
+              : `Total group expenses across ${
+                  filteredExpenses.length
+                } transaction${filteredExpenses.length === 1 ? '' : 's'}`
+          }
+          metrics={[
+            {
+              label: activeMode === 'PERSONAL' ? '📅 Today' : '💳 You Paid',
+              value:
+                activeMode === 'PERSONAL'
+                  ? `৳${heroStats.todayTotal.toLocaleString('en-US')}`
+                  : `+৳${heroStats.youPaid.toLocaleString('en-US')}`,
+              valueColor: 'text-emerald-400',
+            },
+            {
+              label: '📋 Items',
+              value: `${heroStats.itemsCount} item${
+                heroStats.itemsCount === 1 ? '' : 's'
+              }`,
+              valueColor: 'text-slate-100',
+            },
+            {
+              label: '📊 Avg/Item',
+              value: `৳${heroStats.avgPerItem.toLocaleString('en-US')}`,
+              valueColor: 'text-sky-400',
+            },
+          ]}
+        />
 
-          <TouchableOpacity
-            className={`flex-1 py-2 items-center rounded-lg ${
-              activeMode === 'GROUP'
-                ? 'bg-primary-light border border-indigo-200 shadow-xs'
-                : ''
-            }`}
-            onPress={() => setActiveMode('GROUP')}
-            activeOpacity={0.7}
-          >
-            <Text
-              className={`text-xs font-bold ${
-                activeMode === 'GROUP' ? 'text-primary' : 'text-muted-foreground'
+        {/* ========================================================================= */}
+        {/* 2. FILTER SECTION (Positioned exactly below Hero Card like Transactions)  */}
+        {/* ========================================================================= */}
+        <View className="gap-3">
+          {/* Tab Switcher: Personal vs Group */}
+          <View className="flex-row bg-muted p-1 rounded-xl">
+            <TouchableOpacity
+              className={`flex-1 py-2 items-center rounded-lg ${
+                activeMode === 'PERSONAL'
+                  ? 'bg-primary-light border border-indigo-200 shadow-xs'
+                  : ''
               }`}
+              onPress={() => setActiveMode('PERSONAL')}
+              activeOpacity={0.7}
             >
-              Groups
-            </Text>
-          </TouchableOpacity>
-        </View>
+              <Text
+                className={`text-xs font-bold ${
+                  activeMode === 'PERSONAL'
+                    ? 'text-primary'
+                    : 'text-muted-foreground'
+                }`}
+              >
+                Personal Analytics
+              </Text>
+            </TouchableOpacity>
 
-        {/* Group Selector Pills (if Group Mode) */}
-        {activeMode === 'GROUP' && groups.length > 0 && (
+            <TouchableOpacity
+              className={`flex-1 py-2 items-center rounded-lg ${
+                activeMode === 'GROUP'
+                  ? 'bg-primary-light border border-indigo-200 shadow-xs'
+                  : ''
+              }`}
+              onPress={() => setActiveMode('GROUP')}
+              activeOpacity={0.7}
+            >
+              <Text
+                className={`text-xs font-bold ${
+                  activeMode === 'GROUP'
+                    ? 'text-primary'
+                    : 'text-muted-foreground'
+                }`}
+              >
+                Group Analytics
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Time Filter Pills: This Month, Today, This Week, This Year, All Time */}
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
             contentContainerClassName="gap-1.5 py-0.5"
           >
-            <TouchableOpacity
-              className={`px-3.5 py-1.5 rounded-full border ${
-                selectedGroupId === 'ALL'
-                  ? 'bg-primary-light border-indigo-300'
-                  : 'bg-card border-border'
-              }`}
-              onPress={() => setSelectedGroupId('ALL')}
-              activeOpacity={0.7}
-            >
-              <Text
-                className={`text-xs font-bold ${
-                  selectedGroupId === 'ALL' ? 'text-primary' : 'text-muted-foreground'
-                }`}
-              >
-                All Groups
-              </Text>
-            </TouchableOpacity>
-
-            {groups.map(grp => {
-              const isSelected = selectedGroupId === grp.id;
-              const emoji = TYPE_EMOJI[grp.type] || '👥';
+            {TIME_FILTERS.map(tf => {
+              const isSelected = periodType === tf.id;
               return (
                 <TouchableOpacity
-                  key={grp.id}
-                  className={`flex-row items-center gap-1 px-3 py-1.5 rounded-full border ${
+                  key={tf.id}
+                  className={`px-3.5 py-1.5 rounded-full border ${
                     isSelected
                       ? 'bg-primary-light border-indigo-300'
                       : 'bg-card border-border'
                   }`}
-                  onPress={() => setSelectedGroupId(grp.id)}
+                  onPress={() => setPeriodType(tf.id)}
                   activeOpacity={0.7}
                 >
-                  <Text className="text-xs">{emoji}</Text>
                   <Text
                     className={`text-xs font-bold ${
                       isSelected ? 'text-primary' : 'text-muted-foreground'
                     }`}
-                    numberOfLines={1}
                   >
-                    {grp.name}
+                    {tf.label}
                   </Text>
                 </TouchableOpacity>
               );
             })}
           </ScrollView>
-        )}
 
-        {/* Total Spend Hero Summary Card */}
-        <View className="bg-slate-900 rounded-3xl p-5 shadow-lg border border-slate-800 gap-3">
-          <View className="flex-row items-center justify-between">
-            <View className="flex-row items-center gap-1.5">
-              <View className="w-2 h-2 rounded-full bg-emerald-400" />
-              <Text className="text-xs text-slate-400 font-bold uppercase tracking-wider">
-                Total {activeMode === 'GROUP' ? 'Group ' : ''}Spend
-              </Text>
-            </View>
-            <View className="bg-indigo-500/20 px-2.5 py-0.5 rounded-full border border-indigo-400/30">
-              <Text className="text-[10px] font-bold text-indigo-300">
-                {periodLabel}
-              </Text>
-            </View>
-          </View>
-
-          <Text className="text-3xl font-black text-white mt-1">
-            ৳{categoryBreakdown.total.toLocaleString()}
-          </Text>
-
-          <View className="flex-row items-center justify-between pt-2 border-t border-slate-800">
-            <Text className="text-[11px] text-slate-400">
-              Across {filteredExpenses.length} transaction
-              {filteredExpenses.length === 1 ? '' : 's'}
-            </Text>
-            {categoryBreakdown.list.length > 0 && (
-              <Text className="text-[11px] font-semibold text-emerald-400">
-                Top: {categoryBreakdown.list[0].emoji} {categoryBreakdown.list[0].category}
-              </Text>
-            )}
-          </View>
-        </View>
-
-        {/* Period Selector (Weekly, Monthly, Yearly) */}
-        <View className="flex-row bg-muted p-1 rounded-xl">
-          {(['WEEK', 'MONTH', 'YEAR'] as PeriodType[]).map(p => {
-            const isActive = periodType === p;
-            return (
+          {/* Group Selector Pills (if Group Tab is Active) */}
+          {activeMode === 'GROUP' && groups.length > 0 && (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerClassName="gap-1.5 py-0.5"
+            >
               <TouchableOpacity
-                key={p}
-                className={`flex-1 py-2 items-center rounded-lg ${
-                  isActive
-                    ? 'bg-primary-light border border-indigo-200 shadow-xs'
-                    : ''
+                className={`px-3.5 py-1.5 rounded-full border ${
+                  selectedGroupId === 'ALL'
+                    ? 'bg-primary-light border-indigo-300'
+                    : 'bg-card border-border'
                 }`}
-                onPress={() => setPeriodType(p)}
+                onPress={() => setSelectedGroupId('ALL')}
                 activeOpacity={0.7}
               >
                 <Text
                   className={`text-xs font-bold ${
-                    isActive ? 'text-primary' : 'text-muted-foreground'
+                    selectedGroupId === 'ALL'
+                      ? 'text-primary'
+                      : 'text-muted-foreground'
                   }`}
                 >
-                  {p === 'WEEK'
-                    ? 'Weekly'
-                    : p === 'MONTH'
-                    ? 'Monthly'
-                    : 'Yearly'}
+                  All Groups
                 </Text>
               </TouchableOpacity>
-            );
-          })}
-        </View>
 
-        {/* Date / Month Navigator */}
-        <View className="flex-row items-center justify-between bg-card p-3 rounded-2xl border border-border shadow-xs">
-          <TouchableOpacity
-            className="w-8 h-8 rounded-full bg-muted items-center justify-center"
-            onPress={() => changePeriod(-1)}
-            activeOpacity={0.7}
-          >
-            <Feather name="chevron-left" size={18} color="#0F172A" />
-          </TouchableOpacity>
+              {groups.map(grp => {
+                const isSelected = selectedGroupId === grp.id;
+                const emoji = TYPE_EMOJI[grp.type] || '👥';
+                return (
+                  <TouchableOpacity
+                    key={grp.id}
+                    className={`flex-row items-center gap-1 px-3 py-1.5 rounded-full border ${
+                      isSelected
+                        ? 'bg-primary-light border-indigo-300'
+                        : 'bg-card border-border'
+                    }`}
+                    onPress={() => setSelectedGroupId(grp.id)}
+                    activeOpacity={0.7}
+                  >
+                    <Text className="text-xs">{emoji}</Text>
+                    <Text
+                      className={`text-xs font-bold ${
+                        isSelected ? 'text-primary' : 'text-muted-foreground'
+                      }`}
+                      numberOfLines={1}
+                    >
+                      {grp.name}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          )}
 
-          <Text className="text-sm font-extrabold text-foreground">
-            {periodLabel}
-          </Text>
+          {/* Date / Month Navigator Bar */}
+          {periodType !== 'ALL' && periodType !== 'TODAY' && (
+            <View className="flex-row items-center justify-between bg-card p-3 rounded-2xl border border-border shadow-xs">
+              <TouchableOpacity
+                className="w-8 h-8 rounded-full bg-muted items-center justify-center"
+                onPress={() => changePeriod(-1)}
+                activeOpacity={0.7}
+              >
+                <Feather name="chevron-left" size={18} color="#0F172A" />
+              </TouchableOpacity>
 
-          <TouchableOpacity
-            className="w-8 h-8 rounded-full bg-muted items-center justify-center"
-            onPress={() => changePeriod(1)}
-            activeOpacity={0.7}
-          >
-            <Feather name="chevron-right" size={18} color="#0F172A" />
-          </TouchableOpacity>
+              <View className="items-center">
+                <Text className="text-sm font-extrabold text-foreground">
+                  {periodLabel}
+                </Text>
+                <Text className="text-[10px] text-muted-foreground">
+                  Tap arrows to browse dates
+                </Text>
+              </View>
+
+              <TouchableOpacity
+                className="w-8 h-8 rounded-full bg-muted items-center justify-center"
+                onPress={() => changePeriod(1)}
+                activeOpacity={0.7}
+              >
+                <Feather name="chevron-right" size={18} color="#0F172A" />
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
 
         {/* ========================================================================= */}
-        {/* 1. MONTHLY SPENDING BAR CHART (কোন মাসে কত খরচ হয়েছে)                      */}
+        {/* 3. MONTHLY SPENDING BAR CHART (কোন মাসে কত খরচ হয়েছে)                      */}
         {/* ========================================================================= */}
         <View className="bg-card rounded-2xl border border-border p-5 shadow-sm gap-4">
           <View className="flex-row justify-between items-center">
@@ -812,7 +876,8 @@ export const ExpenseAnalyticsScreen: React.FC<ExpenseAnalyticsScreenProps> = ({
                   📅 {selectedMonthInfo.fullName} {monthlyBarData.year}
                 </Text>
                 <Text className="text-[11px] text-muted-foreground">
-                  {selectedMonthInfo.count} transaction{selectedMonthInfo.count === 1 ? '' : 's'}
+                  {selectedMonthInfo.count} transaction
+                  {selectedMonthInfo.count === 1 ? '' : 's'}
                 </Text>
               </View>
               <View className="items-end">
@@ -822,7 +887,8 @@ export const ExpenseAnalyticsScreen: React.FC<ExpenseAnalyticsScreenProps> = ({
                 <Text className="text-[10px] font-semibold text-primary">
                   {monthlyBarData.yearTotal > 0
                     ? Math.round(
-                        (selectedMonthInfo.amount / monthlyBarData.yearTotal) * 100,
+                        (selectedMonthInfo.amount / monthlyBarData.yearTotal) *
+                          100,
                       )
                     : 0}
                   % of year
@@ -856,7 +922,9 @@ export const ExpenseAnalyticsScreen: React.FC<ExpenseAnalyticsScreenProps> = ({
                         Math.max(
                           6,
                           Math.round(
-                            (m.amount / monthlyBarData.maxMonthAmount) * 100 * chartAnimProgress,
+                            (m.amount / monthlyBarData.maxMonthAmount) *
+                              100 *
+                              chartAnimProgress,
                           ),
                         ),
                       )
@@ -874,13 +942,18 @@ export const ExpenseAnalyticsScreen: React.FC<ExpenseAnalyticsScreenProps> = ({
                     className="flex-1 items-center h-full justify-end group"
                   >
                     {/* Amount Label on top if active or selected */}
-                    {hasSpend && (isSelected || m.amount === monthlyBarData.maxMonthAmount) && (
-                      <View className="mb-1 bg-slate-900 px-1 py-0.5 rounded shadow-2xs">
-                        <Text className="text-[8px] font-bold text-white">
-                          ৳{m.amount >= 1000 ? `${Math.round(m.amount / 1000)}k` : m.amount}
-                        </Text>
-                      </View>
-                    )}
+                    {hasSpend &&
+                      (isSelected ||
+                        m.amount === monthlyBarData.maxMonthAmount) && (
+                        <View className="mb-1 bg-slate-900 px-1 py-0.5 rounded shadow-2xs">
+                          <Text className="text-[8px] font-bold text-white">
+                            ৳
+                            {m.amount >= 1000
+                              ? `${Math.round(m.amount / 1000)}k`
+                              : m.amount}
+                          </Text>
+                        </View>
+                      )}
 
                     {/* Bar Pillar */}
                     <View className="w-full max-w-[22px] h-28 bg-slate-100/90 rounded-t-lg overflow-hidden justify-end border border-slate-200/50">
@@ -955,24 +1028,13 @@ export const ExpenseAnalyticsScreen: React.FC<ExpenseAnalyticsScreenProps> = ({
         </View>
 
         {/* ========================================================================= */}
-        {/* 2. CATEGORY SPENDING PIE / DONUT CHART (ক্যাটাগরি ভিত্তিক ডোনাট চার্ট)      */}
-        {/* ========================================================================= */}
+        {/* 4. CATEGORY SPENDING PIE / DONUT CHART (ক্�        {/* 4. Category Spending Breakdown Card (Matches Recent Expenses Style Exactly) */}
         {categoryBreakdown.list.length > 0 ? (
-          <View className="bg-card rounded-2xl border border-border p-5 shadow-sm gap-4">
-            <View className="flex-row justify-between items-center">
-              <View className="flex-row items-center gap-2">
-                <View className="w-8 h-8 rounded-xl bg-indigo-50 items-center justify-center">
-                  <Feather name="pie-chart" size={17} color="#4F46E5" />
-                </View>
-                <View>
-                  <Text className="text-base font-bold text-foreground">
-                    Category Spending Breakdown
-                  </Text>
-                  <Text className="text-xs text-muted-foreground">
-                    Expense distribution in {periodLabel}
-                  </Text>
-                </View>
-              </View>
+          <View className="bg-card rounded-2xl border border-border p-4 mb-2 shadow-sm">
+            <View className="flex-row justify-between items-center mb-2">
+              <Text className="text-base font-bold text-foreground">
+                Category Spending Breakdown
+              </Text>
               <View className="bg-primary-light px-2.5 py-0.5 rounded-full border border-indigo-200">
                 <Text className="text-[10px] font-bold text-primary">
                   {categoryBreakdown.list.length}{' '}
@@ -983,176 +1045,83 @@ export const ExpenseAnalyticsScreen: React.FC<ExpenseAnalyticsScreenProps> = ({
               </View>
             </View>
 
-            {/* Thick & Rich Donut / Pie Chart Centerpiece */}
-            <View className="items-center justify-center py-3">
-              <TouchableOpacity
-                activeOpacity={0.9}
-                onPress={() => setSelectedCategory(null)}
-                style={
-                  {
-                    width: 210,
-                    height: 210,
-                    borderRadius: 105,
-                    background: conicGradient as any,
-                    boxShadow: '0 8px 24px rgba(79, 70, 229, 0.12)',
-                  } as any
-                }
-                className="items-center justify-center shadow-lg"
-              >
-                <View
-                  style={{
-                    width: 124,
-                    height: 124,
-                    borderRadius: 62,
-                    boxShadow: '0 2px 10px rgba(0, 0, 0, 0.06)',
-                  }}
-                  className="bg-white items-center justify-center p-2 border border-slate-100"
-                >
-                  {activeCategoryInfo ? (
-                    <>
-                      <Text className="text-base mb-0.5">
-                        {activeCategoryInfo.emoji}
-                      </Text>
-                      <Text
-                        className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider text-center"
-                        numberOfLines={1}
-                      >
-                        {activeCategoryInfo.category}
-                      </Text>
-                      <Text
-                        className="text-base font-bold text-slate-800 text-center my-0.5"
-                        numberOfLines={1}
-                      >
-                        ৳
-                        {Math.round(
-                          activeCategoryInfo.amount * chartAnimProgress,
-                        ).toLocaleString()}
-                      </Text>
-                      <View
-                        className="px-2 py-0.5 rounded-full mt-0.5"
-                        style={{
-                          backgroundColor: `${activeCategoryInfo.color}15`,
-                        }}
-                      >
-                        <Text
-                          className="text-[9px] font-medium"
-                          style={{ color: activeCategoryInfo.color }}
-                        >
-                          {Math.round(
-                            activeCategoryInfo.percentage * chartAnimProgress,
-                          )}
-                          % of total
-                        </Text>
-                      </View>
-                    </>
-                  ) : (
-                    <>
-                      <Text className="text-[9px] font-medium text-slate-400 uppercase tracking-wider text-center">
-                        Total Spent
-                      </Text>
-                      <Text
-                        className="text-base font-bold text-slate-800 text-center my-0.5"
-                        numberOfLines={1}
-                      >
-                        ৳
-                        {Math.round(
-                          categoryBreakdown.total * chartAnimProgress,
-                        ).toLocaleString()}
-                      </Text>
-                      <View className="bg-indigo-50 border border-indigo-100/70 px-2 py-0.5 rounded-full mt-0.5">
-                        <Text className="text-[9px] font-medium text-primary text-center">
-                          {periodLabel}
-                        </Text>
-                      </View>
-                    </>
-                  )}
-                </View>
-              </TouchableOpacity>
-            </View>
+            {/* Clean, Borderless Proportional Color Spectrum Bar */}
+            <DonutChart
+              data={categoryBreakdown.list.map(c => ({
+                name: c.category || (c as any).name,
+                amount: c.amount,
+                percentage: c.percentage,
+                color: c.color,
+                emoji: c.emoji,
+              }))}
+              total={categoryBreakdown.total}
+              selectedCategory={selectedCategory}
+              onSelectCategory={setSelectedCategory}
+            />
 
-            {/* Category Legends List with Progress Bars & Selection */}
-            <View className="gap-2 pt-3 border-t border-border">
-              {categoryBreakdown.list.map(cat => {
+            {/* Category Rows (Matching Recent Expenses List Style) */}
+            <View className="mt-1">
+              {categoryBreakdown.list.map((cat, index) => {
+                const isLast = index === categoryBreakdown.list.length - 1;
                 const isSelected = selectedCategory === cat.category;
-                const animatedAmount = Math.round(
-                  cat.amount * chartAnimProgress,
-                );
-                const animatedPercentage = Math.round(
-                  cat.percentage * chartAnimProgress,
-                );
-                const animatedProgressWidth = Math.max(
-                  4,
-                  cat.percentage * chartAnimProgress,
-                );
 
                 return (
                   <TouchableOpacity
                     key={cat.category}
                     activeOpacity={0.7}
                     onPress={() =>
-                      setSelectedCategory(
-                        isSelected ? null : cat.category,
-                      )
+                      setSelectedCategory(isSelected ? null : cat.category)
                     }
-                    className={`p-2.5 rounded-xl border transition-all gap-2 ${
+                    className={`flex-row justify-between items-center py-2.5 px-1 rounded-xl transition-all ${
                       isSelected
-                        ? 'bg-primary-light/40 border-primary shadow-xs'
-                        : 'bg-muted/30 border-border/50'
+                        ? 'bg-primary-light/70 my-0.5'
+                        : !isLast
+                        ? 'border-b border-border'
+                        : ''
                     }`}
                   >
-                    <View className="flex-row items-center justify-between">
-                      <View className="flex-row items-center gap-2.5 flex-1 pr-2">
-                        <View
-                          className="w-8 h-8 rounded-lg items-center justify-center shadow-2xs"
-                          style={{ backgroundColor: cat.bgColor }}
-                        >
-                          <Text className="text-sm">{cat.emoji}</Text>
-                        </View>
-                        <View className="flex-1">
-                          <Text
-                            className={`text-xs ${
-                              isSelected
-                                ? 'font-bold text-primary'
-                                : 'font-semibold text-foreground'
-                            }`}
-                            numberOfLines={1}
-                          >
-                            {cat.category}
-                          </Text>
-                          <Text className="text-[10px] font-normal text-muted-foreground">
-                            {cat.count}{' '}
-                            {cat.count === 1 ? 'transaction' : 'transactions'}
-                          </Text>
-                        </View>
+                    <View className="flex-row items-center flex-1 pr-3">
+                      <View
+                        className="w-10 h-10 rounded-xl items-center justify-center mr-3"
+                        style={{ backgroundColor: cat.bgColor }}
+                      >
+                        <Text className="text-base">{cat.emoji}</Text>
                       </View>
-
-                      <View className="items-end">
-                        <Text className="text-xs font-semibold text-foreground">
-                          ৳{animatedAmount.toLocaleString()}
-                        </Text>
-                        <View
-                          className="px-2 py-0.5 rounded-full mt-0.5"
-                          style={{ backgroundColor: `${cat.color}15` }}
+                      <View className="flex-1">
+                        <Text
+                          className={`text-sm font-bold ${
+                            isSelected
+                              ? 'text-primary'
+                              : 'text-card-foreground'
+                          }`}
+                          numberOfLines={1}
                         >
-                          <Text
-                            className="text-[10px] font-medium"
-                            style={{ color: cat.color }}
-                          >
-                            {animatedPercentage}%
-                          </Text>
-                        </View>
+                          {cat.category}
+                        </Text>
+                        <Text className="text-xs text-muted-foreground mt-0.5">
+                          {cat.count}{' '}
+                          {cat.count === 1 ? 'transaction' : 'transactions'}
+                        </Text>
                       </View>
                     </View>
 
-                    {/* Micro Progress Bar */}
-                    <View className="h-1 w-full bg-slate-200/60 rounded-full overflow-hidden">
-                      <View
-                        className="h-full rounded-full"
-                        style={{
-                          width: `${animatedProgressWidth}%`,
-                          backgroundColor: cat.color,
-                        }}
-                      />
+                    <View className="items-end">
+                      <Text className="text-sm font-extrabold text-foreground mb-0.5">
+                        ৳{Math.round(cat.amount * chartAnimProgress).toLocaleString('en-US')}
+                      </Text>
+                      <Text
+                        className="text-xs font-semibold"
+                        style={{ color: cat.color }}
+                      >
+                        {Math.round(cat.percentage * chartAnimProgress)}% of total
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
+        ) : null}                     />
                     </View>
                   </TouchableOpacity>
                 );
@@ -1171,8 +1140,8 @@ export const ExpenseAnalyticsScreen: React.FC<ExpenseAnalyticsScreenProps> = ({
               No Expense Records
             </Text>
             <Text className="text-xs text-muted-foreground text-center">
-              No {activeMode === 'GROUP' ? 'group ' : 'personal '}spending logged
-              for this period. Try changing date or period filter.
+              No {activeMode === 'GROUP' ? 'group ' : 'personal '}spending
+              logged for this period. Try changing date or period filter.
             </Text>
           </View>
         )}
@@ -1180,4 +1149,3 @@ export const ExpenseAnalyticsScreen: React.FC<ExpenseAnalyticsScreenProps> = ({
     </SafeAreaView>
   );
 };
-

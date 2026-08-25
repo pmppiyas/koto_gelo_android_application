@@ -3,6 +3,7 @@ import { storage, STORAGE_KEYS } from '../config/storage';
 import { LocalExpense } from '../features/expenses/expense.types';
 import { formatExpenseDateForServer } from '../utils/date';
 import { handleUnauthorized } from '../utils/authEvents';
+import { expenseRepository } from './database/repositories/expense.repository';
 
 async function checkResponse(res: Response): Promise<any> {
   const json = await res.json().catch(() => null);
@@ -59,39 +60,51 @@ export const expenseService = {
   },
 
   async getPersonalExpenses(query?: Record<string, any>): Promise<any> {
-    const headers = await this.getAuthHeaders();
-    let url = API_ENDPOINTS.EXPENSES.PERSONAL;
-    if (query) {
-      const searchParams = new URLSearchParams();
-      Object.entries(query).forEach(([k, v]) => {
-        if (v !== undefined && v !== null && v !== '') {
-          searchParams.append(k, String(v));
+    try {
+      const headers = await this.getAuthHeaders();
+      let url = API_ENDPOINTS.EXPENSES.PERSONAL;
+      if (query) {
+        const searchParams = new URLSearchParams();
+        Object.entries(query).forEach(([k, v]) => {
+          if (v !== undefined && v !== null && v !== '') {
+            searchParams.append(k, String(v));
+          }
+        });
+        const qs = searchParams.toString();
+        if (qs) {
+          url += `?${qs}`;
         }
-      });
-      const qs = searchParams.toString();
-      if (qs) {
-        url += `?${qs}`;
       }
+
+      const res = await fetch(url, {
+        method: 'GET',
+        headers,
+        credentials: 'include',
+      });
+
+      return await checkResponse(res);
+    } catch {
+      // Fallback to SQLite
+      const stored = await expenseRepository.getAll();
+      return { expenses: stored, data: { expenses: stored } };
     }
-
-    const res = await fetch(url, {
-      method: 'GET',
-      headers,
-      credentials: 'include',
-    });
-
-    return checkResponse(res);
   },
 
   async getPersonalExpenseSummary(): Promise<any> {
-    const headers = await this.getAuthHeaders();
-    const res = await fetch(API_ENDPOINTS.EXPENSES.SUMMARY, {
-      method: 'GET',
-      headers,
-      credentials: 'include',
-    });
+    try {
+      const headers = await this.getAuthHeaders();
+      const res = await fetch(API_ENDPOINTS.EXPENSES.SUMMARY, {
+        method: 'GET',
+        headers,
+        credentials: 'include',
+      });
 
-    return checkResponse(res);
+      return await checkResponse(res);
+    } catch {
+      const stored = await expenseRepository.getAll();
+      const total = stored.reduce((sum, e) => sum + Number(e.amount || 0), 0);
+      return { totalExpenses: total, count: stored.length };
+    }
   },
 
   async deletePersonalExpense(id: string): Promise<any> {

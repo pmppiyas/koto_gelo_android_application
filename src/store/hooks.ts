@@ -1,9 +1,11 @@
 import { useStore, RootState } from './store';
 import { authService } from '../services/authService';
+import { database } from '../services/database/database';
 import { localExpenseService } from '../services/localExpenseService';
-import { expenseSyncService } from '../services/expenseSyncService';
+import { expenseSyncService, SyncProgressState } from '../services/expenseSyncService';
 import { expenseService } from '../services/expenseService';
 import { groupService } from '../services/groupService';
+import { localGroupService } from '../services/localGroupService';
 import { SignInPayload, SignUpPayload } from './auth.types';
 import { LocalExpense } from './expense.types';
 import { getLocalDateString, formatExpenseDateForServer } from '../utils/date';
@@ -22,43 +24,76 @@ export const useAuth = () => {
   const { state, dispatch } = useStore();
   const auth = state.auth;
 
-  const signin = async (payload: SignInPayload) => {
+  const signin = async (
+    payload: SignInPayload,
+    onProgress?: (progress: SyncProgressState) => void
+  ) => {
     dispatch({ type: 'auth/setLoading', payload: true });
     dispatch({ type: 'auth/setError', payload: null });
     try {
+      onProgress?.({
+        currentStep: 1,
+        totalSteps: 5,
+        stepName: 'Account Authenticated',
+        detail: 'Verifying credentials with server...',
+        percentage: 15,
+      });
       const result = await authService.signin(payload);
+      // Run full 5-stage sync on auth before setting credentials
+      await expenseSyncService.syncOnAuth(onProgress, dispatch);
       dispatch({ type: 'auth/setCredentials', payload: result });
-      expenseSyncService.syncPendingExpenses(dispatch);
       return result;
     } catch (err: any) {
       const msg = err?.message || 'Login failed';
       dispatch({ type: 'auth/setError', payload: msg });
       throw err;
+    } finally {
+      dispatch({ type: 'auth/setLoading', payload: false });
     }
   };
 
-  const signup = async (payload: SignUpPayload) => {
+  const signup = async (
+    payload: SignUpPayload,
+    onProgress?: (progress: SyncProgressState) => void
+  ) => {
     dispatch({ type: 'auth/setLoading', payload: true });
     dispatch({ type: 'auth/setError', payload: null });
     try {
+      onProgress?.({
+        currentStep: 1,
+        totalSteps: 5,
+        stepName: 'Account Authenticated',
+        detail: 'Creating your account securely...',
+        percentage: 15,
+      });
       const result = await authService.signup(payload);
+      // Run full 5-stage sync on auth before setting credentials
+      await expenseSyncService.syncOnAuth(onProgress, dispatch);
       dispatch({ type: 'auth/setCredentials', payload: result });
-      expenseSyncService.syncPendingExpenses(dispatch);
       return result;
     } catch (err: any) {
       const msg = err?.message || 'Registration failed';
       dispatch({ type: 'auth/setError', payload: msg });
       throw err;
+    } finally {
+      dispatch({ type: 'auth/setLoading', payload: false });
     }
   };
 
   const logout = async () => {
-    dispatch({ type: 'auth/setLoading', payload: true });
-    try {
-      await authService.logout();
-    } finally {
-      dispatch({ type: 'auth/logout' });
-    }
+    // Dispatch logout immediately for instant UI response
+    dispatch({ type: 'auth/logout' });
+    dispatch({ type: 'expenses/setExpenses', payload: [] });
+
+    // Clear all local data: server session + SQLite + group cache (parallel, with timeout)
+    await Promise.all([
+      Promise.race([
+        authService.logout().catch(() => {}),
+        new Promise(r => setTimeout(r, 2000)),
+      ]),
+      database.clearAllData().catch(() => {}),
+      localGroupService.clearAll().catch(() => {}),
+    ]);
   };
 
   return {
@@ -123,42 +158,59 @@ export const useExpenses = () => {
       updatedAt: now,
     };
 
-    if (isAuthenticated) {
-      try {
-        let result: any;
-        if (newExpense.type === 'GROUP' && newExpense.groupId) {
-          result = await groupService.addGroupExpense({
-            groupId: newExpense.groupId,
-            amount: newExpense.amount,
-            category: newExpense.category,
-            subcategory: newExpense.subcategory || undefined,
-            title: newExpense.title || undefined,
-            note: newExpense.note || undefined,
-            expenseDate: formatExpenseDateForServer(newExpense.date),
-            splitType: 'EQUAL',
-            participants:
-              input.participants && input.participants.length > 0
-                ? input.participants
-                : undefined,
-          });
-        } else {
-          result = await expenseService.createPersonalExpense(newExpense);
-        }
-        const serverId = result?.id || result?.expense?.id || `srv_${Date.now()}`;
-        const syncedExpense: LocalExpense = {
-          ...newExpense,
-          serverId,
-          syncStatus: 'synced',
-          participants: result?.participants || newExpense.participants,
-        };
-        await localExpenseService.saveExpenseLocally(syncedExpense);
-        dispatch({ type: 'expenses/addLocalExpense', payload: syncedExpense });
-        return syncedExpense;
-      } catch {}
-    }
-
+    // 1. INSTANT OPTIMISTIC SAVE (0ms) - Save locally to SQLite and update UI state immediately
     await localExpenseService.saveExpenseLocally(newExpense);
+    if (newExpense.type === 'GROUP' && newExpense.groupId) {
+      await localGroupService.saveGroupExpenseLocally({
+        ...newExpense,
+        id: localId,
+      }, 'pending');
+    }
     dispatch({ type: 'expenses/addLocalExpense', payload: newExpense });
+
+    // 2. BACKGROUND ASYNC SERVER SYNC (Non-blocking)
+    if (isAuthenticated) {
+      (async () => {
+        try {
+          let result: any;
+          if (newExpense.type === 'GROUP' && newExpense.groupId) {
+            result = await groupService.addGroupExpense({
+              groupId: newExpense.groupId,
+              amount: newExpense.amount,
+              category: newExpense.category,
+              subcategory: newExpense.subcategory || undefined,
+              title: newExpense.title || undefined,
+              note: newExpense.note || undefined,
+              expenseDate: formatExpenseDateForServer(newExpense.date),
+              splitType: 'EQUAL',
+              participants:
+                input.participants && input.participants.length > 0
+                  ? input.participants
+                  : undefined,
+            });
+          } else {
+            result = await expenseService.createPersonalExpense(newExpense);
+          }
+          const serverId = result?.id || result?.expense?.id || `srv_${Date.now()}`;
+          const syncedExpense: LocalExpense = {
+            ...newExpense,
+            serverId,
+            syncStatus: 'synced',
+            participants: result?.participants || newExpense.participants,
+          };
+          await localExpenseService.saveExpenseLocally(syncedExpense);
+          if (newExpense.type === 'GROUP' && newExpense.groupId) {
+            await localGroupService.saveGroupExpenseLocally({
+              ...syncedExpense,
+              id: serverId,
+            }, 'synced');
+          }
+          dispatch({ type: 'expenses/addLocalExpense', payload: syncedExpense });
+        } catch {
+          // If server fails or offline, expense remains in local storage with 'pending' status
+        }
+      })();
+    }
 
     return newExpense;
   };

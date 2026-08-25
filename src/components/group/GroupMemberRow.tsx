@@ -34,16 +34,22 @@ export const GroupMemberRow: React.FC<GroupMemberRowProps> = ({
           </Text>
           {role === 'ADMIN' && (
             <View className="bg-primary-light px-1.5 py-0.5 rounded ml-1.5">
-              <Text className="text-[10px] font-semibold text-primary">Admin</Text>
+              <Text className="text-[10px] font-semibold text-primary">
+                Admin
+              </Text>
             </View>
           )}
         </View>
-        <Text className="text-xs text-muted-foreground mt-0.5">@{username}</Text>
+        <Text className="text-xs text-muted-foreground mt-0.5">{username}</Text>
       </View>
 
       {netBalance !== undefined && netBalance !== 0 && (
         <View className="items-end">
-          <Text className={`text-sm font-bold ${isPositive ? 'text-emerald-600' : 'text-destructive'}`}>
+          <Text
+            className={`text-sm font-bold ${
+              isPositive ? 'text-emerald-600' : 'text-destructive'
+            }`}
+          >
             ৳{Math.abs(netBalance)}
           </Text>
           <Text className="text-[10px] text-muted-foreground mt-0.5">

@@ -1,14 +1,27 @@
-import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
-import {
-  Platform,
-  ActivityIndicator,
-} from 'react-native';
+import React, {
+  useState,
+  useMemo,
+  useRef,
+  useEffect,
+  useCallback,
+} from 'react';
+import { Platform, ActivityIndicator } from 'react-native';
 import { Feather } from '@expo/vector-icons';
-import { View, Text, TouchableOpacity, SafeAreaView, ScrollView, TextInput, KeyboardAvoidingView, Button } from '../components/ui';
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  SafeAreaView,
+  ScrollView,
+  TextInput,
+  KeyboardAvoidingView,
+  Button,
+} from '../components/ui';
 import { EXPENSE_CATEGORIES, CategoryInfo } from '../constants/expense';
 import { useExpenses, useAuth } from '../store/hooks';
 import { getLocalDateString, formatExpenseDateForServer } from '../utils/date';
 import { groupService, Group } from '../services/groupService';
+import { localGroupService } from '../services/localGroupService';
 import { CreateGroupModal } from '../components/group/CreateGroupModal';
 import { BOTTOM_TAB_HEIGHT, spacing } from '../constants/spacing';
 
@@ -46,9 +59,13 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
   const { addExpense, expenses } = useExpenses();
   const { user, isAuthenticated } = useAuth();
 
-  const [expenseType, setExpenseType] = useState<'PERSONAL' | 'GROUP'>(initialType);
+  const [expenseType, setExpenseType] = useState<'PERSONAL' | 'GROUP'>(
+    initialType,
+  );
   const [amount, setAmount] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState<CategoryInfo | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<CategoryInfo | null>(
+    null,
+  );
   const [isCategoryExpanded, setIsCategoryExpanded] = useState<boolean>(true);
   const [selectedSubcategory, setSelectedSubcategory] = useState<string>('');
   const [categorySearchQuery, setCategorySearchQuery] = useState<string>('');
@@ -59,9 +76,14 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
   const [error, setError] = useState('');
 
   const [groups, setGroups] = useState<Group[]>([]);
-  const [selectedGroupId, setSelectedGroupId] = useState<string>(initialGroupId || '');
-  const [selectedGroupDetails, setSelectedGroupDetails] = useState<Group | null>(null);
-  const [selectedParticipantIds, setSelectedParticipantIds] = useState<string[]>([]);
+  const [selectedGroupId, setSelectedGroupId] = useState<string>(
+    initialGroupId || '',
+  );
+  const [selectedGroupDetails, setSelectedGroupDetails] =
+    useState<Group | null>(null);
+  const [selectedParticipantIds, setSelectedParticipantIds] = useState<
+    string[]
+  >([]);
   const [isLoadingGroups, setIsLoadingGroups] = useState(false);
   const [isCreateGroupModalOpen, setIsCreateGroupModalOpen] = useState(false);
 
@@ -77,12 +99,13 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
     const categoryFrequency: Record<string, number> = {};
     const categorySpend: Record<string, number> = {};
 
-    (expenses || []).forEach((e) => {
+    (expenses || []).forEach(e => {
       const catName = e.category?.trim();
       if (!catName) return;
       const lower = catName.toLowerCase();
       categoryFrequency[lower] = (categoryFrequency[lower] || 0) + 1;
-      categorySpend[lower] = (categorySpend[lower] || 0) + (Number(e.amount) || 0);
+      categorySpend[lower] =
+        (categorySpend[lower] || 0) + (Number(e.amount) || 0);
     });
 
     const getScore = (c: CategoryInfo) => {
@@ -106,22 +129,22 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
       return 0;
     });
 
-    const usedCategories = rankedCategories.filter((c) => getScore(c).freq > 0);
+    const usedCategories = rankedCategories.filter(c => getScore(c).freq > 0);
 
     const topList: CategoryInfo[] = [];
     const topIds = new Set<string>();
 
     // Add user's most used categories first (#1 most used is strictly first)
-    usedCategories.slice(0, 5).forEach((c) => {
+    usedCategories.slice(0, 5).forEach(c => {
       topList.push(c);
       topIds.add(c.id);
     });
 
     // Fill remaining spots up to 5 from default popular categories if needed
     if (topList.length < 5) {
-      TOP_5_CATEGORY_IDS.forEach((id) => {
+      TOP_5_CATEGORY_IDS.forEach(id => {
         if (topList.length < 5 && !topIds.has(id)) {
-          const found = EXPENSE_CATEGORIES.find((c) => c.id === id);
+          const found = EXPENSE_CATEGORIES.find(c => c.id === id);
           if (found) {
             topList.push(found);
             topIds.add(found.id);
@@ -131,13 +154,13 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
     }
 
     // Remaining categories sorted by frequency as well
-    let others = rankedCategories.filter((c) => !topIds.has(c.id));
+    let others = rankedCategories.filter(c => !topIds.has(c.id));
     if (categorySearchQuery) {
       const q = categorySearchQuery.toLowerCase();
       others = EXPENSE_CATEGORIES.filter(
-        (c) =>
+        c =>
           c.name.toLowerCase().includes(q) ||
-          c.subcategories.some((s) => s.toLowerCase().includes(q))
+          c.subcategories.some(s => s.toLowerCase().includes(q)),
       );
     }
 
@@ -151,11 +174,15 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
   // 2. Analytics-driven Subcategories for the selected category
   const analyzedSubcategories = useMemo(() => {
     if (!selectedCategory || !selectedCategory.subcategories?.length) {
-      return { topSubcategories: [], regularSubcategories: [], hasAnalytics: false };
+      return {
+        topSubcategories: [],
+        regularSubcategories: [],
+        hasAnalytics: false,
+      };
     }
 
     const subFreq: Record<string, number> = {};
-    (expenses || []).forEach((e) => {
+    (expenses || []).forEach(e => {
       const catMatch =
         e.category?.toLowerCase() === selectedCategory.name.toLowerCase() ||
         e.category?.toLowerCase() === selectedCategory.slug.toLowerCase() ||
@@ -173,8 +200,10 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
       return countB - countA;
     });
 
-    const topSubs = sorted.filter((s) => (subFreq[s.toLowerCase()] || 0) > 0);
-    const regularSubs = sorted.filter((s) => (subFreq[s.toLowerCase()] || 0) === 0);
+    const topSubs = sorted.filter(s => (subFreq[s.toLowerCase()] || 0) > 0);
+    const regularSubs = sorted.filter(
+      s => (subFreq[s.toLowerCase()] || 0) === 0,
+    );
 
     return {
       topSubcategories: topSubs,
@@ -183,20 +212,67 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
     };
   }, [selectedCategory, expenses]);
 
+  // Instant 0ms offline load for groups on mount
+  useEffect(() => {
+    let isCurrent = true;
+
+    const loadCachedGroups = async () => {
+      try {
+        const cachedGroups = await localGroupService.getStoredGroups();
+        if (isCurrent && cachedGroups && cachedGroups.length > 0) {
+          setGroups(cachedGroups);
+          const initialGrp =
+            cachedGroups.find(g => (selectedGroupId ? g.id === selectedGroupId : false)) ||
+            cachedGroups[0];
+          if (initialGrp) {
+            setSelectedGroupId(prev => (prev ? prev : initialGrp.id));
+            if (initialGrp.members && initialGrp.members.length > 0) {
+              setSelectedGroupDetails(initialGrp);
+              const memberIds = initialGrp.members.map(
+                (m: any) => m.user?.id || m.userId,
+              );
+              setSelectedParticipantIds(
+                memberIds.length > 0 ? memberIds : user?.id ? [user.id] : [],
+              );
+            }
+          }
+        }
+      } catch {}
+    };
+
+    loadCachedGroups();
+    return () => {
+      isCurrent = false;
+    };
+  }, [user?.id]);
+
   const fetchGroups = useCallback(async () => {
     if (!isAuthenticated) return;
-    setIsLoadingGroups(true);
+    if (groups.length === 0) {
+      setIsLoadingGroups(true);
+    }
     try {
       const response = await groupService.getGroups({ limit: 50 });
-      const groupList = response?.groups || response?.data?.groups || (Array.isArray(response) ? response : []);
-      setGroups(Array.isArray(groupList) ? groupList : []);
-      if (groupList.length > 0 && !selectedGroupId) {
-        setSelectedGroupId(groupList[0].id);
+      const groupList =
+        response?.groups ||
+        response?.data?.groups ||
+        (Array.isArray(response) ? response : []);
+      const validList = Array.isArray(groupList) ? groupList : [];
+      if (validList.length > 0) {
+        setGroups(validList);
+        localGroupService.setStoredGroups(validList).catch(() => {});
+        setSelectedGroupId(prev => {
+          if (!prev && validList.length > 0) {
+            return validList[0].id;
+          }
+          return prev;
+        });
       }
-    } catch {} finally {
+    } catch {
+    } finally {
       setIsLoadingGroups(false);
     }
-  }, [isAuthenticated, selectedGroupId]);
+  }, [isAuthenticated, groups.length]);
 
   useEffect(() => {
     if (expenseType === 'GROUP') {
@@ -204,14 +280,33 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
     }
   }, [expenseType, fetchGroups]);
 
+  // Instant 0ms load group details / members from local cache first, then sync from server
   useEffect(() => {
     if (expenseType === 'GROUP' && selectedGroupId) {
+      let isCurrent = true;
+
+      // 1. Instant 0ms cache check for selected group members
+      localGroupService.getStoredGroupById(selectedGroupId).then(cachedGrp => {
+        if (isCurrent && cachedGrp && cachedGrp.members && cachedGrp.members.length > 0) {
+          setSelectedGroupDetails(cachedGrp);
+          const memberIds = cachedGrp.members.map(
+            (m: any) => m.user?.id || m.userId,
+          );
+          setSelectedParticipantIds(
+            memberIds.length > 0 ? memberIds : user?.id ? [user.id] : [],
+          );
+        }
+      }).catch(() => {});
+
+      // 2. Fresh background fetch from server
       groupService
         .getGroupById(selectedGroupId)
         .then((res: any) => {
+          if (!isCurrent) return;
           const grp = res?.data || res;
           if (grp) {
             setSelectedGroupDetails(grp);
+            localGroupService.saveGroupLocally(grp, 'synced').catch(() => {});
             const memberIds = (grp.members || []).map(
               (m: any) => m.user?.id || m.userId,
             );
@@ -221,8 +316,11 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
           }
         })
         .catch(() => {});
+      return () => {
+        isCurrent = false;
+      };
     }
-  }, [expenseType, selectedGroupId, user]);
+  }, [expenseType, selectedGroupId, user?.id]);
 
   const handleCategorySelect = (cat: CategoryInfo) => {
     setSelectedCategory(cat);
@@ -314,7 +412,7 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
           date: formatExpenseDateForServer(date),
           type: 'GROUP',
           groupId: selectedGroupId,
-          participants: selectedParticipantIds.map((id) => ({ userId: id })),
+          participants: selectedParticipantIds.map(id => ({ userId: id })),
         } as any);
         onClose('GROUP', selectedGroupId);
       }
@@ -326,8 +424,8 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
   };
 
   const selectedGroup = useMemo(
-    () => groups.find((g) => g.id === selectedGroupId),
-    [groups, selectedGroupId]
+    () => groups.find(g => g.id === selectedGroupId),
+    [groups, selectedGroupId],
   );
   const memberCount = selectedGroup?.members?.length || 1;
   const numAmount = parseFloat(amount) || 0;
@@ -339,14 +437,20 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         className="flex-1"
       >
-        <View className="flex-row items-center justify-between px-4 py-3 bg-card border-b border-border">
+        <View className="flex-row items-center justify-between px-3 py-2 bg-card border-b border-border">
           <View className="flex-row items-center gap-2">
-            <View className="w-9 h-9 rounded-full bg-primary-light items-center justify-center">
-              <Feather name="plus-circle" size={20} color="#4F46E5" />
+            <View className="w-8 h-8 rounded-full bg-primary-light items-center justify-center">
+              <Feather name="plus-circle" size={18} color="#4F46E5" />
             </View>
-            <Text className="text-lg font-bold text-foreground">Add New Expense</Text>
+            <Text className="text-base font-bold text-foreground">
+              Add New Expense
+            </Text>
           </View>
-          <TouchableOpacity onPress={() => onClose()} className="p-1.5" activeOpacity={0.7}>
+          <TouchableOpacity
+            onPress={() => onClose()}
+            className="p-1.5"
+            activeOpacity={0.7}
+          >
             <Feather name="x" size={20} color="#64748B" />
           </TouchableOpacity>
         </View>
@@ -354,8 +458,8 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
         <ScrollView
           ref={scrollViewRef}
           className="flex-1"
-          contentContainerClassName="p-4 gap-4"
-          contentContainerStyle={{ paddingBottom: 24 }}
+          contentContainerClassName="px-3 py-1.5 gap-2.5"
+          contentContainerStyle={{ paddingBottom: 8 }}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
@@ -370,7 +474,9 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
             >
               <Text
                 className={`text-xs font-bold ${
-                  expenseType === 'PERSONAL' ? 'text-primary' : 'text-muted-foreground'
+                  expenseType === 'PERSONAL'
+                    ? 'text-primary'
+                    : 'text-muted-foreground'
                 }`}
               >
                 Personal Expense
@@ -386,7 +492,9 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
             >
               <Text
                 className={`text-xs font-bold ${
-                  expenseType === 'GROUP' ? 'text-primary' : 'text-muted-foreground'
+                  expenseType === 'GROUP'
+                    ? 'text-primary'
+                    : 'text-muted-foreground'
                 }`}
               >
                 Group / Mess Split
@@ -397,7 +505,9 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
           {error ? (
             <View className="flex-row items-center gap-2 bg-rose-50 p-3 rounded-xl border border-rose-200">
               <Feather name="alert-circle" size={15} color="#EF4444" />
-              <Text className="text-xs text-destructive font-medium flex-1">{error}</Text>
+              <Text className="text-xs text-destructive font-medium flex-1">
+                {error}
+              </Text>
             </View>
           ) : null}
 
@@ -412,31 +522,45 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
                   onPress={() => setIsCreateGroupModalOpen(true)}
                   activeOpacity={0.7}
                 >
-                  <Text className="text-xs font-bold text-primary">+ Create Group</Text>
+                  <Text className="text-xs font-bold text-primary">
+                    + Create Group
+                  </Text>
                 </TouchableOpacity>
               </View>
 
-              {isLoadingGroups ? (
+              {isLoadingGroups && groups.length === 0 ? (
                 <ActivityIndicator size="small" color="#2563EB" />
               ) : (
                 <ScrollView
                   horizontal
+                  nestedScrollEnabled={true}
+                  directionalLockEnabled={true}
                   showsHorizontalScrollIndicator={false}
                   contentContainerClassName="gap-2 py-1"
+                  keyboardShouldPersistTaps="always"
                 >
-                  {groups.map((grp) => {
+                  {groups.map((grp, index) => {
                     const isSelected = selectedGroupId === grp.id;
                     const emoji = TYPE_EMOJI[grp.type] || '👥';
                     return (
                       <TouchableOpacity
-                        key={grp.id}
+                        key={`${grp.id}_${index}`}
                         className={`flex-row items-center gap-1.5 px-3.5 py-2 rounded-xl border ${
                           isSelected
                             ? 'bg-primary-light border-primary'
                             : 'bg-card border-border'
                         }`}
-                        onPress={() => setSelectedGroupId(grp.id)}
-                        activeOpacity={0.7}
+                        onPress={() => {
+                          setSelectedGroupId(grp.id);
+                          setSelectedGroupDetails(grp);
+                          const memberIds = (grp.members || []).map(
+                            (m: any) => m.user?.id || m.userId,
+                          );
+                          if (memberIds.length > 0) {
+                            setSelectedParticipantIds(memberIds);
+                          }
+                        }}
+                        activeOpacity={0.6}
                       >
                         <Text className="text-sm">{emoji}</Text>
                         <Text
@@ -453,21 +577,35 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
               )}
 
               {/* Group Participant Selector: Who shares this expense */}
-              {((selectedGroupDetails?.members && selectedGroupDetails.members.length > 0) ||
-                (selectedGroup?.members && selectedGroup.members.length > 0)) && (
+              {((selectedGroupDetails?.members &&
+                selectedGroupDetails.members.length > 0) ||
+                (selectedGroup?.members &&
+                  selectedGroup.members.length > 0)) && (
                 <View className="bg-card rounded-2xl p-3.5 border border-border shadow-2xs gap-2 mt-1">
                   <View className="flex-row justify-between items-center">
                     <View className="flex-row items-center gap-1.5">
                       <Feather name="users" size={13} color="#4F46E5" />
                       <Text className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
                         Split with ({selectedParticipantIds.length}/
-                        {(selectedGroupDetails?.members || selectedGroup?.members || []).length})
+                        {
+                          (
+                            selectedGroupDetails?.members ||
+                            selectedGroup?.members ||
+                            []
+                          ).length
+                        }
+                        )
                       </Text>
                     </View>
                     <TouchableOpacity
                       onPress={() => {
-                        const allList = selectedGroupDetails?.members || selectedGroup?.members || [];
-                        const allIds = allList.map((m: any) => m.user?.id || m.userId);
+                        const allList =
+                          selectedGroupDetails?.members ||
+                          selectedGroup?.members ||
+                          [];
+                        const allIds = allList.map(
+                          (m: any) => m.user?.id || m.userId,
+                        );
                         if (selectedParticipantIds.length === allIds.length) {
                           setSelectedParticipantIds(user?.id ? [user.id] : []);
                         } else {
@@ -478,7 +616,11 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
                     >
                       <Text className="text-[11px] font-bold text-primary">
                         {selectedParticipantIds.length ===
-                        (selectedGroupDetails?.members || selectedGroup?.members || []).length
+                        (
+                          selectedGroupDetails?.members ||
+                          selectedGroup?.members ||
+                          []
+                        ).length
                           ? 'Deselect Others'
                           : 'Select All'}
                       </Text>
@@ -486,15 +628,21 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
                   </View>
 
                   <View className="flex-row flex-wrap gap-1.5 pt-0.5">
-                    {(selectedGroupDetails?.members || selectedGroup?.members || []).map((m: any) => {
+                    {(
+                      selectedGroupDetails?.members ||
+                      selectedGroup?.members ||
+                      []
+                    ).map((m: any) => {
                       const mId = m.user?.id || m.userId;
                       const isSelected = selectedParticipantIds.includes(mId);
                       const isYou = mId === user?.id;
-                      const name = isYou ? 'You' : m.user?.name || m.user?.username || 'Member';
+                      const name = isYou
+                        ? 'You'
+                        : m.user?.name || m.user?.username || 'Member';
 
                       return (
                         <TouchableOpacity
-                          key={mId}
+                          key={`${mId || 'm'}_${m.id || ''}`}
                           className={`flex-row items-center gap-1.5 px-3 py-1.5 rounded-xl border ${
                             isSelected
                               ? 'bg-primary-light border-primary'
@@ -504,11 +652,16 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
                             if (isSelected) {
                               if (selectedParticipantIds.length > 1) {
                                 setSelectedParticipantIds(
-                                  selectedParticipantIds.filter((id) => id !== mId),
+                                  selectedParticipantIds.filter(
+                                    id => id !== mId,
+                                  ),
                                 );
                               }
                             } else {
-                              setSelectedParticipantIds([...selectedParticipantIds, mId]);
+                              setSelectedParticipantIds([
+                                ...selectedParticipantIds,
+                                mId,
+                              ]);
                             }
                           }}
                           activeOpacity={0.7}
@@ -520,7 +673,9 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
                           />
                           <Text
                             className={`text-xs font-semibold ${
-                              isSelected ? 'text-primary font-bold' : 'text-muted-foreground'
+                              isSelected
+                                ? 'text-primary font-bold'
+                                : 'text-muted-foreground'
                             }`}
                           >
                             {name}
@@ -537,7 +692,7 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
           {/* 1. AMOUNT (৳) SECTION - Placed on TOP above Categories */}
           <View
             ref={amountSectionRef}
-            onLayout={(e) => {
+            onLayout={e => {
               amountLayoutY.current = e.nativeEvent.layout.y;
             }}
             className="bg-card rounded-2xl p-4 border border-border shadow-sm"
@@ -549,7 +704,10 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
               {selectedCategory && (
                 <View className="flex-row items-center gap-1 bg-primary-light px-2.5 py-0.5 rounded-full border border-indigo-200">
                   <Text className="text-[11px]">{selectedCategory.emoji}</Text>
-                  <Text className="text-[11px] font-bold text-primary" numberOfLines={1}>
+                  <Text
+                    className="text-[11px] font-bold text-primary"
+                    numberOfLines={1}
+                  >
                     {selectedSubcategory || selectedCategory.name}
                   </Text>
                 </View>
@@ -557,7 +715,9 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
             </View>
 
             <View className="flex-row items-center bg-background border-2 border-border rounded-xl px-4 h-14">
-              <Text className="text-2xl font-extrabold text-primary mr-2">৳</Text>
+              <Text className="text-2xl font-extrabold text-primary mr-2">
+                ৳
+              </Text>
               <TextInput
                 ref={amountInputRef}
                 className="flex-1 text-2xl font-extrabold text-foreground h-full"
@@ -569,16 +729,22 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
               />
             </View>
 
-            {expenseType === 'GROUP' && numAmount > 0 && selectedParticipantIds.length > 0 && (
-              <View className="flex-row items-center justify-between bg-primary-light px-3 py-2 rounded-xl border border-blue-200 mt-2.5">
-                <Text className="text-xs text-primary font-semibold">
-                  Split between {selectedParticipantIds.length} members:
-                </Text>
-                <Text className="text-xs font-extrabold text-primary">
-                  ৳{Math.round(numAmount / selectedParticipantIds.length).toLocaleString()}/person
-                </Text>
-              </View>
-            )}
+            {expenseType === 'GROUP' &&
+              numAmount > 0 &&
+              selectedParticipantIds.length > 0 && (
+                <View className="flex-row items-center justify-between bg-primary-light px-3 py-2 rounded-xl border border-blue-200 mt-2.5">
+                  <Text className="text-xs text-primary font-semibold">
+                    Split between {selectedParticipantIds.length} members:
+                  </Text>
+                  <Text className="text-xs font-extrabold text-primary">
+                    ৳
+                    {Math.round(
+                      numAmount / selectedParticipantIds.length,
+                    ).toLocaleString()}
+                    /person
+                  </Text>
+                </View>
+              )}
           </View>
 
           {/* 2. CATEGORY SELECTION SECTION (Collapses/Wraps when selected, expandable on tap) */}
@@ -637,17 +803,13 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
             ) : (
               /* Expanded Category Selection View */
               <View className="gap-3.5">
-                {/* Line 1: Analytics-driven Top Categories (#1 strictly first) */}
                 <View className="gap-1.5">
                   <View className="flex-row items-center justify-between">
                     <Text className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-                      {isAnalyticsBased ? '✨ Your Most Used Categories' : '🔥 Popular Categories'}
+                      {isAnalyticsBased
+                        ? '✨ Your Most Used Categories'
+                        : '🔥 Popular Categories'}
                     </Text>
-                    {isAnalyticsBased && (
-                      <Text className="text-[10px] font-semibold text-primary">
-                        Ranked by your history
-                      </Text>
-                    )}
                   </View>
                   <ScrollView
                     horizontal
@@ -677,7 +839,9 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
                           </Text>
                           {isAnalyticsBased && idx === 0 && (
                             <View className="bg-amber-100 px-1.5 py-0.5 rounded-md border border-amber-300">
-                              <Text className="text-[9px] font-black text-amber-700">#1</Text>
+                              <Text className="text-[9px] font-black text-amber-700">
+                                #1
+                              </Text>
                             </View>
                           )}
                         </TouchableOpacity>
@@ -689,10 +853,17 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
                 {/* Line 2: Other Categories & Search */}
                 <View className="gap-2 pt-2 border-t border-border">
                   <Text className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-                    {categorySearchQuery ? 'Search Results' : 'Other Categories'}
+                    {categorySearchQuery
+                      ? 'Search Results'
+                      : 'Other Categories'}
                   </Text>
                   <View className="flex-row items-center bg-background border border-border rounded-xl px-3 h-10">
-                    <Feather name="search" size={14} color="#94A3B8" style={{ marginRight: 6 }} />
+                    <Feather
+                      name="search"
+                      size={14}
+                      color="#94A3B8"
+                      style={{ marginRight: 6 }}
+                    />
                     <TextInput
                       className="flex-1 text-xs text-foreground"
                       placeholder="Search categories (e.g. Health, Education, Bills)..."
@@ -701,7 +872,9 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
                       onChangeText={setCategorySearchQuery}
                     />
                     {categorySearchQuery ? (
-                      <TouchableOpacity onPress={() => setCategorySearchQuery('')}>
+                      <TouchableOpacity
+                        onPress={() => setCategorySearchQuery('')}
+                      >
                         <Feather name="x" size={14} color="#94A3B8" />
                       </TouchableOpacity>
                     ) : null}
@@ -712,7 +885,7 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
                     showsHorizontalScrollIndicator={false}
                     contentContainerClassName="gap-2 py-0.5"
                   >
-                    {otherCategories.map((cat) => {
+                    {otherCategories.map(cat => {
                       const isSelected = selectedCategory?.id === cat.id;
                       return (
                         <TouchableOpacity
@@ -728,7 +901,9 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
                           <Text className="text-sm">{cat.emoji}</Text>
                           <Text
                             className={`text-xs font-semibold ${
-                              isSelected ? 'text-primary font-bold' : 'text-foreground'
+                              isSelected
+                                ? 'text-primary font-bold'
+                                : 'text-foreground'
                             }`}
                           >
                             {cat.name}
@@ -746,7 +921,7 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
           {selectedCategory && selectedCategory.subcategories.length > 0 && (
             <View
               ref={subCategorySectionRef}
-              onLayout={(e) => {
+              onLayout={e => {
                 subCategoryLayoutY.current = e.nativeEvent.layout.y;
               }}
               className="bg-card rounded-2xl p-4 border border-border shadow-sm gap-3"
@@ -768,42 +943,47 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
               </View>
 
               {/* Frequent Subcategories from Analytics (if any) */}
-              {analyzedSubcategories.hasAnalytics && analyzedSubcategories.topSubcategories.length > 0 && (
-                <View className="gap-1.5">
-                  <Text className="text-[10px] font-bold text-primary uppercase tracking-wider">
-                    ⚡ Frequent in {selectedCategory.name}
-                  </Text>
-                  <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    contentContainerClassName="gap-2 py-0.5"
-                  >
-                    {analyzedSubcategories.topSubcategories.map((sub) => {
-                      const isSubSelected = selectedSubcategory === sub;
-                      return (
-                        <TouchableOpacity
-                          key={`top-${sub}`}
-                          className={`px-3 py-1.5 rounded-xl border transition-all ${
-                            isSubSelected
-                              ? 'bg-primary-light border-2 border-primary shadow-xs'
-                              : 'bg-primary/5 border border-indigo-200'
-                          }`}
-                          onPress={() => handleSubcategorySelect(isSubSelected ? '' : sub)}
-                          activeOpacity={0.7}
-                        >
-                          <Text
-                            className={`text-xs font-semibold ${
-                              isSubSelected ? 'text-primary font-black' : 'text-primary'
+              {analyzedSubcategories.hasAnalytics &&
+                analyzedSubcategories.topSubcategories.length > 0 && (
+                  <View className="gap-1.5">
+                    <Text className="text-[10px] font-bold text-primary uppercase tracking-wider">
+                      ⚡ Frequent in {selectedCategory.name}
+                    </Text>
+                    <ScrollView
+                      horizontal
+                      showsHorizontalScrollIndicator={false}
+                      contentContainerClassName="gap-2 py-0.5"
+                    >
+                      {analyzedSubcategories.topSubcategories.map(sub => {
+                        const isSubSelected = selectedSubcategory === sub;
+                        return (
+                          <TouchableOpacity
+                            key={`top-${sub}`}
+                            className={`px-3 py-1.5 rounded-xl border transition-all ${
+                              isSubSelected
+                                ? 'bg-primary-light border-2 border-primary shadow-xs'
+                                : 'bg-primary/5 border border-indigo-200'
                             }`}
+                            onPress={() =>
+                              handleSubcategorySelect(isSubSelected ? '' : sub)
+                            }
+                            activeOpacity={0.7}
                           >
-                            ⭐ {sub}
-                          </Text>
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </ScrollView>
-                </View>
-              )}
+                            <Text
+                              className={`text-xs font-semibold ${
+                                isSubSelected
+                                  ? 'text-primary font-black'
+                                  : 'text-primary'
+                              }`}
+                            >
+                              ⭐ {sub}
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </ScrollView>
+                  </View>
+                )}
 
               {/* All / Regular Subcategories */}
               <View className="gap-1.5">
@@ -817,7 +997,7 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
                   showsHorizontalScrollIndicator={false}
                   contentContainerClassName="gap-2 py-1"
                 >
-                  {analyzedSubcategories.regularSubcategories.map((sub) => {
+                  {analyzedSubcategories.regularSubcategories.map(sub => {
                     const isSubSelected = selectedSubcategory === sub;
                     return (
                       <TouchableOpacity
@@ -827,12 +1007,16 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
                             ? 'bg-primary-light border-2 border-primary shadow-xs'
                             : 'bg-background border border-border'
                         }`}
-                        onPress={() => handleSubcategorySelect(isSubSelected ? '' : sub)}
+                        onPress={() =>
+                          handleSubcategorySelect(isSubSelected ? '' : sub)
+                        }
                         activeOpacity={0.7}
                       >
                         <Text
                           className={`text-xs font-medium ${
-                            isSubSelected ? 'text-primary font-black' : 'text-foreground'
+                            isSubSelected
+                              ? 'text-primary font-black'
+                              : 'text-foreground'
                           }`}
                         >
                           {sub}
@@ -886,7 +1070,9 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
             onPress={handleSubmit}
             isLoading={isSubmitting}
           >
-            {`Save Expense ${numAmount > 0 ? `• ৳${numAmount.toLocaleString()}` : ''}`}
+            {`Save Expense ${
+              numAmount > 0 ? `• ৳${numAmount.toLocaleString()}` : ''
+            }`}
           </Button>
         </View>
       </KeyboardAvoidingView>

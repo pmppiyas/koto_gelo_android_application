@@ -343,6 +343,10 @@ export const parseClass = (cls: string): StyleObject => {
   const style: StyleObject = {};
 
   if (cls === 'flex-1') style.flex = 1;
+  else if (cls === 'flex-grow' || cls === 'grow') style.flexGrow = 1;
+  else if (cls === 'flex-grow-0' || cls === 'grow-0') style.flexGrow = 0;
+  else if (cls === 'flex-shrink' || cls === 'shrink') style.flexShrink = 1;
+  else if (cls === 'flex-shrink-0' || cls === 'shrink-0') style.flexShrink = 0;
   else if (cls === 'flex-row') style.flexDirection = 'row';
   else if (cls === 'flex-col') style.flexDirection = 'column';
   else if (cls === 'flex-row-reverse') style.flexDirection = 'row-reverse';
@@ -385,6 +389,25 @@ export const parseClass = (cls: string): StyleObject => {
   else if (cls === 'h-full') style.height = '100%';
   else if (cls === 'h-screen') style.height = '100%';
   else if (cls === 'h-auto') style.height = 'auto';
+  else if (cls === 'min-h-full' || cls === 'min-h-screen') style.minHeight = '100%';
+  else if (cls === 'min-w-full') style.minWidth = '100%';
+  else if (cls === 'max-w-sm') style.maxWidth = 384;
+  else if (cls === 'max-w-md') style.maxWidth = 448;
+  else if (cls === 'max-w-lg') style.maxWidth = 512;
+  else if (cls === 'max-w-xl') style.maxWidth = 576;
+  else if (cls.startsWith('max-w-[') && cls.endsWith(']')) {
+    const val = parseInt(cls.slice(7, -1), 10);
+    if (!isNaN(val)) style.maxWidth = val;
+  } else if (cls.startsWith('min-h-[') && cls.endsWith(']')) {
+    const val = parseInt(cls.slice(7, -1), 10);
+    if (!isNaN(val)) style.minHeight = val;
+  } else if (cls.startsWith('w-[') && cls.endsWith(']')) {
+    const val = parseInt(cls.slice(3, -1), 10);
+    if (!isNaN(val)) style.width = val;
+  } else if (cls.startsWith('h-[') && cls.endsWith(']')) {
+    const val = parseInt(cls.slice(3, -1), 10);
+    if (!isNaN(val)) style.height = val;
+  }
   else if (cls === 'text-left') style.textAlign = 'left';
   else if (cls === 'text-center') style.textAlign = 'center';
   else if (cls === 'text-right') style.textAlign = 'right';

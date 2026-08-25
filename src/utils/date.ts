@@ -5,17 +5,22 @@ export const getLocalDateString = (d = new Date()): string => {
   return `${year}-${month}-${day}`;
 };
 
-export const formatExpenseDateForServer = (dateStr?: string): string => {
-  if (!dateStr) return new Date().toISOString();
+export const formatExpenseDateForServer = (input?: string | Date): string => {
+  if (!input) return new Date().toISOString();
+  if (input instanceof Date) {
+    return isNaN(input.getTime()) ? new Date().toISOString() : input.toISOString();
+  }
+  const dateStr = String(input);
   if (dateStr.includes('T')) {
-    return new Date(dateStr).toISOString();
+    const parsed = new Date(dateStr);
+    return isNaN(parsed.getTime()) ? new Date().toISOString() : parsed.toISOString();
   }
   const parts = dateStr.split('-').map(Number);
   if (parts.length === 3) {
     const [year, month, day] = parts;
     const now = new Date();
     const localDate = new Date(year, month - 1, day, now.getHours(), now.getMinutes(), now.getSeconds());
-    return localDate.toISOString();
+    return isNaN(localDate.getTime()) ? new Date().toISOString() : localDate.toISOString();
   }
   return new Date().toISOString();
 };

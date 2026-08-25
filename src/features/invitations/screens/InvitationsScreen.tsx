@@ -8,12 +8,16 @@ import { Loader } from '../../../components/ui/Loader';
 import { useInvitations } from '../hooks/useInvitations';
 import { spacing } from '../../../theme/spacing';
 
-export const InvitationsScreen: React.FC = () => {
+export interface InvitationsScreenProps {
+  onNavigateBack?: () => void;
+}
+
+export const InvitationsScreen: React.FC<InvitationsScreenProps> = ({ onNavigateBack }) => {
   const { invitations, loading, refresh, acceptInvitation, rejectInvitation } = useInvitations();
 
   return (
     <Screen>
-      <Header title="Invitations" />
+      <Header title="Invitations" onBack={onNavigateBack} />
       <View style={styles.container}>
         {loading && !invitations.length ? (
           <Loader />

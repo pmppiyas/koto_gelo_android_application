@@ -30,34 +30,25 @@
     ]
   },
   {
-    "name": "Smoking & Tobacco",
-    "slug": "smoking-tobacco",
-    "icon": "🚬",
+    "name": "Bills & Utilities",
+    "slug": "bills-utilities",
+    "icon": "💡",
     "subcategories": [
-      "Cigarettes",
-      "Tobacco",
-      "Cigar",
-      "Vape",
-      "Smoking Accessories",
-      "Other Tobacco"
-    ]
-  },
-  {
-    "name": "Housing",
-    "slug": "housing",
-    "icon": "🏠",
-    "subcategories": [
-      "Rent",
-      "House Maintenance",
-      "Furniture",
-      "Home Appliance",
-      "Home Decor",
-      "Cleaning",
-      "Cleaning Supplies",
-      "Pest Control",
-      "Security",
-      "Moving",
-      "Other Housing"
+      "Electricity",
+      "Gas",
+      "Water",
+      "Internet",
+      "Mobile Recharge",
+      "Mobile Bill",
+      "Cable TV",
+      "Telephone",
+      "Garbage",
+      "Netflix",
+      "Spotify",
+      "YouTube",
+      "Amazon Prime",
+      "Cloud Storage",
+      "Other Utilities"
     ]
   },
   {
@@ -78,33 +69,37 @@
       "Vehicle Maintenance",
       "Vehicle Repair",
       "Vehicle Insurance",
-      "Vehicle Registration",
       "Driving License",
-      "Bike Maintenance",
-      "Car Maintenance",
       "Other Transport"
     ]
   },
   {
-    "name": "Bills & Utilities",
-    "slug": "bills-utilities",
-    "icon": "💡",
+    "name": "Housing & Household",
+    "slug": "housing-household",
+    "icon": "🏠",
     "subcategories": [
-      "Electricity",
-      "Gas",
-      "Water",
-      "Internet",
-      "Mobile Recharge",
-      "Mobile Bill",
-      "Cable TV",
-      "Telephone",
-      "Garbage",
-      "Other Utilities"
+      "Rent",
+      "House Maintenance",
+      "Furniture",
+      "Home Appliance",
+      "Home Decor",
+      "Cleaning",
+      "Security",
+      "Moving",
+      "House Cleaner",
+      "Laundry",
+      "Washing",
+      "Gas Cylinder",
+      "Kitchen Supplies",
+      "Plumbing",
+      "Electrical Repair",
+      "AC Repair",
+      "Other Household"
     ]
   },
   {
-    "name": "Shopping",
-    "slug": "shopping",
+    "name": "Shopping & Fashion",
+    "slug": "shopping-fashion",
     "icon": "🛍️",
     "subcategories": [
       "Clothes",
@@ -116,17 +111,16 @@
       "Watch",
       "Bag",
       "Jewelry",
+      "Tailor",
+      "Dry Cleaning",
       "Personal Items",
-      "Kitchen Items",
-      "Home Items",
-      "Stationery",
       "Online Shopping",
       "Other Shopping"
     ]
   },
   {
-    "name": "Health",
-    "slug": "health",
+    "name": "Health & Fitness",
+    "slug": "health-fitness",
     "icon": "💊",
     "subcategories": [
       "Medicine",
@@ -137,11 +131,32 @@
       "Medical Tests",
       "Emergency",
       "Health Insurance",
-      "Fitness",
       "Gym",
+      "Sports Equipment",
+      "Swimming",
+      "Cycling",
       "Mental Health",
-      "Physiotherapy",
       "Other Health"
+    ]
+  },
+  {
+    "name": "Family & Care",
+    "slug": "family-care",
+    "icon": "👨‍👩‍👧",
+    "subcategories": [
+      "Parents",
+      "Children",
+      "Spouse",
+      "Baby Food",
+      "Diapers",
+      "Baby Clothes",
+      "Child Care",
+      "Toys",
+      "Pet Food",
+      "Veterinary",
+      "Family Medical",
+      "Family Support",
+      "Other Family"
     ]
   },
   {
@@ -157,70 +172,12 @@
       "Exam Fee",
       "Admission Fee",
       "Training",
-      "Certification",
       "School Fee",
-      "College Fee",
       "University Fee",
+      "Hostel",
       "Photocopy",
-      "Printing",
       "Study Materials",
       "Other Education"
-    ]
-  },
-  {
-    "name": "Entertainment",
-    "slug": "entertainment",
-    "icon": "🎮",
-    "subcategories": [
-      "Movies",
-      "Games",
-      "Gaming",
-      "Music",
-      "Streaming",
-      "Events",
-      "Concert",
-      "Hobbies",
-      "Sports",
-      "Photography",
-      "Other Entertainment"
-    ]
-  },
-  {
-    "name": "Travel",
-    "slug": "travel",
-    "icon": "✈️",
-    "subcategories": [
-      "Hotel",
-      "Hostel",
-      "Guest House",
-      "Transport",
-      "Food",
-      "Tour",
-      "Visa",
-      "Passport",
-      "Tickets",
-      "Travel Insurance",
-      "Tour Guide",
-      "Activities",
-      "Souvenirs",
-      "Other Travel"
-    ]
-  },
-  {
-    "name": "Family",
-    "slug": "family",
-    "icon": "👨‍👩‍👧",
-    "subcategories": [
-      "Parents",
-      "Children",
-      "Spouse",
-      "Family Support",
-      "Family Food",
-      "Family Medical",
-      "Family Education",
-      "Family Travel",
-      "Family Gifts",
-      "Other Family"
     ]
   },
   {
@@ -241,21 +198,22 @@
     ]
   },
   {
-    "name": "Financial",
-    "slug": "financial",
+    "name": "Financial & Taxes",
+    "slug": "financial-taxes",
     "icon": "🏦",
     "subcategories": [
       "Bank Fee",
       "ATM Fee",
       "Loan Payment",
-      "Loan Interest",
       "Credit Card Payment",
-      "Credit Card Fee",
       "Interest",
       "Investment",
-      "Tax",
+      "bKash Charge",
+      "Nagad Charge",
+      "Income Tax",
+      "VAT",
+      "Property Tax",
       "Insurance",
-      "Service Charge",
       "Other Financial"
     ]
   },
@@ -277,59 +235,8 @@
     ]
   },
   {
-    "name": "Gifts & Donation",
-    "slug": "gifts-donation",
-    "icon": "🎁",
-    "subcategories": [
-      "Gift",
-      "Birthday Gift",
-      "Wedding Gift",
-      "Charity",
-      "Donation",
-      "Religious Giving",
-      "Zakat",
-      "Fitra",
-      "Qurbani",
-      "Other Donation"
-    ]
-  },
-  {
-    "name": "Religious",
-    "slug": "religious",
-    "icon": "🕌",
-    "subcategories": [
-      "Mosque Donation",
-      "Religious Event",
-      "Quran",
-      "Islamic Books",
-      "Religious Clothing",
-      "Hajj",
-      "Umrah",
-      "Qurbani",
-      "Zakat",
-      "Fitra",
-      "Other Religious"
-    ]
-  },
-  {
-    "name": "Pets",
-    "slug": "pets",
-    "icon": "🐶",
-    "subcategories": [
-      "Pet Food",
-      "Pet Medicine",
-      "Veterinary",
-      "Pet Grooming",
-      "Pet Toys",
-      "Pet Accessories",
-      "Pet Insurance",
-      "Pet Training",
-      "Other Pets"
-    ]
-  },
-  {
-    "name": "Work",
-    "slug": "work",
+    "name": "Work & Business",
+    "slug": "work-business",
     "icon": "💼",
     "subcategories": [
       "Office Lunch",
@@ -337,48 +244,66 @@
       "Office Transport",
       "Equipment",
       "Software",
-      "Professional Fees",
-      "Work Clothing",
-      "Business Meeting",
-      "Office Supplies",
-      "Training",
-      "Work Internet",
+      "Domain",
+      "Hosting",
+      "VPS",
+      "API",
+      "Marketing",
+      "Employee Salary",
+      "Client Meeting",
       "Other Work"
     ]
   },
   {
-    "name": "Subscriptions",
-    "slug": "subscriptions",
-    "icon": "📱",
+    "name": "Entertainment & Media",
+    "slug": "entertainment",
+    "icon": "🎮",
     "subcategories": [
-      "Netflix",
-      "Spotify",
-      "YouTube",
-      "Amazon Prime",
-      "Cloud Storage",
-      "Google Services",
-      "Apple Services",
-      "Software",
-      "Gaming Subscription",
-      "News Subscription",
-      "AI Subscription",
-      "Other Subscription"
+      "Movies",
+      "Games",
+      "Gaming",
+      "Music",
+      "Concert",
+      "Hobbies",
+      "Photography",
+      "Videography",
+      "Editing",
+      "Other Entertainment"
     ]
   },
   {
-    "name": "Baby & Children",
-    "slug": "baby-children",
-    "icon": "👶",
+    "name": "Travel",
+    "slug": "travel",
+    "icon": "✈️",
     "subcategories": [
-      "Diapers",
-      "Baby Food",
-      "Baby Clothes",
-      "Baby Medicine",
-      "Toys",
-      "School Items",
-      "Child Care",
-      "Baby Accessories",
-      "Other Baby & Children"
+      "Hotel",
+      "Hostel",
+      "Transport",
+      "Food",
+      "Tour",
+      "Visa",
+      "Passport",
+      "Tickets",
+      "Travel Insurance",
+      "Tour Guide",
+      "Other Travel"
+    ]
+  },
+  {
+    "name": "Charity & Religious",
+    "slug": "charity-religious",
+    "icon": "🕌",
+    "subcategories": [
+      "Mosque Donation",
+      "Zakat",
+      "Fitra",
+      "Qurbani",
+      "Religious Event",
+      "Gift",
+      "Birthday Gift",
+      "Wedding Gift",
+      "Charity",
+      "Other Religious"
     ]
   },
   {
@@ -388,231 +313,25 @@
     "subcategories": [
       "NID Related",
       "Passport",
-      "Visa",
       "Government Fee",
       "Court Fee",
       "Legal Service",
-      "License",
-      "Driving License",
       "Document",
       "Notary",
-      "Other Government & Legal"
+      "Other Legal"
     ]
   },
   {
-    "name": "Delivery & Courier",
-    "slug": "delivery-courier",
-    "icon": "📮",
+    "name": "Smoking & Tobacco",
+    "slug": "smoking-tobacco",
+    "icon": "🚬",
     "subcategories": [
-      "Courier",
-      "Parcel",
-      "Delivery Charge",
-      "Food Delivery",
-      "Packaging",
-      "Shipping",
-      "Other Delivery"
-    ]
-  },
-  {
-    "name": "Repair & Maintenance",
-    "slug": "repair-maintenance",
-    "icon": "🔧",
-    "subcategories": [
-      "Mobile Repair",
-      "Computer Repair",
-      "Laptop Repair",
-      "Bike Repair",
-      "Car Repair",
-      "Home Repair",
-      "Electrical Repair",
-      "Plumbing",
-      "AC Repair",
-      "Appliance Repair",
-      "Other Repair"
-    ]
-  },
-  {
-    "name": "Household",
-    "slug": "household",
-    "icon": "🧹",
-    "subcategories": [
-      "House Cleaner",
-      "Laundry",
-      "Washing",
-      "Gas Cylinder",
-      "Kitchen Supplies",
-      "Cleaning Supplies",
-      "Dishwashing",
-      "Home Essentials",
-      "Other Household"
-    ]
-  },
-  {
-    "name": "Clothing & Fashion",
-    "slug": "clothing-fashion",
-    "icon": "👕",
-    "subcategories": [
-      "Clothes",
-      "Shoes",
-      "Watch",
-      "Bag",
-      "Jewelry",
-      "Tailor",
-      "Dry Cleaning",
-      "Accessories",
-      "Other Fashion"
-    ]
-  },
-  {
-    "name": "Sports & Fitness",
-    "slug": "sports-fitness",
-    "icon": "🏋️",
-    "subcategories": [
-      "Gym",
-      "Sports Equipment",
-      "Football",
-      "Cricket",
-      "Badminton",
-      "Swimming",
-      "Cycling",
-      "Running",
-      "Sports Club",
-      "Other Sports"
-    ]
-  },
-  {
-    "name": "Digital Payments",
-    "slug": "digital-payments",
-    "icon": "💳",
-    "subcategories": [
-      "bKash Charge",
-      "Nagad Charge",
-      "Rocket Charge",
-      "Bank Transfer Fee",
-      "ATM Fee",
-      "Transaction Fee",
-      "Payment Gateway Fee",
-      "Other Digital Payment"
-    ]
-  },
-  {
-    "name": "Emergency",
-    "slug": "emergency",
-    "icon": "🚨",
-    "subcategories": [
-      "Emergency Medical",
-      "Emergency Travel",
-      "Emergency Repair",
-      "Emergency Purchase",
-      "Emergency Family Support",
-      "Other Emergency"
-    ]
-  },
-  {
-    "name": "Taxes",
-    "slug": "taxes",
-    "icon": "🧾",
-    "subcategories": [
-      "Income Tax",
-      "VAT",
-      "Property Tax",
-      "Government Tax",
-      "Municipal Tax",
-      "Tax Filing Fee",
-      "Other Tax"
-    ]
-  },
-  {
-    "name": "Property",
-    "slug": "property",
-    "icon": "🏡",
-    "subcategories": [
-      "Property Purchase",
-      "Property Rent",
-      "Property Maintenance",
-      "Property Tax",
-      "Renovation",
-      "Repair",
-      "Construction",
-      "Property Management",
-      "Other Property"
-    ]
-  },
-  {
-    "name": "Business",
-    "slug": "business",
-    "icon": "🏢",
-    "subcategories": [
-      "Inventory",
-      "Supplier Payment",
-      "Marketing",
-      "Advertising",
-      "Office Rent",
-      "Employee Salary",
-      "Delivery",
-      "Business Travel",
-      "Business Equipment",
-      "Domain",
-      "Hosting",
-      "VPS",
-      "Software",
-      "API",
-      "Professional Membership",
-      "Business Meeting",
-      "Other Business"
-    ]
-  },
-  {
-    "name": "Freelance & Professional",
-    "slug": "freelance-professional",
-    "icon": "🧑‍💻",
-    "subcategories": [
-      "Domain",
-      "Hosting",
-      "VPS",
-      "Software License",
-      "API",
-      "Professional Tools",
-      "Freelance Platform Fee",
-      "Professional Membership",
-      "Client Meeting",
-      "Work Equipment",
-      "Other Professional"
-    ]
-  },
-  {
-    "name": "Media & Creative",
-    "slug": "media-creative",
-    "icon": "📸",
-    "subcategories": [
-      "Photography",
-      "Videography",
-      "Printing",
-      "Photo Print",
-      "Design",
-      "Studio",
-      "Editing",
-      "Printing Materials",
-      "Other Creative"
-    ]
-  },
-  {
-    "name": "Student",
-    "slug": "student",
-    "icon": "🎓",
-    "subcategories": [
-      "Tuition",
-      "Semester Fee",
-      "Admission",
-      "Exam",
-      "Books",
-      "Photocopy",
-      "Printing",
-      "Hostel",
-      "Mess",
-      "Study Materials",
-      "Student Transport",
-      "Other Student"
+      "Cigarettes",
+      "Tobacco",
+      "Cigar",
+      "Vape",
+      "Smoking Accessories",
+      "Other Tobacco"
     ]
   },
   {
@@ -620,6 +339,9 @@
     "slug": "others",
     "icon": "📦",
     "subcategories": [
+      "Courier",
+      "Parcel",
+      "Delivery Charge",
       "Miscellaneous",
       "Unknown",
       "Other"

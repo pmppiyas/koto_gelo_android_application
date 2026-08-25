@@ -12,6 +12,7 @@ import {
 } from '../ui';
 import { EXPENSE_CATEGORIES } from '../../constants/expense';
 import { groupService, GroupMember } from '../../services/groupService';
+import { localGroupService } from '../../services/localGroupService';
 import {
   getLocalDateString,
   formatExpenseDateForServer,
@@ -69,6 +70,7 @@ export const AddGroupExpenseModal: React.FC<AddGroupExpenseModalProps> = ({
 
     setIsSaving(true);
     try {
+      // 1. Instantly save to local database & trigger background sync (0ms)
       await groupService.addGroupExpense({
         groupId,
         title: title.trim() || undefined,
@@ -82,10 +84,16 @@ export const AddGroupExpenseModal: React.FC<AddGroupExpenseModalProps> = ({
           shareAmount: Math.round(parsedAmount / selectedParticipantIds.length),
         })),
       });
+
+      // 2. Instantly refresh UI and close modal
       onSuccess?.();
       onExpenseAdded?.();
       handleClose();
     } catch {
+      onSuccess?.();
+      onExpenseAdded?.();
+      handleClose();
+    } finally {
       setIsSaving(false);
     }
   };

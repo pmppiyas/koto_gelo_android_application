@@ -4,8 +4,10 @@ import { expenseReducer, initialExpenseState } from './expenseSlice';
 import { AuthState } from './auth.types';
 import { ExpenseState, ExpenseAction } from './expense.types';
 import { authService } from '../services/authService';
+import { expenseService } from '../services/expenseService';
 import { localExpenseService } from '../services/localExpenseService';
 import { expenseSyncService } from '../services/expenseSyncService';
+import { database } from '../services/database/database';
 import { storage, STORAGE_KEYS } from '../config/storage';
 import { API_ENDPOINTS } from '../config/api';
 import { onUnauthorized } from '../utils/authEvents';
@@ -69,12 +71,15 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   useEffect(() => {
     const initializeApp = async () => {
       try {
-        const localExpenses = await localExpenseService.getLocalExpenses();
-        expenseDispatch({ type: 'expenses/setExpenses', payload: localExpenses });
+        // 1. Initialize SQLite Database Tables
+        await database.init();
 
+        // 2. Check for stored token FIRST (don't load data before user verification)
         const token = await authService.getStoredToken();
 
         if (!token) {
+          // No token → clear any stale data from previous session
+          await database.clearAllData().catch(() => {});
           authDispatch({ type: 'auth/setLoading', payload: false });
           return;
         }
@@ -82,22 +87,32 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         const tokenStatus = await verifyToken(token);
 
         if (tokenStatus === 'invalid') {
-          // Token is definitely rejected by server → logout
+          // Token is definitely rejected by server → logout & clear stale data
           await storage.removeItem(STORAGE_KEYS.AUTH_TOKEN);
           await storage.removeItem(STORAGE_KEYS.USER);
+          await database.clearAllData().catch(() => {});
           authDispatch({ type: 'auth/logout' });
           return;
         }
 
-        // 'valid' or 'offline' → keep user logged in with stored data
+        // 'valid' or 'offline' → keep user logged in
         const user = await authService.getStoredUser();
+
+        // 3. NOW load local data for this verified user
+        const localExpenses = await localExpenseService.getLocalExpenses();
+        expenseDispatch({ type: 'expenses/setExpenses', payload: localExpenses });
+
         authDispatch({
           type: 'auth/setTokenOnly',
           payload: { token, user },
         });
 
         if (tokenStatus === 'valid') {
+          // Sync pending items from SQLite queue
           await expenseSyncService.syncPendingExpenses(combinedDispatch);
+          // Pull latest remote data in background to refresh SQLite
+          await expenseSyncService.pullLatestRemoteData();
+
           try {
             const res = await expenseService.getPersonalExpenses({ limit: 100 });
             const serverExpenses =
@@ -138,7 +153,15 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
               const pendingItems = currentLocal.filter(
                 (e) => e.syncStatus === 'pending' || e.syncStatus === 'failed'
               );
-              const reconciled = [...pendingItems, ...serverMapped];
+              const seen = new Set<string>();
+              const reconciled: any[] = [];
+              [...pendingItems, ...serverMapped].forEach((item) => {
+                const k = item.serverId || item.localId;
+                if (k && !seen.has(k)) {
+                  seen.add(k);
+                  reconciled.push(item);
+                }
+              });
               await localExpenseService.setLocalExpenses(reconciled);
               expenseDispatch({ type: 'expenses/setExpenses', payload: reconciled });
             }

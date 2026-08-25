@@ -4,7 +4,6 @@ import {
   Text as RNText,
   TouchableOpacity as RNTouchableOpacity,
   ScrollView as RNScrollView,
-  SafeAreaView as RNSafeAreaView,
   TextInput as RNTextInput,
   Pressable as RNPressable,
   KeyboardAvoidingView as RNKeyboardAvoidingView,
@@ -18,9 +17,17 @@ import {
   ViewStyle,
   TextStyle,
 } from 'react-native';
+import {
+  SafeAreaView as RNSafeAreaView,
+  NativeSafeAreaViewProps,
+} from 'react-native-safe-area-context';
 import { cn } from '../../lib/utils';
 
 export interface StyledViewProps extends RNViewProps {
+  className?: string;
+}
+
+export interface StyledSafeAreaViewProps extends NativeSafeAreaViewProps {
   className?: string;
 }
 
@@ -83,9 +90,9 @@ export const ScrollView = forwardRef<RNScrollView, StyledScrollViewProps>(
 );
 ScrollView.displayName = 'ScrollView';
 
-export const SafeAreaView = forwardRef<RNView, StyledViewProps>(
+export const SafeAreaView = forwardRef<RNView, StyledSafeAreaViewProps>(
   ({ className, style, ...props }, ref) => {
-    return <RNSafeAreaView ref={ref} style={cn(className, style as ViewStyle)} {...props} />;
+    return <RNSafeAreaView ref={ref as any} style={cn(className, style as ViewStyle)} {...props} />;
   }
 );
 SafeAreaView.displayName = 'SafeAreaView';

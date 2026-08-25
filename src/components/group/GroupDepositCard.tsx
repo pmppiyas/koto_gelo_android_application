@@ -25,8 +25,10 @@ export const GroupDepositCard: React.FC<GroupDepositCardProps> = ({
 }) => {
   const isYou = deposit.userId === currentUserId;
   const isRecorder = deposit.recordedById === currentUserId;
-  const memberName = isYou ? 'You' : deposit.user.name || deposit.user.username;
-  const initial = (deposit.user.name || deposit.user.username).charAt(0).toUpperCase();
+  const username = deposit.user?.username || (deposit as any).username;
+  const fullName = deposit.user?.name || (deposit as any).name;
+  const memberName = isYou ? 'You' : username ? `@${username}` : fullName || 'User';
+  const initial = (username || fullName || 'U').charAt(0).toUpperCase();
   const methodInfo = METHOD_STYLES[deposit.method] || METHOD_STYLES.CASH;
 
   const formatDate = (dateString: string): string => {

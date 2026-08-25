@@ -31,13 +31,23 @@ export const DepositsTab: React.FC<DepositsTabProps> = ({
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
+  // Instant 0ms offline load
+  useEffect(() => {
+    if (groupId) {
+      localGroupService.getStoredGroupDeposits(groupId).then((stored) => {
+        if (stored && stored.length > 0) {
+          setDeposits(stored as any);
+          setIsLoading(false);
+        }
+      }).catch(() => {});
+    }
+  }, [groupId]);
+
   const fetchDeposits = useCallback(
     async (isRefresh = false) => {
       if (!groupId) return;
       if (isRefresh) {
         setIsRefreshing(true);
-      } else {
-        setIsLoading(true);
       }
 
       try {
@@ -140,7 +150,7 @@ export const DepositsTab: React.FC<DepositsTabProps> = ({
                     contentContainerClassName="gap-2 py-0.5"
                   >
                     {summaryData.memberSummaries.map((m: any, idx: number) => {
-                      const name = m.user?.name || m.user?.username || 'Member';
+                      const name = m.user?.username ? `@${m.user.username}` : m.user?.name || 'User';
                       return (
                         <View key={idx} className="bg-background border border-border py-1.5 px-3 rounded-xl">
                           <Text className="text-[10px] font-semibold text-muted-foreground" numberOfLines={1}>

@@ -1,7 +1,14 @@
 import React, { useState } from 'react';
 import { StatusBar } from 'react-native';
 import { Feather } from '@expo/vector-icons';
-import { View, Text, TouchableOpacity, ScrollView, SafeAreaView, Button } from '../components/ui';
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  ScrollView,
+  SafeAreaView,
+  Button,
+} from '../components/ui';
 import { Logo } from '../components/common/Logo';
 import { spacing } from '../constants/spacing';
 
@@ -113,7 +120,9 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   onNavigateToLogin,
   onNavigateToRegister,
 }) => {
-  const [activeDemoTab, setActiveDemoTab] = useState<'PERSONAL' | 'GROUP'>('PERSONAL');
+  const [activeDemoTab, setActiveDemoTab] = useState<'PERSONAL' | 'GROUP'>(
+    'PERSONAL',
+  );
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(0);
 
   const toggleFaq = (index: number) => {
@@ -122,10 +131,10 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
 
   return (
     <SafeAreaView className="flex-1 bg-background">
-      <StatusBar barStyle="dark-content" backgroundColor="#f8fafc" />
+      <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
 
-      {/* Top Brand Header */}
-      <View className="flex-row items-center justify-between px-5 py-3.5 bg-card border-b border-border shadow-xs">
+      {/* Sticky Top Brand Header Bar */}
+      <View className="flex-row items-center justify-between px-3 py-2 bg-card border-b border-border shadow-2xs">
         <Logo size="sm" showSubtitle={false} />
 
         <View className="flex-row items-center gap-2">
@@ -148,14 +157,14 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
 
       <ScrollView
         className="flex-1"
-        contentContainerClassName="p-4 gap-5"
-        contentContainerStyle={{ paddingBottom: spacing.xxl }}
+        contentContainerClassName="px-3 py-2 gap-3"
+        contentContainerStyle={{ paddingBottom: 2 }}
         showsVerticalScrollIndicator={false}
       >
-        {/* 1. Main Luxury Hero Banner */}
+        {/* 1. Main Luxury Black Hero Banner */}
         <View className="bg-slate-900 rounded-3xl p-6 shadow-xl border border-slate-800">
           <View className="flex-row items-center justify-between mb-4">
-            <View className="w-12 h-12 rounded-2xl bg-indigo-500/20 border border-indigo-400/30 items-center justify-center">
+            <View className="w-12 h-12 rounded-2xl bg-indigo-500/20 border border-indigo-400/30 items-center justify-center shadow-xs">
               <Text className="text-2xl font-black text-indigo-300">৳</Text>
             </View>
             <View className="bg-indigo-500/20 px-3 py-1 rounded-full border border-indigo-400/30">
@@ -170,50 +179,63 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           </Text>
 
           <Text className="text-xs text-slate-300 leading-relaxed mb-5">
-            Track every taka, split mess groceries equally, manage roommate bills, and settle group tour expenses with zero manual math.
+            Track every taka, split mess groceries equally, manage roommate
+            bills, and settle group tour expenses with zero manual math.
           </Text>
 
           {/* Action Buttons */}
           <View className="flex-row gap-3 mb-5">
-            <Button
-              variant="default"
-              className="flex-1 py-3 rounded-xl bg-primary"
-              textClassName="text-white font-bold text-xs"
+            <TouchableOpacity
+              className="flex-1 py-3.5 rounded-xl bg-primary items-center justify-center shadow-md shadow-indigo-500/20 active:opacity-90"
               onPress={onNavigateToRegister}
+              activeOpacity={0.8}
             >
-              Get Started Free →
-            </Button>
-            <Button
-              variant="secondary"
-              className="flex-1 py-3 rounded-xl bg-slate-800 border border-slate-700"
-              textClassName="text-white font-bold text-xs"
+              <Text className="text-white font-extrabold text-xs">
+                Get Started Free →
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              className="flex-1 py-3.5 rounded-xl bg-slate-800/90 border border-slate-700 items-center justify-center active:bg-slate-750"
               onPress={onNavigateToLogin}
+              activeOpacity={0.8}
             >
-              Sign In
-            </Button>
+              <Text className="text-slate-100 font-bold text-xs">Sign In</Text>
+            </TouchableOpacity>
           </View>
 
           {/* Quick Highlight Stats Row */}
           <View className="flex-row items-center justify-between pt-4 border-t border-slate-800/80">
-            <View className="items-center">
-              <Text className="text-sm font-black text-white">100%</Text>
-              <Text className="text-[10px] text-slate-400 font-medium mt-0.5">Free Always</Text>
+            <View className="items-center justify-center flex-1">
+              <Text className="text-sm font-black text-white text-center">
+                100%
+              </Text>
+              <Text className="text-[10px] text-slate-400 font-medium mt-0.5 text-center">
+                Free Always
+              </Text>
             </View>
             <View className="w-[1px] h-6 bg-slate-800" />
-            <View className="items-center">
-              <Text className="text-sm font-black text-emerald-400">Offline</Text>
-              <Text className="text-[10px] text-slate-400 font-medium mt-0.5">Ready Engine</Text>
+            <View className="items-center justify-center flex-1">
+              <Text className="text-sm font-black text-emerald-400 text-center">
+                Offline
+              </Text>
+              <Text className="text-[10px] text-slate-400 font-medium mt-0.5 text-center">
+                Ready Engine
+              </Text>
             </View>
             <View className="w-[1px] h-6 bg-slate-800" />
-            <View className="items-center">
-              <Text className="text-sm font-black text-indigo-300">0%</Text>
-              <Text className="text-[10px] text-slate-400 font-medium mt-0.5">Math Errors</Text>
+            <View className="items-center justify-center flex-1">
+              <Text className="text-sm font-black text-indigo-300 text-center">
+                0%
+              </Text>
+              <Text className="text-[10px] text-slate-400 font-medium mt-0.5 text-center">
+                Math Errors
+              </Text>
             </View>
           </View>
         </View>
 
         {/* 2. Interactive Interactive Live Demo Card (Personal & Group Switcher) */}
-        <View className="bg-card rounded-3xl p-5 border border-border shadow-xs gap-3.5">
+        <View className="bg-card rounded-3xl p-3 border border-border shadow-xs gap-3.5">
           {/* Header with Title and Segmented Switcher */}
           <View className="flex-row items-center justify-between">
             <View>
@@ -225,7 +247,9 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
               </Text>
             </View>
             <View className="bg-primary-light px-2 py-0.5 rounded-full border border-indigo-200">
-              <Text className="text-[10px] font-bold text-primary">Live Demo</Text>
+              <Text className="text-[10px] font-bold text-primary">
+                Live Demo
+              </Text>
             </View>
           </View>
 
@@ -308,11 +332,18 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
 
                 {/* Visual Progress Bar */}
                 <View className="h-2 w-full bg-slate-200 rounded-full overflow-hidden mb-1.5">
-                  <View className="h-full bg-indigo-600 rounded-full" style={{ width: '71%' }} />
+                  <View
+                    className="h-full bg-indigo-600 rounded-full"
+                    style={{ width: '71%' }}
+                  />
                 </View>
                 <View className="flex-row justify-between items-center">
-                  <Text className="text-[10px] text-muted-foreground">Monthly Budget: ৳20,000</Text>
-                  <Text className="text-[10px] font-bold text-indigo-600">71% Utilized</Text>
+                  <Text className="text-[10px] text-muted-foreground">
+                    Monthly Budget: ৳20,000
+                  </Text>
+                  <Text className="text-[10px] font-bold text-indigo-600">
+                    71% Utilized
+                  </Text>
                 </View>
               </View>
 
@@ -328,11 +359,17 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                       <Text className="text-sm">🍔</Text>
                     </View>
                     <View>
-                      <Text className="text-xs font-bold text-foreground">Dinner with Friends</Text>
-                      <Text className="text-[10px] text-muted-foreground">Food & Dining • Today</Text>
+                      <Text className="text-xs font-bold text-foreground">
+                        Dinner with Friends
+                      </Text>
+                      <Text className="text-[10px] text-muted-foreground">
+                        Food & Dining • Today
+                      </Text>
                     </View>
                   </View>
-                  <Text className="text-xs font-black text-foreground">৳650</Text>
+                  <Text className="text-xs font-black text-foreground">
+                    ৳650
+                  </Text>
                 </View>
 
                 <View className="flex-row items-center justify-between p-3 bg-card rounded-xl border border-border shadow-2xs">
@@ -341,11 +378,17 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                       <Text className="text-sm">🛒</Text>
                     </View>
                     <View>
-                      <Text className="text-xs font-bold text-foreground">Weekly Mess Grocery</Text>
-                      <Text className="text-[10px] text-muted-foreground">Grocery • Yesterday</Text>
+                      <Text className="text-xs font-bold text-foreground">
+                        Weekly Mess Grocery
+                      </Text>
+                      <Text className="text-[10px] text-muted-foreground">
+                        Grocery • Yesterday
+                      </Text>
                     </View>
                   </View>
-                  <Text className="text-xs font-black text-foreground">৳1,420</Text>
+                  <Text className="text-xs font-black text-foreground">
+                    ৳1,420
+                  </Text>
                 </View>
 
                 <View className="flex-row items-center justify-between p-3 bg-card rounded-xl border border-border shadow-2xs">
@@ -354,11 +397,17 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                       <Text className="text-sm">🚗</Text>
                     </View>
                     <View>
-                      <Text className="text-xs font-bold text-foreground">CNG Commute to Office</Text>
-                      <Text className="text-[10px] text-muted-foreground">Transport • 2 days ago</Text>
+                      <Text className="text-xs font-bold text-foreground">
+                        CNG Commute to Office
+                      </Text>
+                      <Text className="text-[10px] text-muted-foreground">
+                        Transport • 2 days ago
+                      </Text>
                     </View>
                   </View>
-                  <Text className="text-xs font-black text-foreground">৳180</Text>
+                  <Text className="text-xs font-black text-foreground">
+                    ৳180
+                  </Text>
                 </View>
               </View>
             </View>
@@ -378,7 +427,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                   </View>
                   <View className="items-end">
                     <Text className="text-[10px] text-muted-foreground font-semibold uppercase">
-                      Equal Share (4 Members)
+                      (4 Members)
                     </Text>
                     <Text className="text-sm font-extrabold text-primary mt-0.5">
                       ৳3,000 / person
@@ -403,15 +452,23 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                 <View className="flex-row items-center justify-between p-3 bg-card rounded-xl border border-border shadow-2xs">
                   <View className="flex-row items-center gap-2.5">
                     <View className="w-8 h-8 rounded-full bg-emerald-50 items-center justify-center">
-                      <Text className="text-xs font-bold text-emerald-700">T</Text>
+                      <Text className="text-xs font-bold text-emerald-700">
+                        T
+                      </Text>
                     </View>
                     <View>
-                      <Text className="text-xs font-bold text-foreground">Tanvir (Deposited ৳4,500)</Text>
-                      <Text className="text-[10px] text-muted-foreground">Paid ৳1,500 over share</Text>
+                      <Text className="text-xs font-bold text-foreground">
+                        Tanvir (Deposited ৳4,500)
+                      </Text>
+                      <Text className="text-[10px] text-muted-foreground">
+                        Paid ৳1,500 over share
+                      </Text>
                     </View>
                   </View>
                   <View className="bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
-                    <Text className="text-[10px] font-bold text-emerald-700">+৳1,500 receive</Text>
+                    <Text className="text-[10px] font-bold text-emerald-700">
+                      +৳1,500 receive
+                    </Text>
                   </View>
                 </View>
 
@@ -421,12 +478,18 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                       <Text className="text-xs font-bold text-rose-700">R</Text>
                     </View>
                     <View>
-                      <Text className="text-xs font-bold text-foreground">Rafiq (Deposited ৳2,000)</Text>
-                      <Text className="text-[10px] text-muted-foreground">Short by ৳1,000</Text>
+                      <Text className="text-xs font-bold text-foreground">
+                        Rafiq (Deposited ৳2,000)
+                      </Text>
+                      <Text className="text-[10px] text-muted-foreground">
+                        Short by ৳1,000
+                      </Text>
                     </View>
                   </View>
                   <View className="bg-rose-50 px-2.5 py-1 rounded-full border border-rose-200">
-                    <Text className="text-[10px] font-bold text-rose-700">-৳1,000 pay due</Text>
+                    <Text className="text-[10px] font-bold text-rose-700">
+                      -৳1,000 pay due
+                    </Text>
                   </View>
                 </View>
               </View>
@@ -437,39 +500,62 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         {/* 3. Popular Categories Carousel Showcase */}
         <View className="gap-2.5">
           <View className="flex-row items-center justify-between px-1">
-            <Text className="text-base font-extrabold text-foreground">Track Everything</Text>
-            <Text className="text-xs text-primary font-semibold">35+ Categories</Text>
+            <Text className="text-base font-extrabold text-foreground">
+              Track Everything
+            </Text>
+            <Text className="text-xs text-primary font-semibold">
+              35+ Categories
+            </Text>
           </View>
 
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerClassName="gap-2 py-1">
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerClassName="gap-2 py-1"
+          >
             {POPULAR_CATEGORIES.map((cat, idx) => (
               <View
                 key={idx}
                 className="flex-row items-center gap-2 bg-card px-3 py-2 rounded-2xl border border-border shadow-2xs"
               >
                 <Text className="text-lg">{cat.emoji}</Text>
-                <Text className="text-xs font-bold text-foreground">{cat.name}</Text>
+                <Text className="text-xs font-bold text-foreground">
+                  {cat.name}
+                </Text>
               </View>
             ))}
           </ScrollView>
         </View>
 
         {/* 4. 3-Step Workflow: How KotoGelo Works */}
-        <View className="bg-card rounded-3xl p-5 border border-border shadow-xs gap-3.5">
+        <View className="bg-card rounded-3xl p-3 border border-border shadow-xs gap-3.5">
           <View className="px-1">
-            <Text className="text-base font-extrabold text-foreground">How KotoGelo Works</Text>
-            <Text className="text-xs text-muted-foreground">3 simple steps to effortless expense management</Text>
+            <Text className="text-base font-extrabold text-foreground">
+              How KotoGelo Works
+            </Text>
+            <Text className="text-xs text-muted-foreground">
+              3 simple steps to effortless expense management
+            </Text>
           </View>
 
           <View className="gap-3 pt-1">
             {WORKFLOW_STEPS.map((item, idx) => (
-              <View key={idx} className="flex-row items-start gap-3.5 bg-muted/30 p-3.5 rounded-2xl border border-border/60">
+              <View
+                key={idx}
+                className="flex-row items-start gap-3.5 bg-muted/30 p-3.5 rounded-2xl border border-border/60"
+              >
                 <View className="w-8 h-8 rounded-xl bg-primary items-center justify-center shadow-xs">
-                  <Text className="text-xs font-black text-white">{item.step}</Text>
+                  <Text className="text-xs font-black text-white">
+                    {item.step}
+                  </Text>
                 </View>
                 <View className="flex-1">
-                  <Text className="text-sm font-bold text-foreground mb-0.5">{item.title}</Text>
-                  <Text className="text-xs text-muted-foreground leading-relaxed">{item.desc}</Text>
+                  <Text className="text-sm font-bold text-foreground mb-0.5">
+                    {item.title}
+                  </Text>
+                  <Text className="text-xs text-muted-foreground leading-relaxed">
+                    {item.desc}
+                  </Text>
                 </View>
               </View>
             ))}
@@ -479,8 +565,12 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         {/* 5. Core Feature Grid */}
         <View className="gap-3">
           <View className="flex-row items-center justify-between px-1">
-            <Text className="text-base font-extrabold text-foreground">Why KotoGelo?</Text>
-            <Text className="text-xs text-primary font-semibold">All-in-one Toolkit</Text>
+            <Text className="text-base font-extrabold text-foreground">
+              Why KotoGelo?
+            </Text>
+            <Text className="text-xs text-primary font-semibold">
+              All-in-one Toolkit
+            </Text>
           </View>
 
           <View className="gap-2.5">
@@ -489,12 +579,18 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                 key={idx}
                 className="flex-row items-center gap-3.5 bg-card p-4 rounded-2xl border border-border shadow-xs"
               >
-                <View className={`w-11 h-11 rounded-2xl items-center justify-center ${f.iconBg}`}>
+                <View
+                  className={`w-11 h-11 rounded-2xl items-center justify-center ${f.iconBg}`}
+                >
                   <Feather name={f.icon} size={20} color={f.iconColor} />
                 </View>
                 <View className="flex-1">
-                  <Text className="text-sm font-bold text-foreground mb-0.5">{f.title}</Text>
-                  <Text className="text-xs text-muted-foreground leading-relaxed">{f.desc}</Text>
+                  <Text className="text-sm font-bold text-foreground mb-0.5">
+                    {f.title}
+                  </Text>
+                  <Text className="text-xs text-muted-foreground leading-relaxed">
+                    {f.desc}
+                  </Text>
                 </View>
               </View>
             ))}
@@ -502,10 +598,14 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         </View>
 
         {/* 6. Interactive FAQ Accordion */}
-        <View className="bg-card rounded-3xl p-5 border border-border shadow-xs gap-3">
+        <View className="bg-card rounded-3xl p-3 border border-border shadow-xs gap-3">
           <View className="px-1">
-            <Text className="text-base font-extrabold text-foreground">Frequently Asked Questions</Text>
-            <Text className="text-xs text-muted-foreground">Answers to common questions about KotoGelo</Text>
+            <Text className="text-base font-extrabold text-foreground">
+              Frequently Asked Questions
+            </Text>
+            <Text className="text-xs text-muted-foreground">
+              Answers to common questions about KotoGelo
+            </Text>
           </View>
 
           <View className="gap-2 pt-1">
@@ -548,7 +648,8 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             Ready to Take Control of Your Money?
           </Text>
           <Text className="text-xs text-indigo-100 text-center leading-relaxed">
-            Join thousands tracking daily costs and splitting flat bills with complete clarity.
+            Join thousands tracking daily costs and splitting flat bills with
+            complete clarity.
           </Text>
           <TouchableOpacity
             className="w-full py-3.5 rounded-2xl bg-white items-center justify-center shadow-md mt-1"

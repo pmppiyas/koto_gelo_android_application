@@ -8,6 +8,7 @@ import {
   SafeAreaView,
   ScrollView,
 } from '../components/ui/core';
+import { HeroStatCard } from '../components/common/HeroStatCard';
 import {
   groupService,
   Group,
@@ -15,6 +16,7 @@ import {
   GroupExpense,
   GroupDeposit,
 } from '../services/groupService';
+import { localGroupService } from '../services/localGroupService';
 import { AddGroupDepositModal } from '../components/group/AddGroupDepositModal';
 import { AddGroupExpenseModal } from '../components/group/AddGroupExpenseModal';
 import { useAuth, useExpenses } from '../store/hooks';
@@ -65,8 +67,18 @@ type PeriodType = 'WEEK' | 'MONTH' | 'YEAR';
 type GroupTabType = 'EXPENSES' | 'DEPOSITS' | 'ANALYTICS' | 'MEMBERS';
 
 const MONTH_NAMES = [
-  'January', 'February', 'March', 'April', 'May', 'June',
-  'July', 'August', 'September', 'October', 'November', 'December'
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
 ];
 
 const parseExpenseDate = (dateVal?: any): Date | null => {
@@ -122,15 +134,74 @@ export const GroupBalancesScreen: React.FC<GroupBalancesScreenProps> = ({
     }
   }, [propGroupId]);
 
+  // Instant 0ms offline cache load
+  useEffect(() => {
+    let isMounted = true;
+    const loadOfflineData = async () => {
+      try {
+        const cachedGroups = await localGroupService.getStoredGroups();
+        if (!isMounted) return;
+        if (cachedGroups && cachedGroups.length > 0) {
+          setGroups(cachedGroups);
+          const targetId = selectedGroupId || cachedGroups[0].id;
+          if (targetId) {
+            setSelectedGroupId(targetId);
+            const [cachedGrp, cachedExp, cachedDep] = await Promise.all([
+              localGroupService.getStoredGroupById(targetId),
+              localGroupService.getStoredGroupExpenses(targetId),
+              localGroupService.getStoredGroupDeposits(targetId),
+            ]);
+            if (isMounted) {
+              if (cachedGrp) setGroupDetails(cachedGrp);
+              if (cachedExp && cachedExp.length > 0)
+                setGroupExpenses(cachedExp as any);
+              if (cachedDep && cachedDep.length > 0)
+                setGroupDeposits(cachedDep as any);
+              setIsLoading(false);
+            }
+          }
+        }
+      } catch {}
+    };
+    loadOfflineData();
+    return () => {
+      isMounted = false;
+    };
+  }, [selectedGroupId]);
+
   const categoryMap = useMemo(() => {
     const map: Record<
       string,
-      { name: string; emoji: string; icon: keyof typeof Feather.glyphMap }
+      {
+        name: string;
+        emoji: string;
+        icon: keyof typeof Feather.glyphMap;
+        color: string;
+        bgColor: string;
+      }
     > = {};
     EXPENSE_CATEGORIES.forEach(c => {
-      map[c.name] = { name: c.name, emoji: c.emoji, icon: c.icon };
-      map[c.slug] = { name: c.name, emoji: c.emoji, icon: c.icon };
-      map[c.id] = { name: c.name, emoji: c.emoji, icon: c.icon };
+      map[c.name] = {
+        name: c.name,
+        emoji: c.emoji,
+        icon: c.icon,
+        color: c.color,
+        bgColor: c.bgColor,
+      };
+      map[c.slug] = {
+        name: c.name,
+        emoji: c.emoji,
+        icon: c.icon,
+        color: c.color,
+        bgColor: c.bgColor,
+      };
+      map[c.id] = {
+        name: c.name,
+        emoji: c.emoji,
+        icon: c.icon,
+        color: c.color,
+        bgColor: c.bgColor,
+      };
     });
     return map;
   }, []);
@@ -143,13 +214,16 @@ export const GroupBalancesScreen: React.FC<GroupBalancesScreenProps> = ({
         return;
       }
 
-      if (!isRefresh) setIsLoading(true);
-      else setIsRefreshing(true);
+      if (!isRefresh && groups.length === 0) setIsLoading(true);
+      else if (isRefresh) setIsRefreshing(true);
 
       try {
         const response = await groupService.getGroups({ limit: 50 });
         const list: Group[] = response?.groups || response?.data?.groups || [];
-        setGroups(list);
+        if (list.length > 0) {
+          setGroups(list);
+          localGroupService.setStoredGroups(list).catch(() => {});
+        }
 
         const targetId = selectedGroupId || (list.length > 0 ? list[0].id : '');
         if (targetId) {
@@ -161,9 +235,48 @@ export const GroupBalancesScreen: React.FC<GroupBalancesScreenProps> = ({
             groupService.getGroupDeposits(targetId, { limit: 100 }),
           ]);
 
-          if (grpRes.status === 'fulfilled') setGroupDetails((grpRes.value as any)?.data || grpRes.value);
-          if (expRes.status === 'fulfilled') setGroupExpenses((expRes.value as any)?.history || (expRes.value as any)?.expenses || expRes.value || []);
-          if (depRes.status === 'fulfilled') setGroupDeposits((depRes.value as any)?.deposits || depRes.value || []);
+          if (grpRes.status === 'fulfilled') {
+            const grpData = (grpRes.value as any)?.data || grpRes.value;
+            setGroupDetails(grpData);
+            if (grpData)
+              localGroupService
+                .saveGroupLocally(grpData, 'synced')
+                .catch(() => {});
+          }
+          if (expRes.status === 'fulfilled') {
+            const expVal = expRes.value as any;
+            const expList =
+              expVal?.data?.history ||
+              expVal?.data?.expenses ||
+              expVal?.history ||
+              expVal?.expenses ||
+              (Array.isArray(expVal?.data)
+                ? expVal.data
+                : Array.isArray(expVal)
+                ? expVal
+                : []);
+            if (Array.isArray(expList) && expList.length > 0) {
+              setGroupExpenses(expList);
+              localGroupService.setStoredGroupExpenses(expList).catch(() => {});
+            }
+          }
+          if (depRes.status === 'fulfilled') {
+            const depVal = depRes.value as any;
+            const depList =
+              depVal?.data?.deposits ||
+              depVal?.deposits ||
+              (Array.isArray(depVal?.data)
+                ? depVal.data
+                : Array.isArray(depVal)
+                ? depVal
+                : []);
+            if (Array.isArray(depList)) {
+              setGroupDeposits(depList);
+              if (depList.length > 0) {
+                localGroupService.setStoredGroupDeposits(depList).catch(() => {});
+              }
+            }
+          }
           if (balRes.status === 'fulfilled') {
             const val = balRes.value;
             const balanceData: GroupBalance = (val as any)?.data || val;
@@ -176,7 +289,7 @@ export const GroupBalancesScreen: React.FC<GroupBalancesScreenProps> = ({
         setIsRefreshing(false);
       }
     },
-    [isAuthenticated, selectedGroupId],
+    [isAuthenticated, selectedGroupId, groups.length],
   );
 
   useEffect(() => {
@@ -187,19 +300,38 @@ export const GroupBalancesScreen: React.FC<GroupBalancesScreenProps> = ({
     await fetchGroupsAndData(true);
   };
 
+  const refreshFromLocalDb = useCallback(async (targetGroupId: string) => {
+    if (!targetGroupId) return;
+    try {
+      const [cachedExp, cachedDep] = await Promise.all([
+        localGroupService.getStoredGroupExpenses(targetGroupId),
+        localGroupService.getStoredGroupDeposits(targetGroupId),
+      ]);
+      if (cachedExp && cachedExp.length > 0) setGroupExpenses(cachedExp as any);
+      if (cachedDep && cachedDep.length > 0) setGroupDeposits(cachedDep as any);
+    } catch {}
+  }, []);
+
   const selectedGroup = useMemo(() => {
     if (groupDetails) return groupDetails;
     return groups.find(g => g.id === selectedGroupId) || null;
   }, [groupDetails, groups, selectedGroupId]);
 
+  const groupMembers = useMemo(() => {
+    return selectedGroup?.members || [];
+  }, [selectedGroup]);
+
   const computedMetrics = useMemo(() => {
     const rawLocalGroupExpenses = (localExpenses || []).filter(
-      e => e.type === 'GROUP' && (!selectedGroupId || !e.groupId || e.groupId === selectedGroupId),
+      e =>
+        e.type === 'GROUP' &&
+        (!selectedGroupId || !e.groupId || e.groupId === selectedGroupId),
     );
 
     const expenseMap = new Map<string, GroupExpense>();
     rawLocalGroupExpenses.forEach(e => {
-      const key = e.serverId || e.localId || (e as any).id || String(Math.random());
+      const key =
+        e.serverId || e.localId || (e as any).id || String(Math.random());
       expenseMap.set(key, {
         id: key,
         groupId: e.groupId || selectedGroupId,
@@ -208,23 +340,38 @@ export const GroupBalancesScreen: React.FC<GroupBalancesScreenProps> = ({
         category: e.category || 'Other',
         subcategory: e.subcategory,
         title: e.title,
-        expenseDate: e.date || (e as any).expenseDate || e.createdAt || new Date().toISOString(),
+        expenseDate:
+          e.date ||
+          (e as any).expenseDate ||
+          e.createdAt ||
+          new Date().toISOString(),
         createdAt: e.createdAt || new Date().toISOString(),
-        user: { id: e.userId || userId, name: user?.name, username: user?.username || 'You', avatarUrl: user?.avatarUrl },
+        user: {
+          id: e.userId || userId,
+          name: user?.name,
+          username: user?.username || 'You',
+          avatarUrl: user?.avatarUrl,
+        },
         participants: (e as any).participants || [],
       } as any);
     });
 
-    groupExpenses.forEach(e => { if (e.id) expenseMap.set(e.id, e); });
-    const allExpensesList = Array.from(expenseMap.values()).sort((a, b) => new Date(b.expenseDate || b.createdAt || 0).getTime() - new Date(a.expenseDate || a.createdAt || 0).getTime());
+    groupExpenses.forEach(e => {
+      if (e.id) expenseMap.set(e.id, e);
+    });
+    const allExpensesList = Array.from(expenseMap.values()).sort(
+      (a, b) =>
+        new Date(b.expenseDate || b.createdAt || 0).getTime() -
+        new Date(a.expenseDate || a.createdAt || 0).getTime(),
+    );
 
     const totalExpenses = Math.max(
       balance?.totalExpenses ?? 0,
-      allExpensesList.reduce((sum, e) => sum + (Number(e.amount) || 0), 0)
+      allExpensesList.reduce((sum, e) => sum + (Number(e.amount) || 0), 0),
     );
     const totalDeposits = Math.max(
       balance?.totalDeposits ?? 0,
-      groupDeposits.reduce((sum, d) => sum + (Number(d.amount) || 0), 0)
+      groupDeposits.reduce((sum, d) => sum + (Number(d.amount) || 0), 0),
     );
 
     const members = selectedGroup?.members || [];
@@ -251,7 +398,8 @@ export const GroupBalancesScreen: React.FC<GroupBalancesScreenProps> = ({
       const uId = dep.userId || dep.user?.id;
       if (uId && memberMap.has(uId)) {
         const item = memberMap.get(uId)!;
-        item.totalDeposited = (item.totalDeposited || 0) + (Number(dep.amount) || 0);
+        item.totalDeposited =
+          (item.totalDeposited || 0) + (Number(dep.amount) || 0);
       }
     });
 
@@ -268,7 +416,8 @@ export const GroupBalancesScreen: React.FC<GroupBalancesScreenProps> = ({
           const pId = p.userId || p.user?.id;
           if (pId && memberMap.has(pId)) {
             const memberItem = memberMap.get(pId)!;
-            const share = Number(p.shareAmount) || expAmt / exp.participants.length;
+            const share =
+              Number(p.shareAmount) || expAmt / exp.participants.length;
             memberItem.totalShare = (memberItem.totalShare || 0) + share;
           }
         });
@@ -282,7 +431,11 @@ export const GroupBalancesScreen: React.FC<GroupBalancesScreenProps> = ({
 
     // 4. Calculate net balance for each member: totalDeposited - totalShare
     memberMap.forEach(item => {
-      item.netBalance = Math.round((item.totalDeposited || 0) - (item.totalShare || 0));
+      const roundedDeposited = Math.round(item.totalDeposited || 0);
+      const roundedShare = Math.round(item.totalShare || 0);
+      item.totalDeposited = roundedDeposited;
+      item.totalShare = roundedShare;
+      item.netBalance = roundedDeposited - roundedShare;
     });
 
     const memberBalancesList = Array.from(memberMap.values());
@@ -292,14 +445,23 @@ export const GroupBalancesScreen: React.FC<GroupBalancesScreenProps> = ({
       .filter(d => d.userId === userId || d.user?.id === userId)
       .reduce((sum, d) => sum + (Number(d.amount) || 0), 0);
 
-    const yourDeposited = Math.max(
-      userDepositsFromList,
-      memberMap.get(userId)?.totalDeposited || 0,
-      balance?.yourDeposited || 0
-    );
+    const currentUserItem = memberMap.get(userId);
+    const yourDeposited =
+      currentUserItem?.totalDeposited !== undefined
+        ? currentUserItem.totalDeposited
+        : Math.round(
+            Math.max(
+              userDepositsFromList,
+              balance?.yourDeposited || 0,
+            ),
+          );
 
-    const yourShare = Math.round(memberMap.get(userId)?.totalShare || 0);
-    const netBalance = Math.round(yourDeposited - yourShare);
+    const yourShare =
+      currentUserItem?.totalShare !== undefined
+        ? currentUserItem.totalShare
+        : Math.round(balance?.yourShare || 0);
+
+    const netBalance = yourDeposited - yourShare;
     const isPositiveBalance = netBalance >= 0;
 
     return {
@@ -314,7 +476,16 @@ export const GroupBalancesScreen: React.FC<GroupBalancesScreenProps> = ({
       balances: memberBalancesList,
       allExpensesList,
     };
-  }, [balance, groupExpenses, groupDeposits, localExpenses, selectedGroup, selectedGroupId, userId, user]);
+  }, [
+    balance,
+    groupExpenses,
+    groupDeposits,
+    localExpenses,
+    selectedGroup,
+    selectedGroupId,
+    userId,
+    user,
+  ]);
 
   const analyticsData = useMemo(() => {
     const targetYear = selectedDate.getFullYear();
@@ -322,29 +493,77 @@ export const GroupBalancesScreen: React.FC<GroupBalancesScreenProps> = ({
     const filtered = computedMetrics.allExpensesList.filter(e => {
       const d = parseExpenseDate(e.expenseDate || e.createdAt);
       if (!d) return false;
-      if (periodType === 'MONTH') return d.getFullYear() === targetYear && d.getMonth() === targetMonth;
+      if (periodType === 'MONTH')
+        return d.getFullYear() === targetYear && d.getMonth() === targetMonth;
       if (periodType === 'YEAR') return d.getFullYear() === targetYear;
       if (periodType === 'WEEK') {
-        const start = new Date(selectedDate); start.setDate(selectedDate.getDate() - selectedDate.getDay()); start.setHours(0, 0, 0, 0);
-        const end = new Date(start); end.setDate(start.getDate() + 6); end.setHours(23, 59, 59, 999);
+        const start = new Date(selectedDate);
+        start.setDate(selectedDate.getDate() - selectedDate.getDay());
+        start.setHours(0, 0, 0, 0);
+        const end = new Date(start);
+        end.setDate(start.getDate() + 6);
+        end.setHours(23, 59, 59, 999);
         return d >= start && d <= end;
       }
       return true;
     });
 
-    const catMap: Record<string, { amount: number; count: number; emoji: string }> = {};
+    const HARMONIOUS_BLUE_GREEN_PALETTE = [
+      { color: '#2563EB', bgColor: '#EFF6FF', barColor: '#3B82F6' }, // Royal Blue
+      { color: '#059669', bgColor: '#ECFDF5', barColor: '#10B981' }, // Emerald Green
+      { color: '#0284C7', bgColor: '#F0F9FF', barColor: '#0EA5E9' }, // Ocean Sky
+      { color: '#0D9488', bgColor: '#F0FDFA', barColor: '#14B8A6' }, // Teal
+      { color: '#4F46E5', bgColor: '#EEF2FF', barColor: '#6366F1' }, // Indigo
+      { color: '#0891B2', bgColor: '#ECFEFF', barColor: '#06B6D4' }, // Cyan
+      { color: '#16A34A', bgColor: '#F0FDF4', barColor: '#22C55E' }, // Forest Green
+      { color: '#3B82F6', bgColor: '#EFF6FF', barColor: '#60A5FA' }, // Soft Blue
+    ];
+
+    const catMap: Record<
+      string,
+      {
+        amount: number;
+        count: number;
+        emoji: string;
+      }
+    > = {};
     let total = 0;
     for (const exp of filtered) {
       const cat = exp.category || 'Other';
       const amt = Number(exp.amount) || 0;
       total += amt;
-      if (!catMap[cat]) catMap[cat] = { amount: 0, count: 0, emoji: categoryMap[cat]?.emoji || '📦' };
+      const info = categoryMap[cat];
+      if (!catMap[cat])
+        catMap[cat] = {
+          amount: 0,
+          count: 0,
+          emoji: info?.emoji || '📦',
+        };
       catMap[cat].amount += amt;
       catMap[cat].count += 1;
     }
-    const list = Object.entries(catMap).map(([category, data]) => ({ category, ...data, percentage: total > 0 ? (data.amount / total) * 100 : 0 }));
+    const list = Object.entries(catMap).map(([category, data]) => ({
+      category,
+      ...data,
+      percentage: total > 0 ? (data.amount / total) * 100 : 0,
+    }));
     list.sort((a, b) => b.amount - a.amount);
-    return { list, total, filteredCount: filtered.length };
+
+    // Apply soothing, eye-friendly Blue and Emerald Green tones
+    const styledList = list.map((item, idx) => {
+      const palette =
+        HARMONIOUS_BLUE_GREEN_PALETTE[
+          idx % HARMONIOUS_BLUE_GREEN_PALETTE.length
+        ];
+      return {
+        ...item,
+        color: palette.color,
+        bgColor: palette.bgColor,
+        barColor: palette.barColor,
+      };
+    });
+
+    return { list: styledList, total, filteredCount: filtered.length };
   }, [computedMetrics.allExpensesList, periodType, selectedDate, categoryMap]);
 
   const changePeriod = (dir: -1 | 1) => {
@@ -356,192 +575,331 @@ export const GroupBalancesScreen: React.FC<GroupBalancesScreenProps> = ({
   };
 
   const periodLabel = useMemo(() => {
-    if (periodType === 'MONTH') return `${MONTH_NAMES[selectedDate.getMonth()]} ${selectedDate.getFullYear()}`;
+    if (periodType === 'MONTH')
+      return `${
+        MONTH_NAMES[selectedDate.getMonth()]
+      } ${selectedDate.getFullYear()}`;
     if (periodType === 'YEAR') return `${selectedDate.getFullYear()}`;
-    return `Week of ${selectedDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}`;
+    return `Week of ${selectedDate.toLocaleDateString('en-GB', {
+      day: 'numeric',
+      month: 'short',
+    })}`;
   }, [periodType, selectedDate]);
 
   return (
-    <SafeAreaView className="flex-1 bg-background">
+    <SafeAreaView
+      edges={['top', 'left', 'right']}
+      className="flex-1 bg-background"
+    >
       <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
-      <ScrollView className="flex-1" contentContainerClassName="p-4 gap-4" contentContainerStyle={{ paddingBottom: BOTTOM_TAB_HEIGHT + spacing.xl }} showsVerticalScrollIndicator={false} refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} colors={['#4F46E5']} tintColor="#4F46E5" />}>
-        <View className="flex-row justify-between items-center py-1">
-          <View className="flex-row items-center gap-2.5 flex-1 pr-2">
-            {onNavigateBack && (
-              <TouchableOpacity onPress={onNavigateBack} className="w-10 h-10 rounded-full bg-card border border-border items-center justify-center shadow-xs" activeOpacity={0.7}>
-                <Feather name="arrow-left" size={18} color="#0F172A" />
-              </TouchableOpacity>
-            )}
-            <View className="flex-1">
-              <Text className="text-xs text-muted-foreground font-medium">Welcome to</Text>
-              <Text className="text-xl font-extrabold text-foreground" numberOfLines={1}>{selectedGroup ? `${TYPE_EMOJI[selectedGroup.type || 'OTHER'] || '👥'} ${selectedGroup.name}` : 'Group Dashboard'}</Text>
-            </View>
-          </View>
-          <View className="flex-row items-center gap-2">
-            <TouchableOpacity className={`w-10 h-10 rounded-full border items-center justify-center shadow-xs ${activeTab === 'MEMBERS' ? 'bg-primary-light border-indigo-200' : 'bg-card border-border'}`} activeOpacity={0.7} onPress={() => setActiveTab('MEMBERS')}>
-              <Feather name="users" size={18} color={activeTab === 'MEMBERS' ? '#4F46E5' : '#0F172A'} />
+
+      {/* Sticky Top Header Bar (Fixed outside ScrollView) */}
+      <View className="flex-row items-center justify-between px-3 py-2 bg-card border-b border-border shadow-2xs">
+        <View className="flex-row items-center gap-2 flex-1 pr-2">
+          {onNavigateBack && (
+            <TouchableOpacity
+              onPress={onNavigateBack}
+              className="w-9 h-9 rounded-full bg-muted items-center justify-center mr-1"
+              activeOpacity={0.7}
+            >
+              <Feather name="arrow-left" size={18} color="#0F172A" />
             </TouchableOpacity>
+          )}
+          <View className="flex-1">
+            <Text className="text-xs text-muted-foreground font-medium">
+              Welcome to
+            </Text>
+            <Text
+              className="text-lg font-bold text-foreground"
+              numberOfLines={1}
+            >
+              {selectedGroup
+                ? `${TYPE_EMOJI[selectedGroup.type || 'OTHER'] || '👥'} ${
+                    selectedGroup.name
+                  }`
+                : 'Group Dashboard'}
+            </Text>
           </View>
         </View>
+        <View className="flex-row items-center gap-2">
+          <TouchableOpacity
+            className={`w-9 h-9 rounded-full border items-center justify-center shadow-xs ${
+              activeTab === 'MEMBERS'
+                ? 'bg-primary-light border-indigo-200'
+                : 'bg-card border-border'
+            }`}
+            activeOpacity={0.7}
+            onPress={() => setActiveTab('MEMBERS')}
+          >
+            <Feather
+              name="users"
+              size={17}
+              color={activeTab === 'MEMBERS' ? '#4F46E5' : '#0F172A'}
+            />
+          </TouchableOpacity>
+        </View>
+      </View>
 
+      <ScrollView
+        className="flex-1"
+        contentContainerClassName="px-3 py-1.5 gap-2.5"
+        contentContainerStyle={{ paddingBottom: 2 }}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={handleRefresh}
+            colors={['#4F46E5']}
+            tintColor="#4F46E5"
+          />
+        }
+      >
         {isLoading && groups.length === 0 ? (
-          <View className="py-20 items-center justify-center gap-3"><ActivityIndicator size="large" color="#4F46E5" /><Text className="text-xs text-muted-foreground">Loading group data...</Text></View>
+          <View className="py-20 items-center justify-center gap-3">
+            <ActivityIndicator size="large" color="#4F46E5" />
+            <Text className="text-xs text-muted-foreground">
+              Loading group data...
+            </Text>
+          </View>
         ) : selectedGroup ? (
           <View className="gap-4">
-            {/* 1. Main Luxury Dark Hero Card */}
-            <View className="bg-slate-900 rounded-3xl p-6 shadow-xl border border-slate-800">
-              <View className="flex-row items-center justify-between mb-2">
-                <View className="flex-row items-center gap-2">
-                  <View
-                    className={`w-2 h-2 rounded-full ${
-                      computedMetrics.remainingFund >= 0
-                        ? 'bg-emerald-400'
-                        : 'bg-rose-400'
-                    }`}
-                  />
-                  <Text className="text-xs text-slate-400 font-semibold tracking-wider uppercase">
-                    Group Balance
-                  </Text>
-                </View>
-                <View className="bg-slate-800 px-2.5 py-1 rounded-full border border-slate-700">
-                  <Text className="text-[11px] font-bold text-indigo-300">
-                    BDT
-                  </Text>
-                </View>
-              </View>
-
-              <Text
-                className={`text-3xl font-black tracking-tight mt-1 mb-5 ${
-                  computedMetrics.remainingFund >= 0
+            {/* 1. Shared Hero Stat Card */}
+            <HeroStatCard
+              title="Group Balance"
+              badge="BDT"
+              badgeColor="bg-slate-800 border-slate-700"
+              badgeTextColor="text-indigo-300"
+              dotColor={
+                computedMetrics.remainingFund >= 0
+                  ? 'bg-emerald-400'
+                  : 'bg-rose-400'
+              }
+              mainAmount={`${
+                computedMetrics.remainingFund >= 0 ? '+' : '-'
+              } ৳${Math.abs(computedMetrics.remainingFund).toLocaleString(
+                'en-US',
+              )}`}
+              mainAmountPrefix=""
+              mainAmountColor={
+                computedMetrics.remainingFund >= 0
+                  ? 'text-emerald-400'
+                  : 'text-rose-400'
+              }
+              subtitle={`Total group fund across ${groupMembers.length} member${
+                groupMembers.length === 1 ? '' : 's'
+              }`}
+              metrics={[
+                {
+                  label: '📥 You Deposited',
+                  value: `+৳${computedMetrics.yourDeposited.toLocaleString(
+                    'en-US',
+                  )}`,
+                  valueColor: 'text-emerald-400',
+                },
+                {
+                  label: '👥 Members',
+                  value: `${groupMembers.length} members`,
+                  valueColor: 'text-slate-100',
+                  onPress: () => setActiveTab('MEMBERS'),
+                },
+                {
+                  label: computedMetrics.isPositiveBalance
+                    ? '⚖️ Your Balance'
+                    : '⚠️ Need to Pay',
+                  value: `${
+                    computedMetrics.isPositiveBalance ? '+' : '-'
+                  }৳${Math.abs(computedMetrics.netBalance).toLocaleString(
+                    'en-US',
+                  )}`,
+                  valueColor: computedMetrics.isPositiveBalance
                     ? 'text-emerald-400'
-                    : 'text-rose-400'
-                }`}
-              >
-                {computedMetrics.remainingFund >= 0 ? '+' : '-'} ৳
-                {Math.abs(computedMetrics.remainingFund).toLocaleString('en-US')}
-              </Text>
-
-              {/* Bottom 2 sub-boxes inside Main Card */}
-              <View className="flex-row items-center gap-3">
-                {/* Sub-box 1: You Deposited */}
-                <View className="flex-1 bg-slate-800/80 rounded-2xl p-3 border border-slate-700/60">
-                  <View className="flex-row items-center gap-1.5 mb-1">
-                    <Feather name="arrow-down-left" size={13} color="#34D399" />
-                    <Text className="text-[11px] text-slate-400 font-medium">
-                      You Deposited
-                    </Text>
-                  </View>
-                  <Text className="text-sm font-bold text-emerald-400">
-                    +৳{computedMetrics.yourDeposited.toLocaleString('en-US')}
-                  </Text>
-                </View>
-
-                {/* Sub-box 2: Your Balance / You need to pay */}
-                <View className="flex-1 bg-slate-800/80 rounded-2xl p-3 border border-slate-700/60">
-                  <View className="flex-row items-center gap-1.5 mb-1">
-                    <Feather
-                      name={
-                        computedMetrics.isPositiveBalance
-                          ? 'arrow-down-left'
-                          : 'arrow-up-right'
-                      }
-                      size={13}
-                      color={
-                        computedMetrics.isPositiveBalance
-                          ? '#34D399'
-                          : '#FB7185'
-                      }
-                    />
-                    <Text className="text-[11px] text-slate-400 font-medium">
-                      {computedMetrics.isPositiveBalance
-                        ? 'Your Balance'
-                        : 'You need to pay'}
-                    </Text>
-                  </View>
-                  <Text
-                    className={`text-sm font-bold ${
-                      computedMetrics.isPositiveBalance
-                        ? 'text-emerald-400'
-                        : 'text-rose-400'
-                    }`}
-                  >
-                    {computedMetrics.isPositiveBalance ? '+' : '-'}৳
-                    {Math.abs(computedMetrics.netBalance).toLocaleString(
-                      'en-US',
-                    )}
-                  </Text>
-                </View>
-              </View>
-            </View>
+                    : 'text-rose-400',
+                },
+              ]}
+            />
 
             {/* 4 Interactive Action Tabs Bar */}
             <View className="flex-row justify-between gap-2 bg-card p-3 rounded-2xl border border-border shadow-sm">
-              <TouchableOpacity className={`flex-1 items-center gap-1.5 py-1 rounded-xl ${activeTab === 'DEPOSITS' ? 'bg-emerald-50 border border-emerald-200' : ''}`} onPress={() => setActiveTab('DEPOSITS')} activeOpacity={0.8}>
-                <View className={`w-11 h-11 rounded-2xl items-center justify-center shadow-xs ${activeTab === 'DEPOSITS' ? 'bg-emerald-600 ring-2 ring-emerald-300' : 'bg-emerald-500'}`}><Feather name="download" size={19} color="#FFFFFF" /></View>
-                <Text className={`text-[11px] font-bold ${activeTab === 'DEPOSITS' ? 'text-emerald-700' : 'text-foreground'}`}>Deposit</Text>
+              <TouchableOpacity
+                className={`flex-1 items-center justify-center gap-1.5 py-1 rounded-xl ${
+                  activeTab === 'DEPOSITS'
+                    ? 'bg-emerald-50 border border-emerald-200'
+                    : ''
+                }`}
+                onPress={() => setActiveTab('DEPOSITS')}
+                activeOpacity={0.8}
+              >
+                <View
+                  className={`w-11 h-11 rounded-2xl items-center justify-center shadow-xs ${
+                    activeTab === 'DEPOSITS'
+                      ? 'bg-emerald-600 ring-2 ring-emerald-300'
+                      : 'bg-emerald-500'
+                  }`}
+                >
+                  <Feather name="download" size={19} color="#FFFFFF" />
+                </View>
+                <Text
+                  className={`text-[11px] font-bold text-center ${
+                    activeTab === 'DEPOSITS'
+                      ? 'text-emerald-700'
+                      : 'text-foreground'
+                  }`}
+                  numberOfLines={1}
+                >
+                  Deposit
+                </Text>
               </TouchableOpacity>
-              <TouchableOpacity className={`flex-1 items-center gap-1.5 py-1 rounded-xl ${activeTab === 'EXPENSES' ? 'bg-primary-light border border-indigo-200' : ''}`} onPress={() => setActiveTab('EXPENSES')} activeOpacity={0.8}>
-                <View className={`w-11 h-11 rounded-2xl items-center justify-center shadow-xs ${activeTab === 'EXPENSES' ? 'bg-primary ring-2 ring-indigo-300' : 'bg-primary'}`}><Feather name="plus" size={21} color="#FFFFFF" /></View>
-                <Text className={`text-[11px] font-bold ${activeTab === 'EXPENSES' ? 'text-primary' : 'text-foreground'}`}>Expense</Text>
+              <TouchableOpacity
+                className={`flex-1 items-center justify-center gap-1.5 py-1 rounded-xl ${
+                  activeTab === 'EXPENSES'
+                    ? 'bg-primary-light border border-indigo-200'
+                    : ''
+                }`}
+                onPress={() => setActiveTab('EXPENSES')}
+                activeOpacity={0.8}
+              >
+                <View
+                  className={`w-11 h-11 rounded-2xl items-center justify-center shadow-xs ${
+                    activeTab === 'EXPENSES'
+                      ? 'bg-primary ring-2 ring-indigo-300'
+                      : 'bg-primary'
+                  }`}
+                >
+                  <Feather name="plus" size={21} color="#FFFFFF" />
+                </View>
+                <Text
+                  className={`text-[11px] font-bold text-center ${
+                    activeTab === 'EXPENSES'
+                      ? 'text-primary'
+                      : 'text-foreground'
+                  }`}
+                  numberOfLines={1}
+                >
+                  Expense
+                </Text>
               </TouchableOpacity>
-              <TouchableOpacity className={`flex-1 items-center gap-1.5 py-1 rounded-xl ${activeTab === 'ANALYTICS' ? 'bg-slate-100 border border-slate-300' : ''}`} onPress={() => setActiveTab('ANALYTICS')} activeOpacity={0.8}>
-                <View className={`w-11 h-11 rounded-2xl items-center justify-center shadow-xs ${activeTab === 'ANALYTICS' ? 'bg-slate-900 ring-2 ring-slate-400' : 'bg-slate-800'}`}><Feather name="pie-chart" size={19} color="#FFFFFF" /></View>
-                <Text className={`text-[11px] font-bold ${activeTab === 'ANALYTICS' ? 'text-slate-900' : 'text-foreground'}`}>Analytics</Text>
+              <TouchableOpacity
+                className={`flex-1 items-center justify-center gap-1.5 py-1 rounded-xl ${
+                  activeTab === 'ANALYTICS'
+                    ? 'bg-slate-100 border border-slate-300'
+                    : ''
+                }`}
+                onPress={() => setActiveTab('ANALYTICS')}
+                activeOpacity={0.8}
+              >
+                <View
+                  className={`w-11 h-11 rounded-2xl items-center justify-center shadow-xs ${
+                    activeTab === 'ANALYTICS'
+                      ? 'bg-slate-900 ring-2 ring-slate-400'
+                      : 'bg-slate-800'
+                  }`}
+                >
+                  <Feather name="pie-chart" size={19} color="#FFFFFF" />
+                </View>
+                <Text
+                  className={`text-[11px] font-bold text-center ${
+                    activeTab === 'ANALYTICS'
+                      ? 'text-slate-900'
+                      : 'text-foreground'
+                  }`}
+                  numberOfLines={1}
+                >
+                  Analytics
+                </Text>
               </TouchableOpacity>
-              <TouchableOpacity className={`flex-1 items-center gap-1.5 py-1 rounded-xl ${activeTab === 'MEMBERS' ? 'bg-primary-light border border-indigo-200' : ''}`} onPress={() => setActiveTab('MEMBERS')} activeOpacity={0.8}>
-                <View className={`w-11 h-11 rounded-2xl items-center justify-center shadow-xs ${activeTab === 'MEMBERS' ? 'bg-indigo-600 ring-2 ring-indigo-300' : 'bg-indigo-500'}`}><Feather name="users" size={19} color="#FFFFFF" /></View>
-                <Text className={`text-[11px] font-bold ${activeTab === 'MEMBERS' ? 'text-primary' : 'text-foreground'}`}>Members</Text>
+              <TouchableOpacity
+                className={`flex-1 items-center justify-center gap-1.5 py-1 rounded-xl ${
+                  activeTab === 'MEMBERS'
+                    ? 'bg-primary-light border border-indigo-200'
+                    : ''
+                }`}
+                onPress={() => setActiveTab('MEMBERS')}
+                activeOpacity={0.8}
+              >
+                <View
+                  className={`w-11 h-11 rounded-2xl items-center justify-center shadow-xs ${
+                    activeTab === 'MEMBERS'
+                      ? 'bg-indigo-600 ring-2 ring-indigo-300'
+                      : 'bg-indigo-500'
+                  }`}
+                >
+                  <Feather name="users" size={19} color="#FFFFFF" />
+                </View>
+                <Text
+                  className={`text-[11px] font-bold text-center ${
+                    activeTab === 'MEMBERS' ? 'text-primary' : 'text-foreground'
+                  }`}
+                  numberOfLines={1}
+                >
+                  Members
+                </Text>
               </TouchableOpacity>
             </View>
 
             {activeTab === 'EXPENSES' && (
-              <View className="bg-card rounded-2xl border border-border p-4 shadow-sm">
+              <View className="bg-card rounded-2xl border border-border p-4 shadow-sm mb-2">
                 <View className="flex-row justify-between items-center mb-3">
-                  <View className="flex-row items-center gap-2"><Text className="text-base font-bold text-foreground">Group Expenses</Text><View className="bg-rose-50 px-2 py-0.5 rounded-full border border-rose-200"><Text className="text-[11px] font-bold text-rose-700">{computedMetrics.allExpensesList.length}</Text></View></View>
-                  <TouchableOpacity className="flex-row items-center gap-1 bg-primary px-3 py-1.5 rounded-full shadow-xs" onPress={() => setIsExpenseModalOpen(true)} activeOpacity={0.8}><Feather name="plus" size={13} color="#FFFFFF" /><Text className="text-xs font-bold text-white">Add Expense</Text></TouchableOpacity>
+                  <View className="flex-row items-center gap-2">
+                    <Text className="text-base font-bold text-foreground">
+                      Group Expenses
+                    </Text>
+                    <View className="bg-rose-50 px-2 py-0.5 rounded-full border border-rose-200">
+                      <Text className="text-[11px] font-bold text-rose-700">
+                        {computedMetrics.allExpensesList.length}
+                      </Text>
+                    </View>
+                  </View>
+                  <TouchableOpacity
+                    className="flex-row items-center gap-1 bg-primary px-3 py-1.5 rounded-full shadow-xs"
+                    onPress={() => setIsExpenseModalOpen(true)}
+                    activeOpacity={0.8}
+                  >
+                    <Feather name="plus" size={13} color="#FFFFFF" />
+                    <Text className="text-xs font-bold text-white">
+                      Add Expense
+                    </Text>
+                  </TouchableOpacity>
                 </View>
                 {computedMetrics.allExpensesList.map((item, index) => {
                   const isNewlyAdded =
                     !!newlyAddedId &&
-                    (item.id === newlyAddedId || (item as any).localId === newlyAddedId);
+                    (item.id === newlyAddedId ||
+                      (item as any).localId === newlyAddedId);
                   return (
                     <View
-                      key={item.id || index}
+                      key={`${
+                        item.id || (item as any).localId || 'exp'
+                      }_${index}`}
                       className={`flex-row justify-between items-center py-3 px-2 rounded-xl transition-all ${
-                        isNewlyAdded
-                          ? 'bg-primary-light/70 border border-indigo-300 my-1 shadow-xs'
-                          : index !== computedMetrics.allExpensesList.length - 1
+                        index !== computedMetrics.allExpensesList.length - 1
                           ? 'border-b border-border'
                           : ''
                       }`}
                     >
                       <View className="flex-row items-center flex-1 pr-3">
-                        <View
-                          className={`w-10 h-10 rounded-xl ${
-                            isNewlyAdded
-                              ? 'bg-primary border border-indigo-500'
-                              : 'bg-rose-50 border border-rose-100'
-                          } items-center justify-center mr-3`}
-                        >
+                        <View className="w-10 h-10 rounded-xl bg-rose-50 border border-rose-100 items-center justify-center mr-3">
                           <Feather
-                            name={(categoryMap[item.category]?.icon || 'credit-card') as any}
+                            name={
+                              (categoryMap[item.category]?.icon ||
+                                'credit-card') as any
+                            }
                             size={18}
-                            color={isNewlyAdded ? '#FFFFFF' : '#EF4444'}
+                            color="#EF4444"
                           />
                         </View>
                         <View className="flex-1">
                           <View className="flex-row items-center gap-1.5">
                             <Text
-                              className={`text-sm font-bold ${
-                                isNewlyAdded ? 'text-primary' : 'text-card-foreground'
-                              } mb-0.5`}
+                              className="text-sm font-bold text-card-foreground mb-0.5"
                               numberOfLines={1}
                             >
                               {item.title || item.subcategory || item.category}
                             </Text>
                             {isNewlyAdded && (
-                              <View className="bg-primary px-1.5 py-0.5 rounded-full shadow-2xs">
-                                <Text className="text-[9px] font-black text-white">✨ NEW</Text>
+                              <View className="flex-row items-center gap-0.5 bg-amber-50 px-1.5 py-0.5 rounded">
+                                <Text className="text-[9px] font-bold text-amber-700">
+                                  NEW
+                                </Text>
                               </View>
                             )}
                           </View>
@@ -561,7 +919,9 @@ export const GroupBalancesScreen: React.FC<GroupBalancesScreenProps> = ({
                         >
                           -৳{Number(item.amount).toLocaleString('en-US')}
                         </Text>
-                        <Text className="text-xs text-muted-foreground">{item.category}</Text>
+                        <Text className="text-xs text-muted-foreground">
+                          {item.category}
+                        </Text>
                       </View>
                     </View>
                   );
@@ -570,63 +930,544 @@ export const GroupBalancesScreen: React.FC<GroupBalancesScreenProps> = ({
             )}
 
             {activeTab === 'DEPOSITS' && (
-              <View className="bg-card rounded-2xl border border-border p-4 shadow-sm">
+              <View className="bg-card rounded-2xl border border-border p-4 shadow-sm mb-2">
                 <View className="flex-row justify-between items-center mb-3">
-                  <View className="flex-row items-center gap-2"><Text className="text-base font-bold text-foreground">Group Deposits</Text><View className="bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200"><Text className="text-[11px] font-bold text-emerald-700">{groupDeposits.length}</Text></View></View>
-                  <TouchableOpacity className="flex-row items-center gap-1 bg-emerald-600 px-3 py-1.5 rounded-full shadow-xs" onPress={() => setIsDepositModalOpen(true)} activeOpacity={0.8}><Feather name="plus" size={13} color="#FFFFFF" /><Text className="text-xs font-bold text-white">Add Deposit</Text></TouchableOpacity>
-                </View>
-                {groupDeposits.map((dep, index) => (
-                  <View key={dep.id || index} className={`flex-row justify-between items-center py-3 ${index !== groupDeposits.length - 1 ? 'border-b border-border' : ''}`}>
-                    <View className="flex-row items-center flex-1 pr-3"><View className="w-10 h-10 rounded-xl bg-emerald-50 border border-emerald-100 items-center justify-center mr-3"><Feather name="download" size={18} color="#059669" /></View><View className="flex-1"><Text className="text-sm font-semibold text-card-foreground mb-0.5" numberOfLines={1}>{(dep.userId === userId || dep.user?.id === userId) ? 'Deposited by You' : `Deposited by ${dep.user?.name || 'Member'}`}</Text><Text className="text-xs text-muted-foreground">{dep.createdAt?.slice(0, 10)}</Text></View></View>
-                    <View className="items-end"><Text className="text-sm font-bold text-emerald-600 mb-0.5">+৳{Number(dep.amount).toLocaleString('en-US')}</Text><Text className="text-[10px] text-muted-foreground uppercase font-bold">Deposit</Text></View>
+                  <View className="flex-row items-center gap-2">
+                    <Text className="text-base font-bold text-foreground">
+                      Group Deposits
+                    </Text>
+                    <View className="bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                      <Text className="text-[11px] font-bold text-emerald-700">
+                        {groupDeposits.length}
+                      </Text>
+                    </View>
                   </View>
-                ))}
+                  <TouchableOpacity
+                    className="flex-row items-center gap-1 bg-emerald-600 px-3 py-1.5 rounded-full shadow-xs active:bg-emerald-700"
+                    onPress={() => setIsDepositModalOpen(true)}
+                    activeOpacity={0.8}
+                  >
+                    <Feather name="plus" size={13} color="#FFFFFF" />
+                    <Text className="text-xs font-bold text-white">
+                      Add Deposit
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+
+                {groupDeposits.length === 0 ? (
+                  <View className="py-8 items-center justify-center">
+                    <View className="w-12 h-12 rounded-2xl bg-emerald-50 border border-emerald-100 items-center justify-center mb-2 shadow-xs">
+                      <Feather name="download" size={20} color="#059669" />
+                    </View>
+                    <Text className="text-sm font-bold text-foreground text-center">
+                      No Deposits Recorded
+                    </Text>
+                    <Text className="text-xs text-muted-foreground text-center mt-0.5 mb-3 max-w-[240px]">
+                      Collect advances from members to track group funds.
+                    </Text>
+                    <TouchableOpacity
+                      onPress={() => setIsDepositModalOpen(true)}
+                      className="flex-row items-center gap-1.5 bg-emerald-600 px-3.5 py-1.5 rounded-full shadow-xs"
+                      activeOpacity={0.8}
+                    >
+                      <Feather name="plus" size={13} color="#FFFFFF" />
+                      <Text className="text-xs font-bold text-white">
+                        Record First Deposit
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  groupDeposits.map((dep, index) => {
+                    const isYou =
+                      dep.userId === userId || dep.user?.id === userId;
+                    let memberObj = groupMembers.find(
+                      m =>
+                        m.userId === dep.userId ||
+                        m.id === dep.userId ||
+                        (m.user as any)?.id === dep.userId ||
+                        (m as any).id === dep.userId,
+                    );
+
+                    if (!memberObj && groups && groups.length > 0) {
+                      for (const g of groups) {
+                        const found = (g.members || []).find(
+                          (m: any) =>
+                            m.userId === dep.userId ||
+                            m.user?.id === dep.userId ||
+                            m.id === dep.userId,
+                        );
+                        if (found) {
+                          memberObj = found;
+                          break;
+                        }
+                      }
+                    }
+
+                    const memberUser = memberObj?.user || (memberObj as any);
+
+                    // Extract first valid username (ignoring generic 'Member')
+                    const candidateUsernames = [
+                      dep.user?.username,
+                      memberUser?.username,
+                      (memberObj as any)?.username,
+                    ].filter(
+                      u =>
+                        u &&
+                        typeof u === 'string' &&
+                        u.trim() !== '' &&
+                        u.toLowerCase() !== 'member',
+                    );
+                    const resolvedUsername =
+                      candidateUsernames.length > 0
+                        ? candidateUsernames[0]
+                        : '';
+
+                    // Extract first valid name (ignoring generic 'Member')
+                    const candidateNames = [
+                      dep.user?.name,
+                      memberUser?.name,
+                      (memberObj as any)?.name,
+                    ].filter(
+                      n =>
+                        n &&
+                        typeof n === 'string' &&
+                        n.trim() !== '' &&
+                        n.toLowerCase() !== 'member',
+                    );
+                    const resolvedName =
+                      candidateNames.length > 0 ? candidateNames[0] : '';
+
+                    let depositorName = 'Member';
+                    if (isYou) {
+                      depositorName = user?.username
+                        ? `@${user.username} (You)`
+                        : 'You';
+                    } else if (resolvedUsername) {
+                      depositorName = `@${resolvedUsername}`;
+                    } else if (resolvedName) {
+                      depositorName = resolvedName;
+                    }
+
+                    const initial = (
+                      resolvedUsername ||
+                      resolvedName ||
+                      (isYou ? user?.username || user?.name || '' : '') ||
+                      'M'
+                    )
+                      .charAt(0)
+                      .toUpperCase();
+                    const method = dep.method || 'CASH';
+
+                    return (
+                      <View
+                        key={`${
+                          dep.id || (dep as any).localId || 'dep'
+                        }_${index}`}
+                        className="flex-row justify-between items-center py-2.5"
+                      >
+                        <View className="flex-row items-center flex-1 pr-3">
+                          <View className="w-10 h-10 rounded-xl bg-emerald-50 border border-emerald-100 items-center justify-center mr-3 shadow-2xs">
+                            <Text className="text-xs font-black text-emerald-700">
+                              {initial}
+                            </Text>
+                          </View>
+                          <View className="flex-1">
+                            <View className="flex-row items-center gap-1.5 mb-0.5 flex-wrap">
+                              <Text
+                                className="text-sm font-bold text-foreground"
+                                numberOfLines={1}
+                              >
+                                {depositorName}
+                              </Text>
+                              <View className="bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200">
+                                <Text className="text-[9px] font-bold text-emerald-700">
+                                  {method}
+                                </Text>
+                              </View>
+                            </View>
+                            <Text
+                              className="text-xs text-muted-foreground"
+                              numberOfLines={1}
+                            >
+                              {dep.depositDate?.slice(0, 10) ||
+                                dep.createdAt?.slice(0, 10)}
+                              {dep.note ? ` • ${dep.note}` : ''}
+                            </Text>
+                          </View>
+                        </View>
+                        <View className="items-end">
+                          <Text className="text-sm font-black text-emerald-600 mb-0.5">
+                            +৳{Number(dep.amount).toLocaleString('en-US')}
+                          </Text>
+                          <Text className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">
+                            Deposit
+                          </Text>
+                        </View>
+                      </View>
+                    );
+                  })
+                )}
               </View>
             )}
 
             {activeTab === 'ANALYTICS' && (
-              <View className="gap-3">
-                <View className="flex-row bg-muted p-1 rounded-xl">{(['WEEK', 'MONTH', 'YEAR'] as PeriodType[]).map(p => (<TouchableOpacity key={p} className={`flex-1 py-2 items-center rounded-lg ${periodType === p ? 'bg-primary-light border border-indigo-200 shadow-xs' : ''}`} onPress={() => setPeriodType(p)} activeOpacity={0.7}><Text className={`text-xs font-bold ${periodType === p ? 'text-primary' : 'text-muted-foreground'}`}>{p === 'WEEK' ? 'Weekly' : p === 'MONTH' ? 'Monthly' : 'Yearly'}</Text></TouchableOpacity>))}</View>
-                <View className="flex-row items-center justify-between bg-card p-3 rounded-2xl border border-border shadow-xs">
-                  <TouchableOpacity className="w-8 h-8 rounded-full bg-muted items-center justify-center" onPress={() => changePeriod(-1)}><Feather name="chevron-left" size={18} color="#0F172A" /></TouchableOpacity>
-                  <Text className="text-sm font-extrabold text-foreground">{periodLabel}</Text>
-                  <TouchableOpacity className="w-8 h-8 rounded-full bg-muted items-center justify-center" onPress={() => changePeriod(1)}><Feather name="chevron-right" size={18} color="#0F172A" /></TouchableOpacity>
-                </View>
-                <View className="bg-slate-900 rounded-3xl p-5 shadow-lg border border-slate-800"><Text className="text-xs text-slate-400 font-medium mb-1">Total Spend in {periodLabel}</Text><Text className="text-3xl font-black text-white">৳{analyticsData.total.toLocaleString()}</Text></View>
-                <View className="bg-card rounded-2xl border border-border p-4 shadow-sm gap-3">
-                  <Text className="text-sm font-bold text-foreground">Category Breakdown</Text>
-                  {analyticsData.list.map((cat, idx) => (
-                    <View key={idx} className="bg-muted/40 p-3 rounded-xl border border-border/60 gap-1.5">
-                      <View className="flex-row justify-between items-center"><View className="flex-row items-center gap-2"><Text className="text-base">{cat.emoji}</Text><Text className="text-xs font-bold text-foreground">{cat.category}</Text></View><Text className="text-xs font-black text-foreground">৳{cat.amount.toLocaleString()} ({cat.percentage.toFixed(1)}%)</Text></View>
-                      <View className="h-2 w-full bg-muted rounded-full overflow-hidden"><View className="h-full bg-primary rounded-full" style={{ width: `${Math.min(100, Math.max(5, cat.percentage))}%` }} /></View>
-                    </View>
+              <View className="gap-3 mb-2">
+                <View className="flex-row bg-muted p-1 rounded-xl">
+                  {(['WEEK', 'MONTH', 'YEAR'] as PeriodType[]).map(p => (
+                    <TouchableOpacity
+                      key={p}
+                      className={`flex-1 py-2 items-center rounded-lg ${
+                        periodType === p
+                          ? 'bg-primary-light border border-indigo-200 shadow-xs'
+                          : ''
+                      }`}
+                      onPress={() => setPeriodType(p)}
+                      activeOpacity={0.7}
+                    >
+                      <Text
+                        className={`text-xs font-bold ${
+                          periodType === p
+                            ? 'text-primary'
+                            : 'text-muted-foreground'
+                        }`}
+                      >
+                        {p === 'WEEK'
+                          ? 'Weekly'
+                          : p === 'MONTH'
+                          ? 'Monthly'
+                          : 'Yearly'}
+                      </Text>
+                    </TouchableOpacity>
                   ))}
+                </View>
+                <View className="flex-row items-center justify-between bg-card p-3 rounded-2xl border border-border shadow-xs">
+                  <TouchableOpacity
+                    className="w-8 h-8 rounded-full bg-muted items-center justify-center"
+                    onPress={() => changePeriod(-1)}
+                  >
+                    <Feather name="chevron-left" size={18} color="#0F172A" />
+                  </TouchableOpacity>
+                  <Text className="text-sm font-extrabold text-foreground">
+                    {periodLabel}
+                  </Text>
+                  <TouchableOpacity
+                    className="w-8 h-8 rounded-full bg-muted items-center justify-center"
+                    onPress={() => changePeriod(1)}
+                  >
+                    <Feather name="chevron-right" size={18} color="#0F172A" />
+                  </TouchableOpacity>
+                </View>
+                <View className="bg-slate-900 rounded-3xl p-5 shadow-lg border border-slate-800">
+                  <Text className="text-xs text-slate-400 font-medium mb-1">
+                    Total Spend in {periodLabel}
+                  </Text>
+                  <Text className="text-3xl font-black text-white">
+                    ৳{analyticsData.total.toLocaleString()}
+                  </Text>
+                </View>
+                <View className="bg-card rounded-2xl border border-border p-4 shadow-sm mb-2">
+                  <View className="flex-row justify-between items-center mb-3">
+                    <Text className="text-base font-bold text-foreground">
+                      Category Breakdown
+                    </Text>
+                    <View className="bg-primary-light px-2.5 py-0.5 rounded-full border border-indigo-200">
+                      <Text className="text-[11px] font-bold text-primary">
+                        {analyticsData.list.length}{' '}
+                        {analyticsData.list.length === 1
+                          ? 'category'
+                          : 'categories'}
+                      </Text>
+                    </View>
+                  </View>
+
+                  {analyticsData.list.length === 0 ? (
+                    <View className="py-8 items-center justify-center">
+                      <View className="w-12 h-12 rounded-2xl bg-indigo-50 border border-indigo-100 items-center justify-center mb-2 shadow-xs">
+                        <Feather name="pie-chart" size={20} color="#4F46E5" />
+                      </View>
+                      <Text className="text-sm font-bold text-foreground text-center">
+                        No Expenses in this Period
+                      </Text>
+                      <Text className="text-xs text-muted-foreground text-center mt-0.5 max-w-[240px]">
+                        No group expenses recorded for {periodLabel}.
+                      </Text>
+                    </View>
+                  ) : (
+                    analyticsData.list.map((cat, idx) => {
+                      const isLast = idx === analyticsData.list.length - 1;
+                      return (
+                        <View
+                          key={`${cat.category}_${idx}`}
+                          className={`py-3 px-1 transition-all ${
+                            !isLast ? 'border-b border-border' : ''
+                          }`}
+                        >
+                          <View className="flex-row items-center justify-between mb-2">
+                            {/* Left: Category Icon/Emoji + Name & Count */}
+                            <View className="flex-row items-center flex-1 pr-3">
+                              <View
+                                className="w-10 h-10 rounded-xl items-center justify-center mr-3 shadow-2xs"
+                                style={{
+                                  backgroundColor: cat.bgColor || '#F1F5F9',
+                                }}
+                              >
+                                <Text className="text-base">{cat.emoji}</Text>
+                              </View>
+                              <View className="flex-1">
+                                <Text
+                                  className="text-sm font-bold text-card-foreground mb-0.5"
+                                  numberOfLines={1}
+                                >
+                                  {cat.category}
+                                </Text>
+                                <Text className="text-xs text-muted-foreground">
+                                  {cat.count}{' '}
+                                  {cat.count === 1 ? 'expense' : 'expenses'}{' '}
+                                  logged
+                                </Text>
+                              </View>
+                            </View>
+
+                            {/* Right: Amount + Percentage */}
+                            <View className="items-end">
+                              <Text className="text-sm font-extrabold text-foreground mb-0.5">
+                                ৳{cat.amount.toLocaleString('en-US')}
+                              </Text>
+                              <Text
+                                className="text-xs font-semibold"
+                                style={{ color: cat.color || '#4F46E5' }}
+                              >
+                                {cat.percentage.toFixed(1)}% of total
+                              </Text>
+                            </View>
+                          </View>
+
+                          {/* Smooth Progress Bar */}
+                          <View className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
+                            <View
+                              className="h-full rounded-full"
+                              style={{
+                                backgroundColor:
+                                  cat.barColor || cat.color || '#4F46E5',
+                                width: `${Math.min(
+                                  100,
+                                  Math.max(4, cat.percentage),
+                                )}%`,
+                              }}
+                            />
+                          </View>
+                        </View>
+                      );
+                    })
+                  )}
                 </View>
               </View>
             )}
 
             {activeTab === 'MEMBERS' && (
-              <View className="bg-card rounded-2xl border border-border p-4 shadow-sm gap-3">
-                <Text className="text-base font-bold text-foreground">Member Balances</Text>
-                {computedMetrics.balances.map((item, idx) => {
-                  const net = item.netBalance ?? 0;
-                  const isPositive = net > 0;
-                  return (
-                    <View key={item.userId || idx} className="flex-row items-center justify-between bg-muted/40 p-3.5 rounded-2xl border border-border/60">
-                      <View className="flex-row items-center gap-3 flex-1"><View className="w-10 h-10 rounded-full bg-primary-light border border-indigo-100 items-center justify-center"><Text className="text-sm font-bold text-primary">{item.name?.charAt(0).toUpperCase()}</Text></View><View><Text className="text-xs font-bold text-foreground">{item.name} {item.userId === userId ? '(You)' : ''}</Text><Text className="text-[11px] text-muted-foreground">Dep: ৳{(item.totalDeposited || 0).toLocaleString()} • Share: ৳{Math.round(item.totalShare || 0).toLocaleString()}</Text></View></View>
-                      <View className={`px-2.5 py-1 rounded-full border ${net === 0 ? 'bg-slate-100 border-slate-200' : isPositive ? 'bg-emerald-50 border-emerald-200' : 'bg-rose-50 border-rose-200'}`}><Text className={`text-[10px] font-bold ${net === 0 ? 'text-slate-600' : isPositive ? 'text-emerald-700' : 'text-destructive'}`}>{net === 0 ? 'Settled' : isPositive ? `+৳${Math.abs(Math.round(net)).toLocaleString()} rec` : `-৳${Math.abs(Math.round(net)).toLocaleString()} pay`}</Text></View>
+              <View className="bg-card rounded-2xl border border-border p-4 shadow-sm mb-2">
+                {/* Header */}
+                <View className="flex-row justify-between items-center mb-3">
+                  <View className="flex-row items-center gap-2">
+                    <Text className="text-base font-bold text-foreground">
+                      Member Balances
+                    </Text>
+                    <View className="bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-200">
+                      <Text className="text-[11px] font-bold text-indigo-700">
+                        {computedMetrics.balances.length}
+                      </Text>
                     </View>
-                  );
-                })}
+                  </View>
+                  <TouchableOpacity
+                    className="flex-row items-center gap-1 bg-emerald-600 px-3 py-1.5 rounded-full shadow-xs active:bg-emerald-700"
+                    onPress={() => setIsDepositModalOpen(true)}
+                    activeOpacity={0.8}
+                  >
+                    <Feather name="plus" size={13} color="#FFFFFF" />
+                    <Text className="text-xs font-bold text-white">
+                      Add Deposit
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+
+                {computedMetrics.balances.length === 0 ? (
+                  <View className="py-8 items-center justify-center">
+                    <View className="w-12 h-12 rounded-2xl bg-indigo-50 border border-indigo-100 items-center justify-center mb-2 shadow-xs">
+                      <Feather name="users" size={20} color="#4F46E5" />
+                    </View>
+                    <Text className="text-sm font-bold text-foreground text-center">
+                      No Members Found
+                    </Text>
+                    <Text className="text-xs text-muted-foreground text-center mt-0.5 max-w-[240px]">
+                      Add members to your group to split expenses and track balances.
+                    </Text>
+                  </View>
+                ) : (
+                  computedMetrics.balances.map((item, index) => {
+                    const isYou =
+                      item.userId === userId || (item.user as any)?.id === userId;
+                    const net = item.netBalance ?? 0;
+                    const isPositive = net > 0;
+                    const isSettled = net === 0;
+
+                    // Resolve clean name & username
+                    const candidateUsername =
+                      item.username || (item.user as any)?.username;
+                    const candidateName =
+                      item.name || (item.user as any)?.name;
+                    const resolvedName = isYou
+                      ? user?.username
+                        ? `@${user.username} (You)`
+                        : user?.name
+                        ? `${user.name} (You)`
+                        : 'You'
+                      : candidateUsername &&
+                        candidateUsername.toLowerCase() !== 'member'
+                      ? `@${candidateUsername}`
+                      : candidateName || 'Member';
+
+                    const initial = (
+                      (isYou
+                        ? user?.username || user?.name
+                        : candidateUsername || candidateName) || 'M'
+                    )
+                      .charAt(0)
+                      .toUpperCase();
+
+                    return (
+                      <View
+                        key={`${item.userId || 'mem'}_${index}`}
+                        className={`flex-row justify-between items-center py-3 px-2 rounded-xl transition-all ${
+                          index !== computedMetrics.balances.length - 1
+                            ? 'border-b border-border'
+                            : ''
+                        }`}
+                      >
+                        {/* Left Side: Avatar + Details */}
+                        <View className="flex-row items-center flex-1 pr-3">
+                          <View
+                            className={`w-10 h-10 rounded-xl items-center justify-center mr-3 shadow-2xs ${
+                              isYou
+                                ? 'bg-primary-light border border-indigo-200'
+                                : isPositive
+                                ? 'bg-emerald-50 border border-emerald-100'
+                                : 'bg-slate-100 border border-slate-200'
+                            }`}
+                          >
+                            <Text
+                              className={`text-sm font-black ${
+                                isYou
+                                  ? 'text-primary'
+                                  : isPositive
+                                  ? 'text-emerald-700'
+                                  : 'text-slate-700'
+                              }`}
+                            >
+                              {initial}
+                            </Text>
+                          </View>
+                          <View className="flex-1">
+                            <View className="flex-row items-center gap-1.5 mb-0.5">
+                              <Text
+                                className="text-sm font-bold text-foreground"
+                                numberOfLines={1}
+                              >
+                                {resolvedName}
+                              </Text>
+                              {isYou && (
+                                <View className="bg-primary-light px-1.5 py-0.2 rounded border border-indigo-200">
+                                  <Text className="text-[9px] font-bold text-primary">
+                                    YOU
+                                  </Text>
+                                </View>
+                              )}
+                            </View>
+                            <Text
+                              className="text-xs text-muted-foreground"
+                              numberOfLines={1}
+                            >
+                              Dep: ৳{(item.totalDeposited || 0).toLocaleString()}{' '}
+                              • Share: ৳
+                              {Math.round(item.totalShare || 0).toLocaleString()}
+                            </Text>
+                          </View>
+                        </View>
+
+                        {/* Right Side: Net Balance Amount + Status */}
+                        <View className="items-end">
+                          <Text
+                            className={`text-sm font-extrabold mb-0.5 ${
+                              isSettled
+                                ? 'text-muted-foreground'
+                                : isPositive
+                                ? 'text-emerald-600'
+                                : 'text-rose-500'
+                            }`}
+                          >
+                            {isSettled
+                              ? '৳0'
+                              : `${isPositive ? '+' : '-'}৳${Math.abs(
+                                  Math.round(net),
+                                ).toLocaleString('en-US')}`}
+                          </Text>
+                          <Text
+                            className={`text-[10px] font-bold uppercase tracking-wider ${
+                              isSettled
+                                ? 'text-muted-foreground'
+                                : isPositive
+                                ? 'text-emerald-600'
+                                : 'text-rose-500'
+                            }`}
+                          >
+                            {isSettled
+                              ? 'Settled'
+                              : isPositive
+                              ? 'Gets Back'
+                              : 'Needs to Pay'}
+                          </Text>
+                        </View>
+                      </View>
+                    );
+                  })
+                )}
               </View>
             )}
           </View>
         ) : (
-          <View className="bg-card rounded-2xl p-8 items-center justify-center border border-dashed border-border mt-4"><Text className="text-base font-bold text-foreground">No Groups Found</Text></View>
+          <View className="bg-card rounded-2xl p-8 items-center justify-center border border-dashed border-border mt-4 mb-2">
+            <Text className="text-base font-bold text-foreground">
+              No Groups Found
+            </Text>
+          </View>
         )}
       </ScrollView>
-      {selectedGroupId && <AddGroupDepositModal visible={isDepositModalOpen} groupId={selectedGroupId} members={selectedGroup?.members || []} onClose={() => setIsDepositModalOpen(false)} onSuccess={() => { setIsDepositModalOpen(false); fetchGroupsAndData(true); }} />}
-      {selectedGroupId && <AddGroupExpenseModal visible={isExpenseModalOpen} groupId={selectedGroupId} members={selectedGroup?.members || []} onClose={() => setIsExpenseModalOpen(false)} onSuccess={() => { setIsExpenseModalOpen(false); fetchGroupsAndData(true); }} />}
+      {selectedGroupId && (
+        <AddGroupDepositModal
+          visible={isDepositModalOpen}
+          groupId={selectedGroupId}
+          members={selectedGroup?.members || []}
+          currentUserId={userId}
+          onClose={() => setIsDepositModalOpen(false)}
+          onSuccess={() => {
+            setIsDepositModalOpen(false);
+            refreshFromLocalDb(selectedGroupId);
+            fetchGroupsAndData(true);
+          }}
+        />
+      )}
+      {selectedGroupId && (
+        <AddGroupExpenseModal
+          visible={isExpenseModalOpen}
+          groupId={selectedGroupId}
+          members={selectedGroup?.members || []}
+          onClose={() => setIsExpenseModalOpen(false)}
+          onSuccess={() => {
+            setIsExpenseModalOpen(false);
+            refreshFromLocalDb(selectedGroupId);
+            fetchGroupsAndData(true);
+          }}
+        />
+      )}
     </SafeAreaView>
   );
 };

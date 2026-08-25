@@ -14,8 +14,16 @@ export const expenseReducer = (
   action: ExpenseAction
 ): ExpenseState => {
   switch (action.type) {
-    case 'expenses/setExpenses':
-      return { ...state, expenses: action.payload };
+    case 'expenses/setExpenses': {
+      const seen = new Set<string>();
+      const deduped = (action.payload || []).filter((e) => {
+        const key = e.serverId || e.localId;
+        if (!key || seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+      return { ...state, expenses: deduped };
+    }
     case 'expenses/addLocalExpense':
       return {
         ...state,

@@ -9,10 +9,11 @@ import {
   SafeAreaView,
 } from '../ui/core';
 import { Logo } from '../common/Logo';
+import { useAuth } from '../../store/hooks';
 
 const { width } = Dimensions.get('window');
 // Slimmer and sleeker drawer width with comfortable room for larger text
-const DRAWER_WIDTH = Math.min(width * 0.76, 290);
+const DRAWER_WIDTH = Math.min(width * 0.78, 300);
 
 export interface MenuItem {
   title: string;
@@ -129,13 +130,19 @@ export const DashboardDrawer: React.FC<DashboardDrawerProps> = ({
   onSelectRoute,
   onLogout,
 }) => {
-  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
+  const { user } = useAuth();
+  const displayName = user?.name || user?.username || 'User';
+  const initial = displayName.charAt(0).toUpperCase();
+
+  const [expandedSections, setExpandedSections] = useState<
+    Record<string, boolean>
+  >({
     PERSONAL: true,
     GROUP: true,
   });
 
   const toggleSection = (sectionTitle: string) => {
-    setExpandedSections((prev) => ({
+    setExpandedSections(prev => ({
       ...prev,
       [sectionTitle]: !prev[sectionTitle],
     }));
@@ -215,7 +222,7 @@ export const DashboardDrawer: React.FC<DashboardDrawerProps> = ({
           className="absolute inset-0"
           style={
             {
-              backgroundColor: 'rgba(15, 23, 42, 0.15)',
+              backgroundColor: 'rgba(15, 23, 42, 0.25)',
               backdropFilter: 'blur(4px)',
               WebkitBackdropFilter: 'blur(4px)',
             } as any
@@ -229,16 +236,44 @@ export const DashboardDrawer: React.FC<DashboardDrawerProps> = ({
       >
         <View className="flex-1 flex-col">
           {/* Top Brand Header with Close Button */}
-          <View className="flex-row items-center justify-between px-4 py-3.5 border-b border-border bg-card">
+          <View className="flex-row items-center justify-between px-4 py-3 border-b border-border bg-card">
             <Logo size="sm" showSubtitle={false} />
             <TouchableOpacity
               onPress={onClose}
-              className="w-8 h-8 rounded-full bg-muted/80 items-center justify-center shadow-xs"
+              className="w-8 h-8 rounded-full bg-muted items-center justify-center shadow-2xs"
               activeOpacity={0.7}
             >
-              <Feather name="x" size={18} color="#64748B" />
+              <Feather name="x" size={17} color="#64748B" />
             </TouchableOpacity>
           </View>
+
+          {/* User Mini Profile Banner */}
+          <TouchableOpacity
+            className="flex-row items-center gap-3 px-4 py-3 bg-muted/30 border-b border-border/70 active:bg-muted/60"
+            onPress={() => {
+              onClose();
+              onSelectRoute?.('PROFILE');
+            }}
+            activeOpacity={0.7}
+          >
+            <View className="w-10 h-10 rounded-full bg-primary-light border border-indigo-200 items-center justify-center shadow-2xs">
+              <Text className="text-base font-extrabold text-primary">
+                {initial}
+              </Text>
+            </View>
+            <View className="flex-1">
+              <Text
+                className="text-sm font-bold text-foreground"
+                numberOfLines={1}
+              >
+                {displayName}
+              </Text>
+              <Text className="text-xs text-muted-foreground" numberOfLines={1}>
+                {user?.username || 'member'}
+              </Text>
+            </View>
+            <Feather name="chevron-right" size={16} color="#94A3B8" />
+          </TouchableOpacity>
 
           {/* Scrollable Container with clean sections */}
           <ScrollView
@@ -249,15 +284,16 @@ export const DashboardDrawer: React.FC<DashboardDrawerProps> = ({
             }}
             className="flex-1"
           >
-
             {/* Sections (Personal & Group) */}
-            {SECTIONS.map((section) => {
+            {SECTIONS.map(section => {
               const isExpanded = !!expandedSections[section.title];
               return (
                 <View key={section.title} className="mb-1">
                   <TouchableOpacity
                     className="flex-row items-center justify-between px-2.5 py-2"
-                    onPress={() => section.collapsible && toggleSection(section.title)}
+                    onPress={() =>
+                      section.collapsible && toggleSection(section.title)
+                    }
                     activeOpacity={section.collapsible ? 0.7 : 1}
                   >
                     <Text className="text-xs font-black text-slate-500 tracking-wider uppercase">
@@ -274,7 +310,7 @@ export const DashboardDrawer: React.FC<DashboardDrawerProps> = ({
 
                   {isExpanded && (
                     <View className="gap-1 mt-0.5">
-                      {section.items.map((item) => {
+                      {section.items.map(item => {
                         const isActive = isItemActive(item);
                         return (
                           <TouchableOpacity
@@ -297,7 +333,11 @@ export const DashboardDrawer: React.FC<DashboardDrawerProps> = ({
                               <Feather
                                 name={item.icon}
                                 size={16}
-                                color={isActive ? '#FFFFFF' : item.iconColor || '#4F46E5'}
+                                color={
+                                  isActive
+                                    ? '#FFFFFF'
+                                    : item.iconColor || '#4F46E5'
+                                }
                               />
                             </View>
                             <Text
@@ -330,7 +370,7 @@ export const DashboardDrawer: React.FC<DashboardDrawerProps> = ({
                 ACCOUNT
               </Text>
               <View className="gap-1 mt-0.5">
-                {ACCOUNT_ITEMS.map((item) => {
+                {ACCOUNT_ITEMS.map(item => {
                   const isLogout = item.action === 'LOGOUT';
                   const isActive = isItemActive(item);
                   return (

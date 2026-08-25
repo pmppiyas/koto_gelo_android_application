@@ -19,13 +19,17 @@ import {
   ScrollView,
   SafeAreaView,
 } from '../components/ui/core';
+import { HeroStatCard } from '../components/common/HeroStatCard';
+import { DonutChart } from '../components/common/DonutChart';
 import { RecentTransactions } from '../components/dashboard/RecentTransactions';
-import { useAuth, useExpenses } from '../store/hooks';
+import { useAuth, useExpenses, useAppDispatch } from '../store/hooks';
 import { groupService } from '../services/groupService';
+import { localGroupService } from '../services/localGroupService';
+import { localExpenseService } from '../services/localExpenseService';
 import { Transaction } from '../types/transaction';
+import { demoTransactions } from '../data/demoData';
 import { getLocalDateString } from '../utils/date';
 import { EXPENSE_CATEGORIES } from '../constants/expense';
-import { BOTTOM_TAB_HEIGHT, spacing } from '../constants/spacing';
 
 export interface DashboardScreenProps {
   onNavigateToTransactions?: () => void;
@@ -42,14 +46,13 @@ export interface DashboardScreenProps {
 export const DashboardScreen: React.FC<DashboardScreenProps> = ({
   onNavigateToTransactions,
   onNavigateToPersonalExpenses,
-  onNavigateToTodayExpenses,
   onNavigateToAnalytics,
   onNavigateToGroups,
-  onNavigateToGroupExpenses,
   onNavigateToAddExpense,
   onNavigateToProfile,
 }) => {
-  const { user } = useAuth();
+  const { user, isAuthenticated } = useAuth();
+  const dispatch = useAppDispatch();
   const {
     expenses,
     pendingExpenses,
@@ -63,18 +66,40 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
 
   const fetchGroupSummary = useCallback(async () => {
     try {
+      // 1. Calculate from local SQLite database in 0ms (instant)
+      const localSummary = await localGroupService.calculateOverallGroupSummary(user?.id);
+      if (localSummary && typeof localSummary.totalMyShare === 'number') {
+        setGroupShareAmount(localSummary.totalMyShare);
+      }
+
+      // 2. Fetch remote update in background if online
       const summaryData = await groupService.getOverallGroupSummary();
       const myShare = Number(summaryData?.totalMyShare) || 0;
       setGroupShareAmount(myShare);
-    } catch {
-      // Gracefully ignored
-    }
-  }, []);
+    } catch {}
+  }, [user?.id]);
 
+  // One-time SQLite hydration (instant 0ms) — only if Redux is empty
+  const hasHydratedRef = useRef(false);
   useEffect(() => {
+    if (hasHydratedRef.current || expenses.length > 0) return;
+    hasHydratedRef.current = true;
+    (async () => {
+      try {
+        const stored = await localExpenseService.getLocalExpenses();
+        if (stored && stored.length > 0) {
+          dispatch({ type: 'expenses/setExpenses', payload: stored });
+        }
+      } catch {}
+    })();
+  }, [dispatch, expenses.length]);
+
+  // Auto-refresh from server whenever user/auth changes (e.g. after login)
+  useEffect(() => {
+    if (!isAuthenticated || !user?.id) return;
     refreshExpenses();
     fetchGroupSummary();
-  }, [fetchGroupSummary]);
+  }, [isAuthenticated, user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
@@ -155,7 +180,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
 
   const displayedGroupExpense = useMemo(() => {
     const localGroupShare = (expenses || [])
-      .filter((e) => e.type === 'GROUP')
+      .filter(e => e.type === 'GROUP')
       .reduce((sum, e) => {
         const parts = (e as any).participants || [];
         if (parts.length > 0) {
@@ -172,37 +197,74 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
     return Math.max(groupShareAmount, localGroupShare);
   }, [expenses, user?.id, groupShareAmount]);
 
-  const unifiedRecentTransactions: Transaction[] = useMemo(() => {
-    return (expenses || []).slice(0, 5).map(e => {
-      const catInfo = categoryMap[e.category] || {
-        name: e.category,
-        emoji: '📦',
-        icon: 'credit-card' as const,
-      };
+  const unifiedRecentTransactions: any[] = useMemo(() => {
+    const list = [...(expenses || [])];
+    if (list.length === 0 && !isAuthenticated) {
+      return (demoTransactions || []).slice(0, 5).map(t => ({
+        id: t.id,
+        localId: t.id,
+        title: t.title,
+        category: t.category,
+        amount: t.amount,
+        type: t.type,
+        date: t.date,
+        icon: t.icon,
+        emoji: categoryMap[t.category]?.emoji || '📦',
+      }));
+    }
 
-      let formattedDate = getLocalDateString();
-      try {
-        const rawDate = e.date || (e as any).expenseDate || e.createdAt;
-        if (rawDate) {
-          const parsed = new Date(rawDate);
-          if (!isNaN(parsed.getTime())) {
-            formattedDate = getLocalDateString(parsed);
-          }
-        }
-      } catch {}
-
-      return {
-        id: e.serverId || e.localId || String(Math.random()),
-        title: e.title || e.subcategory || e.category,
-        amount: Number(e.amount) || 0,
-        type: 'expense' as const,
-        category: e.category,
-        groupName: (e as any).groupName || null,
-        date: formattedDate,
-        icon: catInfo.icon,
-      };
+    // Sort descending so the most recently added expenses ALWAYS appear at the top!
+    list.sort((a, b) => {
+      const dateA = new Date(
+        a.date || (a as any).expenseDate || a.createdAt || 0
+      ).getTime();
+      const dateB = new Date(
+        b.date || (b as any).expenseDate || b.createdAt || 0
+      ).getTime();
+      return dateB - dateA;
     });
-  }, [expenses, categoryMap]);
+
+    const map = new Map<string, any>();
+    list.forEach((e, idx) => {
+      const key = e.serverId || e.localId || `rec_${idx}`;
+      if (!map.has(key)) {
+        const catInfo = categoryMap[e.category] || {
+          name: e.category,
+          emoji: '📦',
+          icon: 'credit-card' as const,
+        };
+
+        let formattedDate = getLocalDateString();
+        try {
+          const rawDate = e.date || (e as any).expenseDate || e.createdAt;
+          if (rawDate) {
+            const parsed = new Date(rawDate);
+            if (!isNaN(parsed.getTime())) {
+              formattedDate = getLocalDateString(parsed);
+            } else {
+              formattedDate = String(rawDate).slice(0, 10);
+            }
+          }
+        } catch {}
+
+        map.set(key, {
+          id: key,
+          localId: e.localId,
+          title: e.title || e.subcategory || e.category,
+          amount: Number(e.amount) || 0,
+          type: 'expense' as const,
+          category: e.category,
+          groupName: (e as any).groupName || null,
+          date: formattedDate,
+          icon: catInfo.icon,
+          emoji: catInfo.emoji,
+          syncStatus: e.syncStatus,
+        });
+      }
+    });
+
+    return Array.from(map.values()).slice(0, 5);
+  }, [expenses, categoryMap, isAuthenticated]);
 
   const CHART_PALETTE = [
     { color: '#4F46E5', bgColor: '#EEF2FF', light: '#818CF8' }, // 1. Primary Indigo
@@ -224,7 +286,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
 
   const categoryBreakdown = useMemo(() => {
     const today = getLocalDateString();
-    const currentMonth = today.slice(0, 7); // e.g. "2026-08"
+    const currentMonth = today.slice(0, 7);
 
     const personalList = (expenses || []).filter(e => {
       if (e.type === 'GROUP') return false;
@@ -304,9 +366,9 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
   const [selectedCategoryName, setSelectedCategoryName] = useState<
     string | null
   >(null);
-  const [animProgress, setAnimProgress] = useState(0);
+  const [animProgress, setAnimProgress] = useState(1);
   const chartYRef = useRef<number>(0);
-  const hasAnimatedRef = useRef<boolean>(false);
+  const hasAnimatedRef = useRef<boolean>(true);
 
   const triggerRevealAnimation = useCallback(() => {
     if (hasAnimatedRef.current) return;
@@ -350,62 +412,41 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
     }
   };
 
-  const activeCategoryInfo = useMemo(() => {
-    if (!selectedCategoryName) return null;
-    return (
-      categoryBreakdown.list.find(c => c.name === selectedCategoryName) || null
-    );
-  }, [selectedCategoryName, categoryBreakdown.list]);
-
-  const conicGradient = useMemo(() => {
-    if (
-      !categoryBreakdown.list ||
-      categoryBreakdown.list.length === 0 ||
-      categoryBreakdown.total === 0
-    ) {
-      return '#E2E8F0';
-    }
-
-    const currentTotalDeg = 360 * animProgress;
-
-    if (categoryBreakdown.list.length === 1) {
-      const single = categoryBreakdown.list[0];
-      if (currentTotalDeg >= 360) {
-        return `conic-gradient(${single.color} 0deg 360deg)`;
-      }
-      return `conic-gradient(${single.color} 0deg ${currentTotalDeg.toFixed(
-        1,
-      )}deg, #F1F5F9 ${currentTotalDeg.toFixed(1)}deg 360deg)`;
-    }
-
-    let currentDeg = 0;
-    const slices = categoryBreakdown.list.map(item => {
-      const deg = (item.amount / categoryBreakdown.total) * currentTotalDeg;
-      const start = currentDeg;
-      const end = currentDeg + deg;
-      currentDeg = end;
-
-      const isSelected =
-        !selectedCategoryName || selectedCategoryName === item.name;
-      const sliceColor = isSelected ? item.color : `${item.color}35`;
-
-      return `${sliceColor} ${start.toFixed(1)}deg ${end.toFixed(1)}deg`;
-    });
-
-    if (currentDeg < 360) {
-      slices.push(`#F1F5F9 ${currentDeg.toFixed(1)}deg 360deg`);
-    }
-
-    return `conic-gradient(${slices.join(', ')})`;
-  }, [categoryBreakdown, animProgress, selectedCategoryName]);
-
   return (
-    <SafeAreaView className="flex-1 bg-background">
+    <SafeAreaView edges={['top', 'left', 'right']} className="flex-1 bg-background">
       <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
+
+      {/* Sticky Top Header Bar (Fixed outside ScrollView) */}
+      <View className="flex-row items-center justify-between px-3 py-2 bg-card border-b border-border shadow-2xs">
+        <View className="flex-1 pr-2">
+          <Text className="text-xs text-muted-foreground font-medium">
+            Welcome back,
+          </Text>
+          <Text className="text-lg font-bold text-foreground" numberOfLines={1}>
+            {displayName}
+          </Text>
+        </View>
+        <View className="flex-row items-center gap-2">
+          <TouchableOpacity
+            className="w-9 h-9 rounded-full bg-muted items-center justify-center"
+            activeOpacity={0.7}
+          >
+            <Feather name="bell" size={17} color="#0F172A" />
+          </TouchableOpacity>
+          <TouchableOpacity
+            className="w-9 h-9 rounded-full bg-primary-light border border-indigo-200 items-center justify-center"
+            onPress={onNavigateToProfile}
+            activeOpacity={0.7}
+          >
+            <Feather name="user" size={17} color="#4F46E5" />
+          </TouchableOpacity>
+        </View>
+      </View>
+
       <ScrollView
-        contentContainerClassName="p-4 gap-4"
+        contentContainerClassName="px-3 py-1.5 gap-2.5"
         contentContainerStyle={{
-          paddingBottom: BOTTOM_TAB_HEIGHT + spacing.sm,
+          paddingBottom: 2,
         }}
         showsVerticalScrollIndicator={false}
         onScroll={handleScroll}
@@ -419,36 +460,6 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
           />
         }
       >
-        {/* Header Greeting */}
-        <View className="flex-row justify-between items-center py-1">
-          <View className="flex-1 pr-2">
-            <Text className="text-xs text-muted-foreground font-medium">
-              Welcome back,
-            </Text>
-            <Text
-              className="text-xl font-extrabold text-foreground"
-              numberOfLines={1}
-            >
-              {displayName}
-            </Text>
-          </View>
-          <View className="flex-row items-center gap-2">
-            <TouchableOpacity
-              className="w-10 h-10 rounded-full bg-card border border-border items-center justify-center shadow-xs"
-              activeOpacity={0.7}
-            >
-              <Feather name="bell" size={18} color="#0F172A" />
-            </TouchableOpacity>
-            <TouchableOpacity
-              className="w-10 h-10 rounded-full bg-primary-light border border-indigo-200 items-center justify-center shadow-xs"
-              onPress={onNavigateToProfile}
-              activeOpacity={0.7}
-            >
-              <Feather name="user" size={18} color="#4F46E5" />
-            </TouchableOpacity>
-          </View>
-        </View>
-
         {/* Sync Banner if pending */}
         {pendingExpenses.length > 0 && (
           <TouchableOpacity
@@ -472,119 +483,97 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
           </TouchableOpacity>
         )}
 
-        {/* 100% Real Personal Spend Hero Card */}
-        <View className="bg-slate-900 rounded-3xl p-6 shadow-xl border border-slate-800">
-          <View className="flex-row items-center justify-between mb-2">
-            <View className="flex-row items-center gap-2">
-              <View className="w-2 h-2 rounded-full bg-indigo-400" />
-              <Text className="text-xs text-slate-400 font-semibold tracking-wider uppercase">
-                This Month Spend
-              </Text>
-            </View>
-            <View className="bg-slate-800 px-2.5 py-1 rounded-full border border-slate-700">
-              <Text className="text-[11px] font-bold text-indigo-300">BDT</Text>
-            </View>
-          </View>
-
-          <Text className="text-3xl text-white font-black tracking-tight mt-1 mb-5">
-            ৳ {personalStats.thisMonthTotal.toLocaleString('en-US')}
-          </Text>
-
-          {/* Divider inside Hero Card */}
-          <View className="h-[1px] bg-slate-800/90 mb-3" />
-
-          {/* Bottom 3 Metrics Row */}
-          <View className="flex-row justify-between items-center">
-            {/* 1. Today (Left) */}
-            <View className="flex-1 items-start justify-center">
-              <Text className="text-[10px] font-semibold text-slate-400 mb-0.5 text-left">
-                📅 Today
-              </Text>
-              <Text className="text-sm font-black text-emerald-400 text-left">
-                ৳{personalStats.todayTotal.toLocaleString()}
-              </Text>
-            </View>
-
-            <View className="w-[1px] h-7 bg-slate-800 mx-2" />
-
-            {/* 2. Group Expense (Middle) - Tappable to navigate to Groups */}
-            <TouchableOpacity
-              onPress={onNavigateToGroups}
-              activeOpacity={0.7}
-              className="flex-1 items-center justify-center"
-            >
-              <Text className="text-[10px] font-semibold text-slate-400 mb-0.5 text-center">
-                👥 Group Expense
-              </Text>
-              <Text className="text-sm font-black text-amber-400 text-center">
-                ৳{displayedGroupExpense.toLocaleString()}
-              </Text>
-            </TouchableOpacity>
-
-            <View className="w-[1px] h-7 bg-slate-800 mx-2" />
-
-            {/* 3. All Time (Right) */}
-            <View className="flex-1 items-end justify-center">
-              <Text className="text-[10px] font-semibold text-slate-400 mb-0.5 text-right">
-                💰 All Time
-              </Text>
-              <Text className="text-sm font-black text-sky-400 text-right">
-                ৳{personalStats.totalAllTime.toLocaleString()}
-              </Text>
-            </View>
-          </View>
-        </View>
+        {/* Shared Hero Stat Card */}
+        <HeroStatCard
+          title="This Month Spend"
+          badge="BDT"
+          badgeColor="bg-slate-800 border-slate-700"
+          badgeTextColor="text-indigo-300"
+          dotColor="bg-indigo-400"
+          mainAmount={personalStats.thisMonthTotal}
+          subtitle={`Personal expenses recorded in ${currentMonthLabel}`}
+          metrics={[
+            {
+              label: '📅 Today',
+              value: `৳${personalStats.todayTotal.toLocaleString('en-US')}`,
+              valueColor: 'text-emerald-400',
+            },
+            {
+              label: '👥 Group Expense',
+              value: `৳${displayedGroupExpense.toLocaleString('en-US')}`,
+              valueColor: 'text-amber-400',
+              onPress: onNavigateToGroups,
+            },
+            {
+              label: '💰 All Time',
+              value: `৳${personalStats.totalAllTime.toLocaleString('en-US')}`,
+              valueColor: 'text-sky-400',
+            },
+          ]}
+        />
 
         {/* 4 Quick Action Buttons */}
         <View className="flex-row justify-between gap-2 bg-card p-3.5 rounded-2xl border border-border shadow-sm">
           <TouchableOpacity
-            className="flex-1 items-center gap-1.5"
+            className="flex-1 items-center justify-center gap-1.5"
             onPress={onNavigateToAddExpense}
             activeOpacity={0.7}
           >
             <View className="w-12 h-12 rounded-2xl bg-primary items-center justify-center shadow-md">
               <Feather name="plus" size={22} color="#FFFFFF" />
             </View>
-            <Text className="text-[11px] font-bold text-foreground">
+            <Text
+              className="text-[11px] font-bold text-foreground text-center"
+              numberOfLines={1}
+            >
               Add Expense
             </Text>
           </TouchableOpacity>
 
           <TouchableOpacity
-            className="flex-1 items-center gap-1.5"
+            className="flex-1 items-center justify-center gap-1.5"
             onPress={onNavigateToPersonalExpenses || onNavigateToTransactions}
             activeOpacity={0.7}
           >
             <View className="w-12 h-12 rounded-2xl bg-emerald-600 items-center justify-center shadow-md">
               <Feather name="credit-card" size={20} color="#FFFFFF" />
             </View>
-            <Text className="text-[11px] font-bold text-foreground">
+            <Text
+              className="text-[11px] font-bold text-foreground text-center"
+              numberOfLines={1}
+            >
               My Expenses
             </Text>
           </TouchableOpacity>
 
           <TouchableOpacity
-            className="flex-1 items-center gap-1.5"
+            className="flex-1 items-center justify-center gap-1.5"
             onPress={onNavigateToGroups || onNavigateToTransactions}
             activeOpacity={0.7}
           >
             <View className="w-12 h-12 rounded-2xl bg-indigo-600 items-center justify-center shadow-md">
               <Feather name="users" size={20} color="#FFFFFF" />
             </View>
-            <Text className="text-[11px] font-bold text-foreground">
+            <Text
+              className="text-[11px] font-bold text-foreground text-center"
+              numberOfLines={1}
+            >
               Groups
             </Text>
           </TouchableOpacity>
 
           <TouchableOpacity
-            className="flex-1 items-center gap-1.5"
+            className="flex-1 items-center justify-center gap-1.5"
             onPress={onNavigateToAnalytics || onNavigateToTransactions}
             activeOpacity={0.7}
           >
             <View className="w-12 h-12 rounded-2xl bg-slate-800 items-center justify-center shadow-md">
               <Feather name="pie-chart" size={20} color="#FFFFFF" />
             </View>
-            <Text className="text-[11px] font-bold text-foreground">
+            <Text
+              className="text-[11px] font-bold text-foreground text-center"
+              numberOfLines={1}
+            >
               Analytics
             </Text>
           </TouchableOpacity>
@@ -597,167 +586,78 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
           onSeeAll={onNavigateToPersonalExpenses || onNavigateToTransactions}
         />
 
-        {/* Colorful Category Spending Pie Chart Card (Running Month Only) */}
+        {/* Category Spending Breakdown Card (Matches Recent Expenses Style Exactly) */}
         {categoryBreakdown.list.length > 0 && (
           <View
             onLayout={handleChartLayout}
-            className="bg-card rounded-2xl border border-border p-5 shadow-sm gap-4 mb-2"
+            className="bg-card rounded-2xl border border-border p-4 mb-2 shadow-sm"
           >
-            <View className="flex-row justify-between items-center">
-              <View className="flex-row items-center gap-2">
-                <View className="w-8 h-8 rounded-xl bg-indigo-50 items-center justify-center">
-                  <Feather name="pie-chart" size={17} color="#4F46E5" />
-                </View>
-                <View>
-                  <Text className="text-base font-bold text-foreground">
-                    This Month's Spending
-                  </Text>
-                  <Text className="text-xs text-muted-foreground">
-                    {currentMonthLabel} category breakdown
-                  </Text>
-                </View>
-              </View>
+            <View className="flex-row justify-between items-center mb-2">
+              <Text className="text-base font-bold text-foreground">
+                This Month's Spending
+              </Text>
               {onNavigateToAnalytics && (
                 <TouchableOpacity
                   onPress={onNavigateToAnalytics}
                   activeOpacity={0.7}
-                  className="bg-primary-light px-3 py-1 rounded-full border border-indigo-200"
                 >
-                  <Text className="text-xs font-bold text-primary">
-                    Details →
+                  <Text className="text-sm text-primary font-semibold">
+                    See Details
                   </Text>
                 </TouchableOpacity>
               )}
             </View>
 
-            {/* Interactive & Animated Donut / Pie Chart Centerpiece */}
-            <View className="items-center justify-center py-4">
-              <TouchableOpacity
-                activeOpacity={0.9}
-                onPress={() => setSelectedCategoryName(null)}
-                style={
-                  {
-                    width: 210,
-                    height: 210,
-                    borderRadius: 105,
-                    background: conicGradient as any,
-                    boxShadow: '0 8px 24px rgba(79, 70, 229, 0.12)',
-                  } as any
-                }
-                className="items-center justify-center shadow-lg"
-              >
-                <View
-                  style={{
-                    width: 124,
-                    height: 124,
-                    borderRadius: 62,
-                    boxShadow: '0 2px 10px rgba(0, 0, 0, 0.06)',
-                  }}
-                  className="bg-white items-center justify-center p-2 border border-slate-100"
-                >
-                  {activeCategoryInfo ? (
-                    <>
-                      <Text className="text-base mb-0.5">
-                        {activeCategoryInfo.emoji}
-                      </Text>
-                      <Text
-                        className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider text-center"
-                        numberOfLines={1}
-                      >
-                        {activeCategoryInfo.name}
-                      </Text>
-                      <Text
-                        className="text-base font-bold text-slate-800 text-center my-0.5"
-                        numberOfLines={1}
-                      >
-                        ৳
-                        {Math.round(
-                          activeCategoryInfo.amount * animProgress,
-                        ).toLocaleString()}
-                      </Text>
-                      <View
-                        className="px-2 py-0.5 rounded-full mt-0.5"
-                        style={{
-                          backgroundColor: `${activeCategoryInfo.color}15`,
-                        }}
-                      >
-                        <Text
-                          className="text-[9px] font-medium"
-                          style={{ color: activeCategoryInfo.color }}
-                        >
-                          {Math.round(
-                            activeCategoryInfo.percentage * animProgress,
-                          )}
-                          % of month
-                        </Text>
-                      </View>
-                    </>
-                  ) : (
-                    <>
-                      <Text className="text-[9px] font-medium text-slate-400 uppercase tracking-wider text-center">
-                        Total Spent
-                      </Text>
-                      <Text
-                        className="text-base font-bold text-slate-800 text-center my-0.5"
-                        numberOfLines={1}
-                      >
-                        ৳
-                        {Math.round(
-                          categoryBreakdown.total * animProgress,
-                        ).toLocaleString()}
-                      </Text>
-                    </>
-                  )}
-                </View>
-              </TouchableOpacity>
-            </View>
+            {/* Clean, Borderless Proportional Color Spectrum Bar */}
+            <DonutChart
+              data={categoryBreakdown.list}
+              total={categoryBreakdown.total}
+              selectedCategory={selectedCategoryName}
+              onSelectCategory={setSelectedCategoryName}
+              animProgress={animProgress}
+              size={210}
+            />
 
-            {/* Interactive Category Legends List */}
-            <View className="gap-2 pt-3 border-t border-border">
-              {categoryBreakdown.list.map(cat => {
+            {/* Category Rows (Matching Recent Expenses List Style) */}
+            <View className="mt-1">
+              {categoryBreakdown.list.map((cat, index) => {
+                const isLast = index === categoryBreakdown.list.length - 1;
                 const isSelected = selectedCategoryName === cat.name;
-                const animatedAmount = Math.round(cat.amount * animProgress);
-                const animatedPercentage = Math.round(
-                  cat.percentage * animProgress,
-                );
-                const animatedProgressWidth = Math.max(
-                  4,
-                  cat.percentage * animProgress,
-                );
 
                 return (
-                  <TouchableOpacity
-                    key={cat.name}
-                    activeOpacity={0.7}
-                    onPress={() =>
-                      setSelectedCategoryName(isSelected ? null : cat.name)
-                    }
-                    className={`p-2.5 rounded-xl border transition-all gap-2 ${
-                      isSelected
-                        ? 'bg-primary-light/40 border-primary shadow-xs'
-                        : 'bg-muted/30 border-border/50'
-                    }`}
-                  >
-                    <View className="flex-row items-center justify-between">
-                      <View className="flex-row items-center gap-2.5 flex-1 pr-2">
+                  <React.Fragment key={cat.name}>
+                    <TouchableOpacity
+                      activeOpacity={0.7}
+                      onPress={() =>
+                        setSelectedCategoryName(
+                          isSelected ? null : cat.name,
+                        )
+                      }
+                      className={`flex-row justify-between items-center py-2.5 px-2 rounded-xl border transition-all ${
+                        isSelected
+                          ? 'bg-primary-light border-primary shadow-xs'
+                          : 'bg-transparent border-transparent'
+                      }`}
+                    >
+                      <View className="flex-row items-center flex-1 pr-3">
                         <View
-                          className="w-8 h-8 rounded-lg items-center justify-center shadow-2xs"
+                          className="w-10 h-10 rounded-xl items-center justify-center mr-3 shadow-2xs"
                           style={{ backgroundColor: cat.bgColor }}
                         >
-                          <Text className="text-sm">{cat.emoji}</Text>
+                          <Text className="text-base">{cat.emoji}</Text>
                         </View>
                         <View className="flex-1">
                           <Text
-                            className={`text-xs ${
+                            className={`text-sm font-bold ${
                               isSelected
-                                ? 'font-bold text-primary'
-                                : 'font-semibold text-foreground'
+                                ? 'text-primary'
+                                : 'text-card-foreground'
                             }`}
                             numberOfLines={1}
                           >
                             {cat.name}
                           </Text>
-                          <Text className="text-[10px] font-normal text-muted-foreground">
+                          <Text className="text-xs text-muted-foreground mt-0.5">
                             {cat.count}{' '}
                             {cat.count === 1 ? 'transaction' : 'transactions'}
                           </Text>
@@ -765,34 +665,21 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
                       </View>
 
                       <View className="items-end">
-                        <Text className="text-xs font-semibold text-foreground">
-                          ৳{animatedAmount.toLocaleString()}
+                        <Text className="text-sm font-extrabold text-foreground mb-0.5">
+                          ৳{Math.round(cat.amount * animProgress).toLocaleString('en-US')}
                         </Text>
-                        <View
-                          className="px-2 py-0.5 rounded-full mt-0.5"
-                          style={{ backgroundColor: `${cat.color}15` }}
+                        <Text
+                          className="text-xs font-semibold"
+                          style={{ color: cat.color }}
                         >
-                          <Text
-                            className="text-[10px] font-medium"
-                            style={{ color: cat.color }}
-                          >
-                            {animatedPercentage}%
-                          </Text>
-                        </View>
+                          {Math.round(cat.percentage * animProgress)}% of month
+                        </Text>
                       </View>
-                    </View>
-
-                    {/* Micro Progress Bar with 0 to 100% Animated Reveal */}
-                    <View className="h-1 w-full bg-slate-200/60 rounded-full overflow-hidden">
-                      <View
-                        className="h-full rounded-full"
-                        style={{
-                          width: `${animatedProgressWidth}%`,
-                          backgroundColor: cat.color,
-                        }}
-                      />
-                    </View>
-                  </TouchableOpacity>
+                    </TouchableOpacity>
+                    {!isLast && !isSelected && (
+                      <View className="h-[1px] bg-[#E2E8F0] mx-2" />
+                    )}
+                  </React.Fragment>
                 );
               })}
             </View>

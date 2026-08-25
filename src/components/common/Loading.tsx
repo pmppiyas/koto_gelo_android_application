@@ -4,17 +4,20 @@ import { View, Text } from '../ui/core';
 
 export interface LoadingProps {
   message?: string;
+  text?: string;
   subtitle?: string;
   fullscreen?: boolean;
   isOverlay?: boolean;
 }
 
 export const Loading: React.FC<LoadingProps> = ({
-  message = 'Loading KotoGelo...',
+  message,
+  text,
   subtitle = 'Securing your financial records & balances',
   fullscreen = true,
   isOverlay = false,
 }) => {
+  const displayMessage = text || message || 'Loading KotoGelo...';
   const pulseAnim = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
@@ -80,7 +83,7 @@ export const Loading: React.FC<LoadingProps> = ({
 
         {/* Dynamic Status Message */}
         <Text className="text-sm font-bold text-slate-800 text-center mb-1">
-          {message}
+          {displayMessage}
         </Text>
 
         {/* Subtitle */}

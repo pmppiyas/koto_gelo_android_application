@@ -92,7 +92,7 @@ export const Button: React.FC<ButtonProps> = ({
       style={containerStyle}
       {...props}
     >
-      {isLoading ? (
+      {isLoading && (
         <ActivityIndicator
           size="small"
           color={
@@ -103,7 +103,8 @@ export const Button: React.FC<ButtonProps> = ({
               : '#FFFFFF'
           }
         />
-      ) : typeof children === 'string' || typeof children === 'number' ? (
+      )}
+      {typeof children === 'string' || typeof children === 'number' ? (
         <Text style={textStyle}>{children}</Text>
       ) : Array.isArray(children) &&
         children.every(

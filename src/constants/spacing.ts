@@ -25,5 +25,5 @@ export const typography = {
   hero: 34,
 };
 
-export const BOTTOM_TAB_HEIGHT = 64;
-export const FAB_SIZE = 56;
+export const BOTTOM_TAB_HEIGHT = 56;
+export const FAB_SIZE = 48;
