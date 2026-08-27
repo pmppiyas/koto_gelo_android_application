@@ -5,6 +5,7 @@ import { Invitation } from '../types/invitation.types';
 export const useInvitations = () => {
   const [invitations, setInvitations] = useState<Invitation[]>([]);
   const [loading, setLoading] = useState(false);
+  const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const fetchInvitations = useCallback(async () => {
@@ -14,7 +15,7 @@ export const useInvitations = () => {
       const data = await invitationApi.getAll();
       setInvitations(data);
     } catch (err: any) {
-      setError(err.message || 'Failed to fetch invitations');
+      setError(err?.message || 'Failed to fetch invitations');
     } finally {
       setLoading(false);
     }
@@ -22,25 +23,35 @@ export const useInvitations = () => {
 
   const acceptInvitation = useCallback(async (id: string) => {
     try {
+      setActionLoadingId(id);
       await invitationApi.accept(id);
       setInvitations(prev =>
-        prev.map(inv => (inv.id === id ? { ...inv, status: 'ACCEPTED' as const } : inv))
+        prev.map(inv =>
+          inv.id === id ? { ...inv, status: 'ACCEPTED' as const } : inv,
+        ),
       );
     } catch (err: any) {
-      setError(err.message || 'Failed to accept invitation');
+      setError(err?.message || 'Failed to accept invitation');
       throw err;
+    } finally {
+      setActionLoadingId(null);
     }
   }, []);
 
   const rejectInvitation = useCallback(async (id: string) => {
     try {
+      setActionLoadingId(id);
       await invitationApi.reject(id);
       setInvitations(prev =>
-        prev.map(inv => (inv.id === id ? { ...inv, status: 'REJECTED' as const } : inv))
+        prev.map(inv =>
+          inv.id === id ? { ...inv, status: 'REJECTED' as const } : inv,
+        ),
       );
     } catch (err: any) {
-      setError(err.message || 'Failed to reject invitation');
+      setError(err?.message || 'Failed to reject invitation');
       throw err;
+    } finally {
+      setActionLoadingId(null);
     }
   }, []);
 
@@ -51,6 +62,7 @@ export const useInvitations = () => {
   return {
     invitations,
     loading,
+    actionLoadingId,
     error,
     refresh: fetchInvitations,
     acceptInvitation,

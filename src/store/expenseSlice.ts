@@ -37,11 +37,30 @@ export const expenseReducer = (
         ],
         newlyAddedId: action.payload.localId,
       };
-    case 'expenses/updateExpense':
+    case 'expenses/updateExpense': {
+      const payload = action.payload;
+      if ('updates' in payload) {
+        return {
+          ...state,
+          expenses: state.expenses.map((e) =>
+            e.localId === payload.localId ? { ...e, ...payload.updates } : e
+          ),
+        };
+      }
       return {
         ...state,
         expenses: state.expenses.map((e) =>
-          e.localId === action.payload.localId ? action.payload : e
+          e.localId === payload.localId ? payload : e
+        ),
+      };
+    }
+    case 'expenses/markExpenseSynced':
+      return {
+        ...state,
+        expenses: state.expenses.map((e) =>
+          e.localId === action.payload.localId
+            ? { ...e, serverId: action.payload.serverId, syncStatus: 'synced' as const }
+            : e
         ),
       };
     case 'expenses/removeExpense':

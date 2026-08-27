@@ -107,7 +107,12 @@ export const ExpenseAnalyticsScreen: React.FC<ExpenseAnalyticsScreenProps> = ({
   onNavigateBack,
   onNavigateToAddExpense,
 }) => {
-  const { expenses: localExpenses, syncExpenses } = useExpenses();
+  const {
+    expenses: localExpenses,
+    personalExpenses,
+    syncExpenses,
+    refreshExpenses,
+  } = useExpenses();
   const { user, isAuthenticated } = useAuth();
   const userId = user?.id || '';
 
@@ -120,9 +125,6 @@ export const ExpenseAnalyticsScreen: React.FC<ExpenseAnalyticsScreenProps> = ({
   const [selectedGroupId, setSelectedGroupId] = useState<string>(
     initialGroupId || 'ALL'
   );
-  const [serverPersonalExpenses, setServerPersonalExpenses] = useState<
-    ExpenseRecord[]
-  >([]);
   const [serverGroupExpenses, setServerGroupExpenses] = useState<
     ExpenseRecord[]
   >([]);
@@ -204,30 +206,7 @@ export const ExpenseAnalyticsScreen: React.FC<ExpenseAnalyticsScreenProps> = ({
       if (!isBackground) setIsLoading(true);
       try {
         if (activeMode === 'PERSONAL') {
-          const personalRes = await expenseService.getPersonalExpenses({
-            limit: 300,
-          });
-          const list =
-            personalRes?.expenses ||
-            personalRes?.data?.expenses ||
-            (Array.isArray(personalRes?.data)
-              ? personalRes.data
-              : Array.isArray(personalRes)
-              ? personalRes
-              : []);
-          if (Array.isArray(list)) {
-            setServerPersonalExpenses(
-              list.map((e: any) => ({
-                id: e.id,
-                amount: Number(e.amount) || 0,
-                category: e.category || 'Other',
-                subcategory: e.subcategory,
-                title: e.title,
-                expenseDate: e.expenseDate || e.date || e.createdAt,
-                type: 'PERSONAL',
-              }))
-            );
-          }
+          await refreshExpenses();
         } else {
           const groupsRes = await groupService.getGroups({ limit: 50 });
           const groupList: Group[] =
@@ -285,7 +264,7 @@ export const ExpenseAnalyticsScreen: React.FC<ExpenseAnalyticsScreenProps> = ({
         setIsRefreshing(false);
       }
     },
-    [isAuthenticated, activeMode]
+    [isAuthenticated, activeMode, refreshExpenses]
   );
 
   useEffect(() => {
@@ -299,53 +278,97 @@ export const ExpenseAnalyticsScreen: React.FC<ExpenseAnalyticsScreenProps> = ({
   };
 
   const allExpenses: ExpenseRecord[] = useMemo(() => {
-    const map = new Map<string, ExpenseRecord>();
+    if (activeMode === 'PERSONAL') {
+      const seenKeys = new Set<string>();
+      const result: ExpenseRecord[] = [];
 
-    localExpenses.forEach(e => {
-      const isGroup = e.type === 'GROUP';
-      if (activeMode === 'PERSONAL' && isGroup) return;
-      if (activeMode === 'GROUP' && !isGroup) return;
-      if (
-        activeMode === 'GROUP' &&
-        selectedGroupId !== 'ALL' &&
-        e.groupId !== selectedGroupId
-      )
-        return;
+      personalExpenses.forEach((e, idx) => {
+        const primaryKey = e.serverId || e.localId || `p_${idx}`;
+        const rawDate = e.date || e.createdAt;
+        const normalizedDate = rawDate ? String(rawDate).slice(0, 10) : '';
+        const sig = `${Number(e.amount)}_${(e.category || '').toLowerCase()}_${normalizedDate}_${(e.title || '').trim().toLowerCase()}`;
 
-      const rawDate = e.date || e.createdAt;
-      map.set(e.localId, {
-        id: e.serverId || e.localId,
-        amount: Number(e.amount) || 0,
-        category: e.category || 'Other',
-        subcategory: e.subcategory,
-        title: e.title,
-        expenseDate: rawDate,
-        type: isGroup ? 'GROUP' : 'PERSONAL',
-        groupId: e.groupId || undefined,
+        if (
+          !seenKeys.has(primaryKey) &&
+          !seenKeys.has(e.localId) &&
+          (!e.serverId || !seenKeys.has(e.serverId)) &&
+          !seenKeys.has(sig)
+        ) {
+          seenKeys.add(primaryKey);
+          seenKeys.add(e.localId);
+          if (e.serverId) seenKeys.add(e.serverId);
+          seenKeys.add(sig);
+
+          result.push({
+            id: primaryKey,
+            amount: Number(e.amount) || 0,
+            category: e.category || 'Other',
+            subcategory: e.subcategory,
+            title: e.title,
+            expenseDate: rawDate,
+            type: 'PERSONAL',
+          });
+        }
       });
-    });
 
-    const serverList =
-      activeMode === 'PERSONAL' ? serverPersonalExpenses : serverGroupExpenses;
+      return result;
+    }
 
-    serverList.forEach(e => {
-      if (
-        activeMode === 'GROUP' &&
-        selectedGroupId !== 'ALL' &&
-        e.groupId !== selectedGroupId
-      )
-        return;
-      const key = `srv_${e.id}`;
+    // GROUP MODE
+    const map = new Map<string, ExpenseRecord>();
+    const seenGroupSigs = new Set<string>();
+
+    localExpenses
+      .filter(e => e.type === 'GROUP')
+      .forEach((e, idx) => {
+        if (selectedGroupId !== 'ALL' && e.groupId !== selectedGroupId) return;
+        const primaryKey = e.serverId || e.localId || `g_${idx}`;
+        const rawDate = e.date || e.createdAt;
+        const normalizedDate = rawDate ? String(rawDate).slice(0, 10) : '';
+        const sig = `${Number(e.amount)}_${(e.category || '').toLowerCase()}_${normalizedDate}_${(e.title || '').trim().toLowerCase()}_${e.groupId || ''}`;
+
+        seenGroupSigs.add(sig);
+        seenGroupSigs.add(primaryKey);
+        if (e.serverId) seenGroupSigs.add(e.serverId);
+        if (e.localId) seenGroupSigs.add(e.localId);
+
+        map.set(primaryKey, {
+          id: primaryKey,
+          amount: Number(e.amount) || 0,
+          category: e.category || 'Other',
+          subcategory: e.subcategory,
+          title: e.title,
+          expenseDate: rawDate,
+          type: 'GROUP',
+          groupId: e.groupId || undefined,
+        });
+      });
+
+    serverGroupExpenses.forEach((e, idx) => {
+      if (selectedGroupId !== 'ALL' && e.groupId !== selectedGroupId) return;
+      const primaryKey = e.id || `srv_g_${idx}`;
       const rawDate = e.expenseDate;
-      if (!map.has(key) && !Array.from(map.values()).some(v => v.id === e.id)) {
-        map.set(key, {
+      const normalizedDate = rawDate ? String(rawDate).slice(0, 10) : '';
+      const sig = `${Number(e.amount)}_${(e.category || '').toLowerCase()}_${normalizedDate}_${(e.title || '').trim().toLowerCase()}_${e.groupId || ''}`;
+
+      if (
+        !seenGroupSigs.has(primaryKey) &&
+        !seenGroupSigs.has(e.id) &&
+        !seenGroupSigs.has(sig) &&
+        !map.has(primaryKey)
+      ) {
+        seenGroupSigs.add(primaryKey);
+        seenGroupSigs.add(e.id);
+        seenGroupSigs.add(sig);
+
+        map.set(primaryKey, {
           id: e.id,
           amount: Number(e.amount) || 0,
           category: e.category || 'Other',
           subcategory: e.subcategory,
           title: e.title,
           expenseDate: rawDate,
-          type: e.type,
+          type: 'GROUP',
           groupId: e.groupId,
           paidById: e.paidById,
         });
@@ -354,8 +377,8 @@ export const ExpenseAnalyticsScreen: React.FC<ExpenseAnalyticsScreenProps> = ({
 
     return Array.from(map.values());
   }, [
+    personalExpenses,
     localExpenses,
-    serverPersonalExpenses,
     serverGroupExpenses,
     activeMode,
     selectedGroupId,

@@ -667,10 +667,14 @@ export const groupService = {
     return { success: true };
   },
 
-  async inviteMember(groupId: string, inviteeId: string): Promise<any> {
-    return apiRequest(API_ENDPOINTS.GROUP.INVITATIONS, {
+  async inviteMember(
+    groupId: string,
+    payload: { username?: string; email?: string; inviteeId?: string } | string,
+  ): Promise<any> {
+    const body = typeof payload === 'string' ? { username: payload } : payload;
+    return apiRequest(`${API_ENDPOINTS.GROUP.BASE}/${groupId}/invitations`, {
       method: 'POST',
-      body: JSON.stringify({ groupId, inviteeId }),
+      body: JSON.stringify(body),
     });
   },
 };

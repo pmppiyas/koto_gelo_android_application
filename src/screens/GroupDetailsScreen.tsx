@@ -20,6 +20,7 @@ import { SettlementsTab } from '../components/group/tabs/SettlementsTab';
 import { MembersTab } from '../components/group/tabs/MembersTab';
 import { AddGroupExpenseModal } from '../components/group/AddGroupExpenseModal';
 import { AddGroupDepositModal } from '../components/group/AddGroupDepositModal';
+import { InviteMemberModal } from '../components/group/InviteMemberModal';
 import { ConfirmModal } from '../components/common/ConfirmModal';
 
 const TYPE_EMOJI: Record<string, string> = {
@@ -65,6 +66,7 @@ export const GroupDetailsScreen: React.FC<GroupDetailsScreenProps> = ({
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
   const [isDepositModalOpen, setIsDepositModalOpen] = useState(false);
+  const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
   const [settlingTarget, setSettlingTarget] = useState<Settlement | null>(null);
   const [isSettling, setIsSettling] = useState(false);
 
@@ -153,20 +155,33 @@ export const GroupDetailsScreen: React.FC<GroupDetailsScreenProps> = ({
         </View>
 
         <View className="flex-row items-center gap-1.5">
-          <TouchableOpacity
-            className="w-9 h-9 rounded-full bg-emerald-50 items-center justify-center border border-emerald-200"
-            onPress={() => setIsDepositModalOpen(true)}
-            activeOpacity={0.7}
-          >
-            <Feather name="download" size={16} color="#16A34A" />
-          </TouchableOpacity>
-          <TouchableOpacity
-            className="w-9 h-9 rounded-full bg-primary items-center justify-center shadow-sm"
-            onPress={() => setIsExpenseModalOpen(true)}
-            activeOpacity={0.7}
-          >
-            <Feather name="plus" size={18} color="#FFFFFF" />
-          </TouchableOpacity>
+          {activeTab === 'Members' ? (
+            <TouchableOpacity
+              className="flex-row items-center gap-1.5 px-3 py-1.5 rounded-full bg-primary shadow-sm"
+              onPress={() => setIsInviteModalOpen(true)}
+              activeOpacity={0.7}
+            >
+              <Feather name="user-plus" size={14} color="#FFFFFF" />
+              <Text className="text-xs font-bold text-white">+ Invite Member</Text>
+            </TouchableOpacity>
+          ) : (
+            <>
+              <TouchableOpacity
+                className="w-9 h-9 rounded-full bg-emerald-50 items-center justify-center border border-emerald-200"
+                onPress={() => setIsDepositModalOpen(true)}
+                activeOpacity={0.7}
+              >
+                <Feather name="download" size={16} color="#16A34A" />
+              </TouchableOpacity>
+              <TouchableOpacity
+                className="w-9 h-9 rounded-full bg-primary items-center justify-center shadow-sm"
+                onPress={() => setIsExpenseModalOpen(true)}
+                activeOpacity={0.7}
+              >
+                <Feather name="plus" size={18} color="#FFFFFF" />
+              </TouchableOpacity>
+            </>
+          )}
         </View>
       </View>
 
@@ -261,6 +276,7 @@ export const GroupDetailsScreen: React.FC<GroupDetailsScreenProps> = ({
               isRefreshing={isRefreshing}
               onRefresh={handleRefresh}
               userId={userId}
+              onInviteMember={() => setIsInviteModalOpen(true)}
             />
           )}
         </View>
@@ -280,6 +296,14 @@ export const GroupDetailsScreen: React.FC<GroupDetailsScreenProps> = ({
         members={group?.members || []}
         currentUserId={userId}
         onClose={() => setIsDepositModalOpen(false)}
+        onSuccess={handleRefresh}
+      />
+
+      <InviteMemberModal
+        visible={isInviteModalOpen}
+        groupId={groupId}
+        groupName={group?.name}
+        onClose={() => setIsInviteModalOpen(false)}
         onSuccess={handleRefresh}
       />
 

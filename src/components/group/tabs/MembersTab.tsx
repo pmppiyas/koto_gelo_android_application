@@ -4,7 +4,8 @@ import {
   ActivityIndicator,
   RefreshControl,
 } from 'react-native';
-import { View, Text } from '../../ui/core';
+import { Feather } from '@expo/vector-icons';
+import { View, Text, TouchableOpacity } from '../../ui/core';
 import { GroupMemberRow } from '../GroupMemberRow';
 import { GroupMember, GroupBalance } from '../../../services/groupService';
 import { BOTTOM_TAB_HEIGHT, spacing } from '../../../constants/spacing';
@@ -16,6 +17,7 @@ export interface MembersTabProps {
   isRefreshing?: boolean;
   onRefresh?: () => void;
   userId: string;
+  onInviteMember?: () => void;
 }
 
 export const MembersTab: React.FC<MembersTabProps> = ({
@@ -25,6 +27,7 @@ export const MembersTab: React.FC<MembersTabProps> = ({
   isRefreshing = false,
   onRefresh,
   userId,
+  onInviteMember,
 }) => {
   if (isLoading && members.length === 0) {
     return (
@@ -59,13 +62,27 @@ export const MembersTab: React.FC<MembersTabProps> = ({
         ) : undefined
       }
       ListHeaderComponent={
-        <View className="flex-row items-center justify-between bg-card p-3.5 rounded-xl border border-border mb-3 shadow-sm">
-          <Text className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
-            Total Members
-          </Text>
-          <Text className="text-xs font-bold text-primary bg-primary-light px-2.5 py-0.5 rounded-full border border-blue-200">
-            {members.length} people
-          </Text>
+        <View className="bg-card p-4 rounded-2xl border border-border mb-3 shadow-sm">
+          <View className="flex-row items-center justify-between">
+            <View>
+              <Text className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
+                Group Members
+              </Text>
+              <Text className="text-lg font-extrabold text-foreground mt-0.5">
+                {members.length} {members.length === 1 ? 'Person' : 'People'}
+              </Text>
+            </View>
+            {onInviteMember && (
+              <TouchableOpacity
+                className="flex-row items-center gap-1.5 bg-primary px-3.5 py-2 rounded-xl shadow-sm"
+                onPress={onInviteMember}
+                activeOpacity={0.8}
+              >
+                <Feather name="user-plus" size={15} color="#FFFFFF" />
+                <Text className="text-xs font-bold text-white">+ Invite Member</Text>
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
       }
       renderItem={({ item }) => {
@@ -82,12 +99,37 @@ export const MembersTab: React.FC<MembersTabProps> = ({
           />
         );
       }}
+      ListFooterComponent={
+        members.length > 0 && onInviteMember ? (
+          <TouchableOpacity
+            className="flex-row items-center justify-center gap-2 bg-card border border-dashed border-primary/40 p-3.5 rounded-2xl mt-3"
+            onPress={onInviteMember}
+            activeOpacity={0.7}
+          >
+            <Feather name="user-plus" size={16} color="#2563EB" />
+            <Text className="text-xs font-bold text-primary">Invite More Members</Text>
+          </TouchableOpacity>
+        ) : null
+      }
       ListEmptyComponent={
         <View className="bg-card rounded-2xl p-6 items-center justify-center border border-dashed border-border mt-4">
+          <View className="w-12 h-12 rounded-full bg-primary-light items-center justify-center mb-3 border border-blue-200">
+            <Feather name="users" size={22} color="#2563EB" />
+          </View>
           <Text className="text-sm font-bold text-foreground mb-1">No Members Found</Text>
-          <Text className="text-xs text-muted-foreground text-center">
-            Invite roommates or friends to join this group.
+          <Text className="text-xs text-muted-foreground text-center mb-4">
+            Invite roommates or friends to join this group by username.
           </Text>
+          {onInviteMember && (
+            <TouchableOpacity
+              className="flex-row items-center gap-1.5 bg-primary px-5 py-2.5 rounded-xl shadow-sm"
+              onPress={onInviteMember}
+              activeOpacity={0.8}
+            >
+              <Feather name="user-plus" size={15} color="#FFFFFF" />
+              <Text className="text-xs font-bold text-white">+ Invite Member</Text>
+            </TouchableOpacity>
+          )}
         </View>
       }
     />

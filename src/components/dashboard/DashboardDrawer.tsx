@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { TouchableWithoutFeedback, Dimensions, Platform } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import {
@@ -10,6 +10,7 @@ import {
 } from '../ui/core';
 import { Logo } from '../common/Logo';
 import { useAuth } from '../../store/hooks';
+import { invitationApi } from '../../features/invitations/api/invitation.api';
 
 const { width } = Dimensions.get('window');
 // Slimmer and sleeker drawer width with comfortable room for larger text
@@ -140,6 +141,19 @@ export const DashboardDrawer: React.FC<DashboardDrawerProps> = ({
     PERSONAL: true,
     GROUP: true,
   });
+  const [pendingInvitesCount, setPendingInvitesCount] = useState<number>(0);
+
+  useEffect(() => {
+    if (visible) {
+      invitationApi
+        .getAll()
+        .then(invs => {
+          const count = invs.filter(i => i.status === 'PENDING').length;
+          setPendingInvitesCount(count);
+        })
+        .catch(() => {});
+    }
+  }, [visible]);
 
   const toggleSection = (sectionTitle: string) => {
     setExpandedSections(prev => ({
@@ -350,6 +364,14 @@ export const DashboardDrawer: React.FC<DashboardDrawerProps> = ({
                             >
                               {item.title}
                             </Text>
+                            {item.route === 'INVITATIONS' &&
+                            pendingInvitesCount > 0 ? (
+                              <View className="bg-primary px-2 py-0.5 rounded-full">
+                                <Text className="text-[10px] font-bold text-white">
+                                  {pendingInvitesCount}
+                                </Text>
+                              </View>
+                            ) : null}
                             {isActive && (
                               <View className="w-1.5 h-1.5 rounded-full bg-primary" />
                             )}

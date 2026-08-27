@@ -30,7 +30,8 @@ export interface ExpenseState {
 export type ExpenseAction =
   | { type: 'expenses/setExpenses'; payload: LocalExpense[] }
   | { type: 'expenses/addLocalExpense'; payload: LocalExpense }
-  | { type: 'expenses/updateExpense'; payload: LocalExpense }
+  | { type: 'expenses/updateExpense'; payload: LocalExpense | { localId: string; updates: Partial<LocalExpense> } }
+  | { type: 'expenses/markExpenseSynced'; payload: { localId: string; serverId: string } }
   | { type: 'expenses/removeExpense'; payload: string }
   | { type: 'expenses/setLoading'; payload: boolean }
   | { type: 'expenses/setSyncing'; payload: boolean }

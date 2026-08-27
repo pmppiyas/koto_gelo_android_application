@@ -19,6 +19,7 @@ import {
 import { localGroupService } from '../services/localGroupService';
 import { AddGroupDepositModal } from '../components/group/AddGroupDepositModal';
 import { AddGroupExpenseModal } from '../components/group/AddGroupExpenseModal';
+import { InviteMemberModal } from '../components/group/InviteMemberModal';
 import { useAuth, useExpenses } from '../store/hooks';
 import { EXPENSE_CATEGORIES } from '../constants/expense';
 import { BOTTOM_TAB_HEIGHT, spacing } from '../constants/spacing';
@@ -124,6 +125,7 @@ export const GroupBalancesScreen: React.FC<GroupBalancesScreenProps> = ({
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isDepositModalOpen, setIsDepositModalOpen] = useState(false);
   const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
+  const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<GroupTabType>('EXPENSES');
   const [periodType, setPeriodType] = useState<PeriodType>('MONTH');
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
@@ -1279,13 +1281,13 @@ export const GroupBalancesScreen: React.FC<GroupBalancesScreenProps> = ({
                     </View>
                   </View>
                   <TouchableOpacity
-                    className="flex-row items-center gap-1 bg-emerald-600 px-3 py-1.5 rounded-full shadow-xs active:bg-emerald-700"
-                    onPress={() => setIsDepositModalOpen(true)}
+                    className="flex-row items-center gap-1.5 bg-primary px-3 py-1.5 rounded-full shadow-xs active:opacity-80"
+                    onPress={() => setIsInviteModalOpen(true)}
                     activeOpacity={0.8}
                   >
-                    <Feather name="plus" size={13} color="#FFFFFF" />
+                    <Feather name="user-plus" size={13} color="#FFFFFF" />
                     <Text className="text-xs font-bold text-white">
-                      Add Deposit
+                      Invite Member
                     </Text>
                   </TouchableOpacity>
                 </View>
@@ -1299,8 +1301,18 @@ export const GroupBalancesScreen: React.FC<GroupBalancesScreenProps> = ({
                       No Members Found
                     </Text>
                     <Text className="text-xs text-muted-foreground text-center mt-0.5 max-w-[240px]">
-                      Add members to your group to split expenses and track balances.
+                      Invite roommates or friends to join this group by username.
                     </Text>
+                    <TouchableOpacity
+                      className="flex-row items-center gap-1.5 bg-primary px-3.5 py-1.5 rounded-full shadow-xs mt-3"
+                      onPress={() => setIsInviteModalOpen(true)}
+                      activeOpacity={0.8}
+                    >
+                      <Feather name="user-plus" size={13} color="#FFFFFF" />
+                      <Text className="text-xs font-bold text-white">
+                        Invite Member
+                      </Text>
+                    </TouchableOpacity>
                   </View>
                 ) : (
                   computedMetrics.balances.map((item, index) => {
@@ -1463,6 +1475,19 @@ export const GroupBalancesScreen: React.FC<GroupBalancesScreenProps> = ({
           onClose={() => setIsExpenseModalOpen(false)}
           onSuccess={() => {
             setIsExpenseModalOpen(false);
+            refreshFromLocalDb(selectedGroupId);
+            fetchGroupsAndData(true);
+          }}
+        />
+      )}
+      {selectedGroupId && (
+        <InviteMemberModal
+          visible={isInviteModalOpen}
+          groupId={selectedGroupId}
+          groupName={selectedGroup?.name}
+          onClose={() => setIsInviteModalOpen(false)}
+          onSuccess={() => {
+            setIsInviteModalOpen(false);
             refreshFromLocalDb(selectedGroupId);
             fetchGroupsAndData(true);
           }}
