@@ -215,7 +215,9 @@ export const ExpenseTableCard: React.FC<ExpenseTableCardProps> = ({
                         numberOfLines={1}
                       >
                         {item.groupName ? `${item.groupName} • ` : ''}
-                        {item.paidByName ? `Paid by ${item.paidByName} • ` : ''}
+                        {item.paidByName
+                          ? `${item.paidByName.startsWith('Group Fund') || item.paidByName.startsWith('From Fund') ? item.paidByName : `Paid by ${item.paidByName}`} • `
+                          : ''}
                         {item.date}
                       </Text>
                     </View>

@@ -23,7 +23,6 @@ import { getLocalDateString, formatExpenseDateForServer } from '../utils/date';
 import { groupService, Group } from '../services/groupService';
 import { localGroupService } from '../services/localGroupService';
 import { CreateGroupModal } from '../components/group/CreateGroupModal';
-import { BOTTOM_TAB_HEIGHT, spacing } from '../constants/spacing';
 
 export interface AddExpenseScreenProps {
   onClose: (createdType?: 'PERSONAL' | 'GROUP', groupId?: string) => void;
@@ -43,14 +42,6 @@ const TYPE_EMOJI: Record<string, string> = {
   OTHER: '📁',
 };
 
-const TOP_5_CATEGORY_IDS = [
-  'food-dining',
-  'transport',
-  'bills-utilities',
-  'housing',
-  'shopping',
-];
-
 export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
   onClose,
   initialType = 'PERSONAL',
@@ -66,7 +57,6 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
   const [selectedCategory, setSelectedCategory] = useState<CategoryInfo | null>(
     null,
   );
-  const [isCategoryExpanded, setIsCategoryExpanded] = useState<boolean>(true);
   const [selectedSubcategory, setSelectedSubcategory] = useState<string>('');
   const [categorySearchQuery, setCategorySearchQuery] = useState<string>('');
   const [title, setTitle] = useState('');
@@ -93,71 +83,47 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
   const amountSectionRef = useRef<any>(null);
   const subCategoryLayoutY = useRef<number>(0);
   const amountLayoutY = useRef<number>(0);
+  const shouldScrollToSubcategoryRef = useRef<boolean>(false);
 
-  // 1. Analytics-driven Top Categories: Strictly ranks highest used category first (#1, #2, ...)
-  const { topCategories, otherCategories, isAnalyticsBased } = useMemo(() => {
-    const categoryFrequency: Record<string, number> = {};
-    const categorySpend: Record<string, number> = {};
+  // 1. Analytics-driven Ranked Categories: Strictly ranks highest used category first (#1, #2, ...)
+  const { rankedCategories, categoryFrequency } = useMemo(() => {
+    const freqMap: Record<string, number> = {};
+    const spendMap: Record<string, number> = {};
 
     (expenses || []).forEach(e => {
       const catName = e.category?.trim();
       if (!catName) return;
       const lower = catName.toLowerCase();
-      categoryFrequency[lower] = (categoryFrequency[lower] || 0) + 1;
-      categorySpend[lower] =
-        (categorySpend[lower] || 0) + (Number(e.amount) || 0);
+      freqMap[lower] = (freqMap[lower] || 0) + 1;
+      spendMap[lower] = (spendMap[lower] || 0) + (Number(e.amount) || 0);
     });
 
     const getScore = (c: CategoryInfo) => {
       const freq =
-        (categoryFrequency[c.name.toLowerCase()] || 0) +
-        (categoryFrequency[c.id.toLowerCase()] || 0) +
-        (categoryFrequency[c.slug.toLowerCase()] || 0);
+        (freqMap[c.name.toLowerCase()] || 0) +
+        (freqMap[c.id.toLowerCase()] || 0) +
+        (freqMap[c.slug.toLowerCase()] || 0);
       const spend =
-        (categorySpend[c.name.toLowerCase()] || 0) +
-        (categorySpend[c.id.toLowerCase()] || 0) +
-        (categorySpend[c.slug.toLowerCase()] || 0);
+        (spendMap[c.name.toLowerCase()] || 0) +
+        (spendMap[c.id.toLowerCase()] || 0) +
+        (spendMap[c.slug.toLowerCase()] || 0);
       return { freq, spend };
     };
 
     // Sort all categories strictly by frequency descending, then spend descending
-    const rankedCategories = [...EXPENSE_CATEGORIES].sort((a, b) => {
+    let sorted = [...EXPENSE_CATEGORIES].sort((a, b) => {
       const scoreA = getScore(a);
       const scoreB = getScore(b);
       if (scoreB.freq !== scoreA.freq) return scoreB.freq - scoreA.freq;
       if (scoreB.spend !== scoreA.spend) return scoreB.spend - scoreA.spend;
-      return 0;
+      return a.name.localeCompare(b.name);
     });
 
-    const usedCategories = rankedCategories.filter(c => getScore(c).freq > 0);
+    const totalUsed = sorted.filter(c => getScore(c).freq > 0).length;
 
-    const topList: CategoryInfo[] = [];
-    const topIds = new Set<string>();
-
-    // Add user's most used categories first (#1 most used is strictly first)
-    usedCategories.slice(0, 5).forEach(c => {
-      topList.push(c);
-      topIds.add(c.id);
-    });
-
-    // Fill remaining spots up to 5 from default popular categories if needed
-    if (topList.length < 5) {
-      TOP_5_CATEGORY_IDS.forEach(id => {
-        if (topList.length < 5 && !topIds.has(id)) {
-          const found = EXPENSE_CATEGORIES.find(c => c.id === id);
-          if (found) {
-            topList.push(found);
-            topIds.add(found.id);
-          }
-        }
-      });
-    }
-
-    // Remaining categories sorted by frequency as well
-    let others = rankedCategories.filter(c => !topIds.has(c.id));
-    if (categorySearchQuery) {
-      const q = categorySearchQuery.toLowerCase();
-      others = EXPENSE_CATEGORIES.filter(
+    if (categorySearchQuery.trim()) {
+      const q = categorySearchQuery.trim().toLowerCase();
+      sorted = sorted.filter(
         c =>
           c.name.toLowerCase().includes(q) ||
           c.subcategories.some(s => s.toLowerCase().includes(q)),
@@ -165,9 +131,9 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
     }
 
     return {
-      topCategories: topList,
-      otherCategories: others,
-      isAnalyticsBased: usedCategories.length > 0,
+      rankedCategories: sorted,
+      isAnalyticsBased: totalUsed > 0,
+      categoryFrequency: freqMap,
     };
   }, [expenses, categorySearchQuery]);
 
@@ -176,7 +142,7 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
     if (!selectedCategory || !selectedCategory.subcategories?.length) {
       return {
         topSubcategories: [],
-        regularSubcategories: [],
+        allSortedSubcategories: [],
         hasAnalytics: false,
       };
     }
@@ -197,17 +163,15 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
     const sorted = [...selectedCategory.subcategories].sort((a, b) => {
       const countA = subFreq[a.toLowerCase()] || 0;
       const countB = subFreq[b.toLowerCase()] || 0;
-      return countB - countA;
+      if (countB !== countA) return countB - countA;
+      return a.localeCompare(b);
     });
 
     const topSubs = sorted.filter(s => (subFreq[s.toLowerCase()] || 0) > 0);
-    const regularSubs = sorted.filter(
-      s => (subFreq[s.toLowerCase()] || 0) === 0,
-    );
 
     return {
       topSubcategories: topSubs,
-      regularSubcategories: topSubs.length > 0 ? regularSubs : sorted,
+      allSortedSubcategories: sorted,
       hasAnalytics: topSubs.length > 0,
     };
   }, [selectedCategory, expenses]);
@@ -222,8 +186,9 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
         if (isCurrent && cachedGroups && cachedGroups.length > 0) {
           setGroups(cachedGroups);
           const initialGrp =
-            cachedGroups.find(g => (selectedGroupId ? g.id === selectedGroupId : false)) ||
-            cachedGroups[0];
+            cachedGroups.find(g =>
+              selectedGroupId ? g.id === selectedGroupId : false,
+            ) || cachedGroups[0];
           if (initialGrp) {
             setSelectedGroupId(prev => (prev ? prev : initialGrp.id));
             if (initialGrp.members && initialGrp.members.length > 0) {
@@ -286,17 +251,25 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
       let isCurrent = true;
 
       // 1. Instant 0ms cache check for selected group members
-      localGroupService.getStoredGroupById(selectedGroupId).then(cachedGrp => {
-        if (isCurrent && cachedGrp && cachedGrp.members && cachedGrp.members.length > 0) {
-          setSelectedGroupDetails(cachedGrp);
-          const memberIds = cachedGrp.members.map(
-            (m: any) => m.user?.id || m.userId,
-          );
-          setSelectedParticipantIds(
-            memberIds.length > 0 ? memberIds : user?.id ? [user.id] : [],
-          );
-        }
-      }).catch(() => {});
+      localGroupService
+        .getStoredGroupById(selectedGroupId)
+        .then(cachedGrp => {
+          if (
+            isCurrent &&
+            cachedGrp &&
+            cachedGrp.members &&
+            cachedGrp.members.length > 0
+          ) {
+            setSelectedGroupDetails(cachedGrp);
+            const memberIds = cachedGrp.members.map(
+              (m: any) => m.user?.id || m.userId,
+            );
+            setSelectedParticipantIds(
+              memberIds.length > 0 ? memberIds : user?.id ? [user.id] : [],
+            );
+          }
+        })
+        .catch(() => {});
 
       // 2. Fresh background fetch from server
       groupService
@@ -325,19 +298,28 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
   const handleCategorySelect = (cat: CategoryInfo) => {
     setSelectedCategory(cat);
     setSelectedSubcategory('');
-    setIsCategoryExpanded(false); // Wrap/collapse category into compact card!
+    setError('');
+    shouldScrollToSubcategoryRef.current = true;
+
+    // If subCategoryLayoutY is already known (when switching category), scroll immediately
+    if (subCategoryLayoutY.current > 0) {
+      setTimeout(() => {
+        scrollViewRef.current?.scrollTo({
+          y: Math.max(0, subCategoryLayoutY.current - 15),
+          animated: true,
+        });
+        shouldScrollToSubcategoryRef.current = false;
+      }, 80);
+    }
+  };
+
+  const handleSubcategorySelect = (sub: string) => {
+    setSelectedSubcategory(sub);
     setError('');
 
-    setTimeout(() => {
-      if (cat.subcategories && cat.subcategories.length > 0) {
-        if (subCategoryLayoutY.current > 0) {
-          scrollViewRef.current?.scrollTo({
-            y: Math.max(0, subCategoryLayoutY.current - 15),
-            animated: true,
-          });
-        }
-      } else {
-        // If no subcategories, scroll up to Amount and focus
+    // If amount is not entered yet, smooth scroll up to Amount section and focus
+    if (!amount || parseFloat(amount) <= 0) {
+      setTimeout(() => {
         if (amountLayoutY.current >= 0) {
           scrollViewRef.current?.scrollTo({
             y: Math.max(0, amountLayoutY.current - 15),
@@ -345,22 +327,8 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
           });
         }
         amountInputRef.current?.focus();
-      }
-    }, 180);
-  };
-
-  const handleSubcategorySelect = (sub: string) => {
-    setSelectedSubcategory(sub);
-    setTimeout(() => {
-      // Scroll smoothly up to Amount section and focus
-      if (amountLayoutY.current >= 0) {
-        scrollViewRef.current?.scrollTo({
-          y: Math.max(0, amountLayoutY.current - 15),
-          animated: true,
-        });
-      }
-      amountInputRef.current?.focus();
-    }, 180);
+      }, 150);
+    }
   };
 
   const handleSubmit = async () => {
@@ -429,7 +397,6 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
   );
   const memberCount = selectedGroup?.members?.length || 1;
   const numAmount = parseFloat(amount) || 0;
-  const splitAmount = numAmount > 0 ? Math.round(numAmount / memberCount) : 0;
 
   return (
     <SafeAreaView className="flex-1 bg-background">
@@ -747,8 +714,8 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
               )}
           </View>
 
-          {/* 2. CATEGORY SELECTION SECTION (Collapses/Wraps when selected, expandable on tap) */}
-          <View className="bg-card rounded-2xl p-4 border border-border shadow-sm gap-3.5">
+          {/* 2. CATEGORY SELECTION SECTION (Grid of badges sorted by usage frequency) */}
+          <View className="bg-card rounded-2xl p-4 border border-border shadow-sm gap-3">
             <View className="flex-row justify-between items-center">
               <View className="flex-row items-center gap-1.5">
                 <Feather name="grid" size={14} color="#4F46E5" />
@@ -756,275 +723,163 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
                   CATEGORY *
                 </Text>
               </View>
-              {selectedCategory && (
-                <TouchableOpacity
-                  onPress={() => setIsCategoryExpanded(!isCategoryExpanded)}
-                  activeOpacity={0.7}
-                  className="flex-row items-center gap-1 bg-primary-light px-2.5 py-1 rounded-full border border-indigo-200"
-                >
-                  <Text className="text-xs">{selectedCategory.emoji}</Text>
-                  <Text className="text-xs font-bold text-primary">
-                    {selectedCategory.name}
-                  </Text>
-                  <Feather
-                    name={isCategoryExpanded ? 'chevron-up' : 'chevron-down'}
-                    size={12}
-                    color="#4F46E5"
-                  />
-                </TouchableOpacity>
-              )}
             </View>
 
-            {/* Collapsed / Wrapped Category View */}
-            {!isCategoryExpanded && selectedCategory ? (
-              <TouchableOpacity
-                onPress={() => setIsCategoryExpanded(true)}
-                activeOpacity={0.7}
-                className="flex-row items-center justify-between bg-primary-light/60 border-2 border-primary/30 rounded-2xl p-3"
-              >
-                <View className="flex-row items-center gap-2.5">
-                  <View className="w-10 h-10 rounded-xl bg-primary items-center justify-center shadow-xs">
-                    <Text className="text-xl">{selectedCategory.emoji}</Text>
-                  </View>
-                  <View>
-                    <Text className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
-                      Selected Category
-                    </Text>
-                    <Text className="text-sm font-black text-primary">
-                      {selectedCategory.name}
-                    </Text>
-                  </View>
-                </View>
-                <View className="flex-row items-center gap-1 bg-card px-2.5 py-1.5 rounded-xl border border-border">
-                  <Feather name="edit-2" size={12} color="#4F46E5" />
-                  <Text className="text-xs font-bold text-primary">Change</Text>
-                </View>
-              </TouchableOpacity>
-            ) : (
-              /* Expanded Category Selection View */
-              <View className="gap-3.5">
-                <View className="gap-1.5">
-                  <View className="flex-row items-center justify-between">
-                    <Text className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-                      {isAnalyticsBased
-                        ? '✨ Your Most Used Categories'
-                        : '🔥 Popular Categories'}
-                    </Text>
-                  </View>
-                  <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    contentContainerClassName="gap-2 py-0.5"
-                  >
-                    {topCategories.map((cat, idx) => {
-                      const isSelected = selectedCategory?.id === cat.id;
-                      return (
-                        <TouchableOpacity
-                          key={cat.id}
-                          className={`flex-row items-center gap-1.5 px-3.5 py-2.5 rounded-xl border transition-all ${
-                            isSelected
-                              ? 'bg-primary-light border-2 border-primary shadow-xs'
-                              : 'bg-background border border-border'
-                          }`}
-                          onPress={() => handleCategorySelect(cat)}
-                          activeOpacity={0.7}
-                        >
-                          <Text className="text-lg">{cat.emoji}</Text>
-                          <Text
-                            className={`text-xs font-bold ${
-                              isSelected ? 'text-primary' : 'text-foreground'
-                            }`}
-                          >
-                            {cat.name}
-                          </Text>
-                          {isAnalyticsBased && idx === 0 && (
-                            <View className="bg-amber-100 px-1.5 py-0.5 rounded-md border border-amber-300">
-                              <Text className="text-[9px] font-black text-amber-700">
-                                #1
-                              </Text>
-                            </View>
-                          )}
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </ScrollView>
-                </View>
+            {/* Category Search Input */}
+            <View className="flex-row items-center bg-background border border-border rounded-xl px-3 h-10">
+              <Feather
+                name="search"
+                size={14}
+                color="#94A3B8"
+                style={{ marginRight: 6 }}
+              />
+              <TextInput
+                className="flex-1 text-xs text-foreground"
+                placeholder="Search category (e.g. Food, Transport, Bills)..."
+                placeholderTextColor="#94A3B8"
+                value={categorySearchQuery}
+                onChangeText={setCategorySearchQuery}
+              />
+              {categorySearchQuery ? (
+                <TouchableOpacity onPress={() => setCategorySearchQuery('')}>
+                  <Feather name="x" size={14} color="#94A3B8" />
+                </TouchableOpacity>
+              ) : null}
+            </View>
 
-                {/* Line 2: Other Categories & Search */}
-                <View className="gap-2 pt-2 border-t border-border">
-                  <Text className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-                    {categorySearchQuery
-                      ? 'Search Results'
-                      : 'Other Categories'}
-                  </Text>
-                  <View className="flex-row items-center bg-background border border-border rounded-xl px-3 h-10">
-                    <Feather
-                      name="search"
-                      size={14}
-                      color="#94A3B8"
-                      style={{ marginRight: 6 }}
-                    />
-                    <TextInput
-                      className="flex-1 text-xs text-foreground"
-                      placeholder="Search categories (e.g. Health, Education, Bills)..."
-                      placeholderTextColor="#94A3B8"
-                      value={categorySearchQuery}
-                      onChangeText={setCategorySearchQuery}
-                    />
-                    {categorySearchQuery ? (
-                      <TouchableOpacity
-                        onPress={() => setCategorySearchQuery('')}
-                      >
-                        <Feather name="x" size={14} color="#94A3B8" />
-                      </TouchableOpacity>
-                    ) : null}
-                  </View>
+            {/* Category Badges in Responsive Grid */}
+            <View className="flex-row flex-wrap gap-2 pt-0.5">
+              {rankedCategories.map((cat, idx) => {
+                const isSelected = selectedCategory?.id === cat.id;
+                const freq =
+                  (categoryFrequency[cat.name.toLowerCase()] || 0) +
+                  (categoryFrequency[cat.id.toLowerCase()] || 0) +
+                  (categoryFrequency[cat.slug.toLowerCase()] || 0);
+                const isTopFrequent = idx < 3 && freq > 0;
 
-                  <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    contentContainerClassName="gap-2 py-0.5"
+                return (
+                  <TouchableOpacity
+                    key={cat.id}
+                    className={`flex-row items-center gap-1.5 px-3.5 py-2.5 rounded-xl border ${
+                      isSelected
+                        ? 'bg-primary border-primary shadow-xs'
+                        : isTopFrequent
+                        ? 'bg-indigo-50/80 border-indigo-200'
+                        : 'bg-background border-border'
+                    }`}
+                    onPress={() => handleCategorySelect(cat)}
+                    activeOpacity={0.7}
                   >
-                    {otherCategories.map(cat => {
-                      const isSelected = selectedCategory?.id === cat.id;
-                      return (
-                        <TouchableOpacity
-                          key={cat.id}
-                          className={`flex-row items-center gap-1.5 px-3 py-2 rounded-xl border ${
-                            isSelected
-                              ? 'bg-primary-light border-2 border-primary'
-                              : 'bg-background border border-border'
-                          }`}
-                          onPress={() => handleCategorySelect(cat)}
-                          activeOpacity={0.7}
-                        >
-                          <Text className="text-sm">{cat.emoji}</Text>
-                          <Text
-                            className={`text-xs font-semibold ${
-                              isSelected
-                                ? 'text-primary font-bold'
-                                : 'text-foreground'
-                            }`}
-                          >
-                            {cat.name}
-                          </Text>
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </ScrollView>
-                </View>
-              </View>
-            )}
+                    <Text className="text-base">{cat.emoji}</Text>
+                    <Text
+                      className={`text-xs font-bold ${
+                        isSelected
+                          ? 'text-white'
+                          : isTopFrequent
+                          ? 'text-primary'
+                          : 'text-foreground'
+                      }`}
+                    >
+                      {cat.name}
+                    </Text>
+                    {isTopFrequent && !isSelected && (
+                      <View className="bg-primary/20 px-1.5 py-0.5 rounded-md">
+                        <Text className="text-[9px] font-black text-primary">
+                          #{idx + 1}
+                        </Text>
+                      </View>
+                    )}
+                    {isSelected && (
+                      <Feather name="check" size={13} color="#FFFFFF" />
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
           </View>
 
-          {/* 3. SUBCATEGORY SECTION (Auto-scrolled on category select, auto-scrolls to Amount on subcategory select) */}
+          {/* 3. SUBCATEGORY SELECTION SECTION (Auto-scrolled on category select, prompt banner & badge grid) */}
           {selectedCategory && selectedCategory.subcategories.length > 0 && (
             <View
               ref={subCategorySectionRef}
               onLayout={e => {
-                subCategoryLayoutY.current = e.nativeEvent.layout.y;
+                const y = e.nativeEvent.layout.y;
+                subCategoryLayoutY.current = y;
+                if (shouldScrollToSubcategoryRef.current) {
+                  shouldScrollToSubcategoryRef.current = false;
+                  setTimeout(() => {
+                    scrollViewRef.current?.scrollTo({
+                      y: Math.max(0, y - 15),
+                      animated: true,
+                    });
+                  }, 40);
+                }
               }}
-              className="bg-card rounded-2xl p-4 border border-border shadow-sm gap-3"
+              className="bg-card rounded-2xl p-4 border-2 border-indigo-300/80 shadow-md gap-3"
             >
               <View className="flex-row justify-between items-center">
                 <View className="flex-row items-center gap-1.5">
                   <Feather name="tag" size={14} color="#4F46E5" />
-                  <Text className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
-                    SUBCATEGORY (OPTIONAL)
+                  <Text className="text-xs font-bold text-primary uppercase tracking-wider">
+                    SUBCATEGORY *
                   </Text>
                 </View>
                 {selectedSubcategory ? (
-                  <View className="bg-primary-light px-2.5 py-0.5 rounded-full border border-indigo-200">
-                    <Text className="text-[11px] font-bold text-primary">
+                  <View className="bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-300 flex-row items-center gap-1">
+                    <Feather name="check-circle" size={11} color="#059669" />
+                    <Text className="text-[11px] font-bold text-emerald-700">
                       {selectedSubcategory}
                     </Text>
                   </View>
-                ) : null}
-              </View>
-
-              {/* Frequent Subcategories from Analytics (if any) */}
-              {analyzedSubcategories.hasAnalytics &&
-                analyzedSubcategories.topSubcategories.length > 0 && (
-                  <View className="gap-1.5">
-                    <Text className="text-[10px] font-bold text-primary uppercase tracking-wider">
-                      ⚡ Frequent in {selectedCategory.name}
+                ) : (
+                  <View className="bg-amber-100 px-2.5 py-0.5 rounded-full border border-amber-300">
+                    <Text className="text-[10px] font-bold text-amber-800">
+                      Required
                     </Text>
-                    <ScrollView
-                      horizontal
-                      showsHorizontalScrollIndicator={false}
-                      contentContainerClassName="gap-2 py-0.5"
-                    >
-                      {analyzedSubcategories.topSubcategories.map(sub => {
-                        const isSubSelected = selectedSubcategory === sub;
-                        return (
-                          <TouchableOpacity
-                            key={`top-${sub}`}
-                            className={`px-3 py-1.5 rounded-xl border transition-all ${
-                              isSubSelected
-                                ? 'bg-primary-light border-2 border-primary shadow-xs'
-                                : 'bg-primary/5 border border-indigo-200'
-                            }`}
-                            onPress={() =>
-                              handleSubcategorySelect(isSubSelected ? '' : sub)
-                            }
-                            activeOpacity={0.7}
-                          >
-                            <Text
-                              className={`text-xs font-semibold ${
-                                isSubSelected
-                                  ? 'text-primary font-black'
-                                  : 'text-primary'
-                              }`}
-                            >
-                              ⭐ {sub}
-                            </Text>
-                          </TouchableOpacity>
-                        );
-                      })}
-                    </ScrollView>
                   </View>
                 )}
+              </View>
 
-              {/* All / Regular Subcategories */}
-              <View className="gap-1.5">
-                {analyzedSubcategories.hasAnalytics && (
-                  <Text className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                    All Subcategories
-                  </Text>
-                )}
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  contentContainerClassName="gap-2 py-1"
-                >
-                  {analyzedSubcategories.regularSubcategories.map(sub => {
-                    const isSubSelected = selectedSubcategory === sub;
-                    return (
-                      <TouchableOpacity
-                        key={sub}
-                        className={`px-3 py-1.5 rounded-xl border transition-all ${
-                          isSubSelected
-                            ? 'bg-primary-light border-2 border-primary shadow-xs'
-                            : 'bg-background border border-border'
+              {/* Subcategories Badge Grid */}
+              <View className="flex-row flex-wrap gap-2 pt-0.5">
+                {analyzedSubcategories.allSortedSubcategories.map(sub => {
+                  const isSelected = selectedSubcategory === sub;
+                  const isTopSub =
+                    analyzedSubcategories.topSubcategories.includes(sub);
+
+                  return (
+                    <TouchableOpacity
+                      key={sub}
+                      className={`flex-row items-center gap-1.5 px-3.5 py-2 rounded-xl border ${
+                        isSelected
+                          ? 'bg-primary border-primary shadow-xs'
+                          : isTopSub
+                          ? 'bg-amber-50 border-amber-300'
+                          : 'bg-background border-border'
+                      }`}
+                      onPress={() => handleSubcategorySelect(sub)}
+                      activeOpacity={0.7}
+                    >
+                      {isTopSub && !isSelected && (
+                        <Text className="text-xs">⭐</Text>
+                      )}
+                      <Text
+                        className={`text-xs font-bold ${
+                          isSelected
+                            ? 'text-white'
+                            : isTopSub
+                            ? 'text-amber-900'
+                            : 'text-foreground'
                         }`}
-                        onPress={() =>
-                          handleSubcategorySelect(isSubSelected ? '' : sub)
-                        }
-                        activeOpacity={0.7}
                       >
-                        <Text
-                          className={`text-xs font-medium ${
-                            isSubSelected
-                              ? 'text-primary font-black'
-                              : 'text-foreground'
-                          }`}
-                        >
-                          {sub}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </ScrollView>
+                        {sub}
+                      </Text>
+                      {isSelected && (
+                        <Feather name="check" size={12} color="#FFFFFF" />
+                      )}
+                    </TouchableOpacity>
+                  );
+                })}
               </View>
             </View>
           )}
@@ -1061,19 +916,46 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
           </View>
         </ScrollView>
 
-        {/* 5. STICKY BOTTOM ACTION BAR FOR SEAMLESS UI/UX */}
+        {/* 5. STICKY BOTTOM ACTION BAR (Save Expense Visible once subcategory is selected) */}
         <View className="px-4 py-3 bg-card border-t border-border shadow-lg">
-          <Button
-            variant="default"
-            className="w-full py-3.5 rounded-2xl shadow-md bg-primary"
-            textClassName="text-white font-bold text-sm"
-            onPress={handleSubmit}
-            isLoading={isSubmitting}
-          >
-            {`Save Expense ${
-              numAmount > 0 ? `• ৳${numAmount.toLocaleString()}` : ''
-            }`}
-          </Button>
+          {!selectedCategory ? (
+            <View className="py-3 px-4 rounded-2xl bg-muted/70 items-center justify-center flex-row gap-2 border border-border">
+              <Feather name="grid" size={15} color="#64748B" />
+              <Text className="text-xs font-bold text-muted-foreground">
+                Step 1: Select a category above
+              </Text>
+            </View>
+          ) : !selectedSubcategory ? (
+            <TouchableOpacity
+              onPress={() => {
+                if (subCategoryLayoutY.current > 0) {
+                  scrollViewRef.current?.scrollTo({
+                    y: Math.max(0, subCategoryLayoutY.current - 15),
+                    animated: true,
+                  });
+                }
+              }}
+              activeOpacity={0.8}
+              className="py-3 px-4 rounded-2xl bg-amber-100 border-2 border-amber-400 items-center justify-center flex-row gap-2 shadow-xs"
+            >
+              <Feather name="arrow-down-circle" size={16} color="#B45309" />
+              <Text className="text-xs font-extrabold text-amber-900">
+                Step 2: Select a subcategory to Save Expense
+              </Text>
+            </TouchableOpacity>
+          ) : (
+            <Button
+              variant="default"
+              className="w-full py-3.5 rounded-2xl shadow-md bg-primary"
+              textClassName="text-white font-bold text-sm"
+              onPress={handleSubmit}
+              isLoading={isSubmitting}
+            >
+              {`Save Expense ${
+                numAmount > 0 ? `• ৳${numAmount.toLocaleString()}` : ''
+              }`}
+            </Button>
+          )}
         </View>
       </KeyboardAvoidingView>
 

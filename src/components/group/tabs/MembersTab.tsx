@@ -38,16 +38,38 @@ export const MembersTab: React.FC<MembersTabProps> = ({
   }
 
   const balanceMap = new Map<string, number>();
+  const depositMap = new Map<string, number>();
+  const shareMap = new Map<string, number>();
+
   if (balance?.balances) {
     for (const b of balance.balances) {
-      balanceMap.set(b.userId, b.net);
+      const uId = b.userId || (b as any).id;
+      if (uId) {
+        const deposited = b.totalDeposited ?? (b as any).paid ?? 0;
+        const share = b.totalShare ?? (b as any).owes ?? 0;
+        const net = b.netBalance ?? (b as any).net ?? (deposited - share);
+        balanceMap.set(uId, net);
+        depositMap.set(uId, deposited);
+        shareMap.set(uId, share);
+      }
     }
   }
 
+  const uniqueMembers = React.useMemo(() => {
+    const map = new Map<string, GroupMember>();
+    (members || []).forEach((m) => {
+      const key = m.userId || m.user?.id || m.id;
+      if (key && !map.has(key)) {
+        map.set(key, m);
+      }
+    });
+    return Array.from(map.values());
+  }, [members]);
+
   return (
     <FlatList
-      data={members}
-      keyExtractor={(item) => item.id}
+      data={uniqueMembers}
+      keyExtractor={(item, index) => `${item.id || item.userId || 'mem'}_${index}`}
       contentContainerClassName="px-4 pt-3"
       contentContainerStyle={{ paddingBottom: BOTTOM_TAB_HEIGHT + spacing.sm }}
       showsVerticalScrollIndicator={false}
@@ -88,13 +110,17 @@ export const MembersTab: React.FC<MembersTabProps> = ({
       renderItem={({ item }) => {
         const isYou = item.userId === userId;
         const net = balanceMap.get(item.userId);
+        const deposited = depositMap.get(item.userId);
+        const share = shareMap.get(item.userId);
 
         return (
           <GroupMemberRow
-            name={item.user.name || item.user.username}
-            username={item.user.username}
+            name={item.user?.name || item.user?.username || 'Member'}
+            username={item.user?.username || ''}
             role={item.role}
             isYou={isYou}
+            totalDeposited={deposited}
+            totalShare={share}
             netBalance={net}
           />
         );

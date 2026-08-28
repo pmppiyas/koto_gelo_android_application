@@ -81,11 +81,11 @@ export const useAuth = () => {
   };
 
   const logout = async () => {
-    // Dispatch logout immediately for instant UI response
+    // 1. Dispatch logout immediately for instant UI reset
     dispatch({ type: 'auth/logout' });
     dispatch({ type: 'expenses/setExpenses', payload: [] });
 
-    // Clear all local data: server session + SQLite + group cache (parallel, with timeout)
+    // 2. Vanish and wipe all local data: SQLite tables + group repositories + personal expenses + auth tokens
     await Promise.all([
       Promise.race([
         authService.logout().catch(() => {}),
@@ -93,6 +93,7 @@ export const useAuth = () => {
       ]),
       database.clearAllData().catch(() => {}),
       localGroupService.clearAll().catch(() => {}),
+      localExpenseService.clearLocalExpenses().catch(() => {}),
     ]);
   };
 
@@ -168,48 +169,9 @@ export const useExpenses = () => {
     }
     dispatch({ type: 'expenses/addLocalExpense', payload: newExpense });
 
-    // 2. BACKGROUND ASYNC SERVER SYNC (Non-blocking)
+    // 2. BACKGROUND ASYNC SERVER SYNC (Non-blocking with in-flight lock)
     if (isAuthenticated) {
-      (async () => {
-        try {
-          let result: any;
-          if (newExpense.type === 'GROUP' && newExpense.groupId) {
-            result = await groupService.addGroupExpense({
-              groupId: newExpense.groupId,
-              amount: newExpense.amount,
-              category: newExpense.category,
-              subcategory: newExpense.subcategory || undefined,
-              title: newExpense.title || undefined,
-              note: newExpense.note || undefined,
-              expenseDate: formatExpenseDateForServer(newExpense.date),
-              splitType: 'EQUAL',
-              participants:
-                input.participants && input.participants.length > 0
-                  ? input.participants
-                  : undefined,
-            });
-          } else {
-            result = await expenseService.createPersonalExpense(newExpense);
-          }
-          const serverId = result?.id || result?.expense?.id || `srv_${Date.now()}`;
-          const syncedExpense: LocalExpense = {
-            ...newExpense,
-            serverId,
-            syncStatus: 'synced',
-            participants: result?.participants || newExpense.participants,
-          };
-          await localExpenseService.saveExpenseLocally(syncedExpense);
-          if (newExpense.type === 'GROUP' && newExpense.groupId) {
-            await localGroupService.saveGroupExpenseLocally({
-              ...syncedExpense,
-              id: serverId,
-            }, 'synced');
-          }
-          dispatch({ type: 'expenses/addLocalExpense', payload: syncedExpense });
-        } catch {
-          // If server fails or offline, expense remains in local storage with 'pending' status
-        }
-      })();
+      expenseSyncService.syncSingleExpense(newExpense, dispatch).catch(() => {});
     }
 
     return newExpense;
@@ -252,11 +214,29 @@ export const useExpenses = () => {
             updatedAt: se.updatedAt || se.createdAt,
           };
         });
-        const currentLocal = await localExpenseService.getLocalExpenses();
-        const pendingItems = currentLocal.filter(
-          (e) => e.syncStatus === 'pending' || e.syncStatus === 'failed'
+
+        // Build a signature set from server expenses for matching pending items
+        const serverSignatures = new Set(
+          serverMapped.map(e =>
+            `${Number(e.amount)}|${(e.category || '').toLowerCase()}|${e.date}|${(e.title || '').toLowerCase()}`
+          )
         );
-        const reconciled = [...pendingItems, ...serverMapped];
+        const serverIdSet = new Set(serverMapped.map(e => e.serverId).filter(Boolean));
+
+        const currentLocal = await localExpenseService.getLocalExpenses();
+
+        // Only keep pending items that don't match any server expense (by serverId OR by signature)
+        const genuinePending = currentLocal.filter(e => {
+          if (e.syncStatus !== 'pending' && e.syncStatus !== 'failed') return false;
+          // If this pending item already has a serverId that exists on server, it's a duplicate
+          if (e.serverId && serverIdSet.has(e.serverId)) return false;
+          // Match by content signature to catch cases where sync completed but localId wasn't updated
+          const sig = `${Number(e.amount)}|${(e.category || '').toLowerCase()}|${e.date}|${(e.title || '').toLowerCase()}`;
+          if (serverSignatures.has(sig)) return false;
+          return true;
+        });
+
+        const reconciled = [...genuinePending, ...serverMapped];
         await localExpenseService.setLocalExpenses(reconciled);
         dispatch({ type: 'expenses/setExpenses', payload: reconciled });
       }

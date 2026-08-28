@@ -99,11 +99,12 @@ export const localGroupService = {
     // Initialize all known group members
     members.forEach((m) => {
       const u = m.user || (m as any);
-      const mId = u.id || m.userId;
+      const mId = m.userId || m.user?.id || (m as any).id;
+      if (!mId) return;
       memberMap.set(mId, {
         userId: mId,
-        username: u.username || 'Member',
-        name: u.name || u.username || 'Member',
+        username: u.username || (m as any).username || 'Member',
+        name: u.name || (m as any).name || u.username || 'Member',
         totalDeposited: 0,
         paid: 0,
         owes: 0,

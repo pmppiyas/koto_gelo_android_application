@@ -1,11 +1,12 @@
 import React from 'react';
 import { Feather } from '@expo/vector-icons';
 import { View, Text, TouchableOpacity } from '../ui/core';
-import { GroupDeposit } from '../../services/groupService';
+import { GroupDeposit, GroupMember } from '../../services/groupService';
 
 export interface GroupDepositCardProps {
   deposit: GroupDeposit;
   currentUserId: string;
+  members?: GroupMember[];
   onDelete?: (id: string) => void;
 }
 
@@ -21,14 +22,27 @@ const METHOD_STYLES: Record<string, { label: string; icon: keyof typeof Feather.
 export const GroupDepositCard: React.FC<GroupDepositCardProps> = ({
   deposit,
   currentUserId,
+  members,
   onDelete,
 }) => {
   const isYou = deposit.userId === currentUserId;
   const isRecorder = deposit.recordedById === currentUserId;
-  const username = deposit.user?.username || (deposit as any).username;
-  const fullName = deposit.user?.name || (deposit as any).name;
-  const memberName = isYou ? 'You' : username ? `@${username}` : fullName || 'User';
-  const initial = (username || fullName || 'U').charAt(0).toUpperCase();
+
+  const matchedMember = members?.find(
+    (m) => m.userId === deposit.userId || m.user?.id === deposit.userId
+  );
+
+  const username =
+    deposit.user?.username ||
+    matchedMember?.user?.username ||
+    (deposit as any).username;
+  const fullName =
+    deposit.user?.name ||
+    matchedMember?.user?.name ||
+    (deposit as any).name;
+
+  const memberName = isYou ? 'You' : fullName || (username ? `@${username}` : 'Member');
+  const initial = (fullName || username || 'U').charAt(0).toUpperCase();
   const methodInfo = METHOD_STYLES[deposit.method] || METHOD_STYLES.CASH;
 
   const formatDate = (dateString: string): string => {

@@ -231,7 +231,7 @@ export const GroupBalancesScreen: React.FC<GroupBalancesScreenProps> = ({
         if (targetId) {
           setSelectedGroupId(targetId);
           const [balRes, grpRes, expRes, depRes] = await Promise.allSettled([
-            groupService.getGroupBalance(targetId),
+            groupService.getGroupBalance(targetId, user?.id),
             groupService.getGroupById(targetId),
             groupService.getGroupExpenses(targetId, { limit: 100 }),
             groupService.getGroupDeposits(targetId, { limit: 100 }),
@@ -379,14 +379,15 @@ export const GroupBalancesScreen: React.FC<GroupBalancesScreenProps> = ({
     const members = selectedGroup?.members || [];
     const memberMap = new Map<string, MemberBalanceItem>();
 
-    // 1. Initialize members
+    // 1. Initialize members using canonical userId
     members.forEach(m => {
       const u = m.user || (m as any);
-      const mId = u.id || m.userId;
-      memberMap.set(mId, {
-        userId: mId,
-        username: u.username,
-        name: u.name || u.username,
+      const uId = m.userId || m.user?.id || (m as any).id;
+      if (!uId) return;
+      memberMap.set(uId, {
+        userId: uId,
+        username: u.username || (m as any).username || 'Member',
+        name: u.name || (m as any).name || u.username || 'Member',
         user: u,
         totalDeposited: 0,
         totalPaid: 0,
@@ -395,82 +396,125 @@ export const GroupBalancesScreen: React.FC<GroupBalancesScreenProps> = ({
       });
     });
 
-    // 2. Sum deposits per member from groupDeposits
-    groupDeposits.forEach(dep => {
-      const uId = dep.userId || dep.user?.id;
-      if (uId && memberMap.has(uId)) {
-        const item = memberMap.get(uId)!;
-        item.totalDeposited =
-          (item.totalDeposited || 0) + (Number(dep.amount) || 0);
-      }
-    });
+    // 2. If server balance has member details, hydrate memberMap directly from server ground truth
+    if (balance?.balances && Array.isArray(balance.balances) && balance.balances.length > 0) {
+      balance.balances.forEach((b: any) => {
+        const bUserId = b.userId || b.user?.id || b.id;
+        if (!bUserId) return;
+        const existing = memberMap.get(bUserId);
+        const depAmt = Number(b.totalDeposited ?? b.paid ?? 0);
+        const shareAmt = Number(b.totalShare ?? b.owes ?? 0);
+        const netAmt = Number(b.netBalance ?? b.net ?? (depAmt - shareAmt));
 
-    const totalMembersCount = Math.max(
-      1,
-      memberMap.size || (members.length > 0 ? members.length : 1),
-    );
-
-    // 3. Calculate actual share per member from expenses (respecting participants)
-    allExpensesList.forEach(exp => {
-      const expAmt = Number(exp.amount) || 0;
-      if (exp.participants && exp.participants.length > 0) {
-        exp.participants.forEach((p: any) => {
-          const pId = p.userId || p.user?.id;
-          if (pId && memberMap.has(pId)) {
-            const memberItem = memberMap.get(pId)!;
-            const share =
-              Number(p.shareAmount) || expAmt / exp.participants.length;
-            memberItem.totalShare = (memberItem.totalShare || 0) + share;
+        if (existing) {
+          existing.totalDeposited = depAmt;
+          existing.totalShare = shareAmt;
+          existing.netBalance = netAmt;
+          if (b.user) existing.user = b.user;
+          if (b.username) existing.username = b.username;
+          if (b.name) existing.name = b.name;
+        } else {
+          memberMap.set(bUserId, {
+            userId: bUserId,
+            username: b.username || b.user?.username || 'Member',
+            name: b.name || b.user?.name || b.username || 'Member',
+            user: b.user || { id: bUserId, username: b.username },
+            totalDeposited: depAmt,
+            totalPaid: Number(b.totalPaid || 0),
+            totalShare: shareAmt,
+            netBalance: netAmt,
+          });
+        }
+      });
+    } else {
+      // Offline fallback: Sum deposits per member from groupDeposits
+      groupDeposits.forEach(dep => {
+        const uId = dep.userId || dep.user?.id;
+        if (!uId) return;
+        let item = memberMap.get(uId);
+        if (!item) {
+          for (const [, val] of memberMap) {
+            if (val.userId === uId || (val.username && dep.user?.username && val.username === dep.user.username)) {
+              item = val;
+              break;
+            }
           }
-        });
-      } else {
-        const equalPart = expAmt / totalMembersCount;
-        memberMap.forEach(item => {
-          item.totalShare = (item.totalShare || 0) + equalPart;
-        });
-      }
-    });
+        }
+        if (item) {
+          item.totalDeposited = (item.totalDeposited || 0) + (Number(dep.amount) || 0);
+        }
+      });
 
-    // 4. Calculate net balance for each member: totalDeposited - totalShare
-    memberMap.forEach(item => {
-      const roundedDeposited = Math.round(item.totalDeposited || 0);
-      const roundedShare = Math.round(item.totalShare || 0);
-      item.totalDeposited = roundedDeposited;
-      item.totalShare = roundedShare;
-      item.netBalance = roundedDeposited - roundedShare;
-    });
+      const totalMembersCount = Math.max(
+        1,
+        memberMap.size || (members.length > 0 ? members.length : 1),
+      );
+
+      // Offline fallback: Calculate actual share per member from expenses
+      allExpensesList.forEach(exp => {
+        const expAmt = Number(exp.amount) || 0;
+        if (exp.participants && exp.participants.length > 0) {
+          exp.participants.forEach((p: any) => {
+            const pId = p.userId || p.user?.id;
+            if (pId && memberMap.has(pId)) {
+              const memberItem = memberMap.get(pId)!;
+              const share =
+                Number(p.shareAmount) || expAmt / exp.participants.length;
+              memberItem.totalShare = (memberItem.totalShare || 0) + share;
+            }
+          });
+        } else {
+          const equalPart = expAmt / totalMembersCount;
+          memberMap.forEach(item => {
+            item.totalShare = (item.totalShare || 0) + equalPart;
+          });
+        }
+      });
+
+      // Calculate net balance for each member: totalDeposited - totalShare
+      memberMap.forEach(item => {
+        const roundedDeposited = Math.round(item.totalDeposited || 0);
+        const roundedShare = Math.round(item.totalShare || 0);
+        item.totalDeposited = roundedDeposited;
+        item.totalShare = roundedShare;
+        item.netBalance = roundedDeposited - roundedShare;
+      });
+    }
 
     const memberBalancesList = Array.from(memberMap.values());
 
     // 5. Current User's numbers
-    const userDepositsFromList = groupDeposits
-      .filter(d => d.userId === userId || d.user?.id === userId)
-      .reduce((sum, d) => sum + (Number(d.amount) || 0), 0);
+    let currentUserItem = memberMap.get(userId);
+    if (!currentUserItem && user?.username) {
+      for (const [, val] of memberMap) {
+        if (val.username === user.username) {
+          currentUserItem = val;
+          break;
+        }
+      }
+    }
 
-    const currentUserItem = memberMap.get(userId);
     const yourDeposited =
       currentUserItem?.totalDeposited !== undefined
         ? currentUserItem.totalDeposited
-        : Math.round(
-            Math.max(
-              userDepositsFromList,
-              balance?.yourDeposited || 0,
-            ),
-          );
+        : Math.round(balance?.yourDeposited ?? 0);
 
     const yourShare =
       currentUserItem?.totalShare !== undefined
         ? currentUserItem.totalShare
-        : Math.round(balance?.yourShare || 0);
+        : Math.round(balance?.yourShare ?? 0);
 
-    const netBalance = yourDeposited - yourShare;
+    const netBalance =
+      balance?.netBalance !== undefined
+        ? balance.netBalance
+        : yourDeposited - yourShare;
     const isPositiveBalance = netBalance >= 0;
 
     return {
       totalExpenses,
       totalDeposits,
       remainingFund: totalDeposits - totalExpenses,
-      totalMembers: totalMembersCount,
+      totalMembers: memberBalancesList.length || 1,
       yourDeposited,
       yourShare,
       netBalance,

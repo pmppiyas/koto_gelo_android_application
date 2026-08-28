@@ -167,76 +167,113 @@ export const TransactionsScreen: React.FC<TransactionsScreenProps> = ({
       setIsLoadingGroups(true);
     }
     try {
-      const response = await groupService.getGroups({ limit: 50 });
-      const groupList: Group[] =
-        response?.groups ||
-        response?.data?.groups ||
-        (Array.isArray(response) ? response : []);
-      if (groupList.length > 0) {
-        setGroups(groupList);
-        localGroupService.setStoredGroups(groupList).catch(() => {});
-      }
-
-      const [expenseResults, depositResults] = await Promise.all([
-        Promise.all(
-          groupList.map(async grp => {
-            try {
-              const res = await groupService.getGroupExpenses(grp.id, {
-                limit: 50,
-              });
-              const list: GroupExpense[] =
-                res?.history ||
-                res?.data?.history ||
-                res?.expenses ||
-                res?.data?.expenses ||
-                (Array.isArray(res?.data)
-                  ? res.data
-                  : Array.isArray(res)
-                  ? res
-                  : []);
-              return list.map(e => ({
-                ...e,
-                groupId: e.groupId || grp.id,
-                groupName: grp.name,
-                groupType: grp.type,
-              }));
-            } catch {
-              return [];
-            }
-          }),
-        ),
-        Promise.all(
-          groupList.map(async grp => {
-            try {
-              const res = await groupService.getGroupDeposits(grp.id, {
-                limit: 50,
-              });
-              const list: GroupDeposit[] =
-                res?.deposits ||
-                res?.data?.deposits ||
-                (Array.isArray(res?.data)
-                  ? res.data
-                  : Array.isArray(res)
-                  ? res
-                  : []);
-              return list.map(d => ({
-                ...d,
-                groupId: d.groupId || grp.id,
-              }));
-            } catch {
-              return [];
-            }
-          }),
-        ),
+      // 1. Fetch all groups and overall deposits in parallel
+      const [groupsRes, allDepositsRes] = await Promise.allSettled([
+        groupService.getGroups({ limit: 100 }),
+        groupService.getGroupDeposits(undefined, { limit: 100 }),
       ]);
 
-      const combinedServer = expenseResults.flat();
-      const combinedDeposits = depositResults.flat();
-      setGroupDeposits(combinedDeposits);
-      localGroupService
-        .setStoredGroupDeposits(combinedDeposits)
-        .catch(() => {});
+      let groupList: Group[] = [];
+      if (groupsRes.status === 'fulfilled') {
+        const response = groupsRes.value;
+        groupList =
+          response?.groups ||
+          response?.data?.groups ||
+          (Array.isArray(response) ? response : []);
+        if (groupList.length > 0) {
+          setGroups(groupList);
+          localGroupService.setStoredGroups(groupList).catch(() => {});
+        }
+      }
 
+      let allDeposits: GroupDeposit[] = [];
+      if (allDepositsRes.status === 'fulfilled') {
+        const dVal = allDepositsRes.value;
+        allDeposits =
+          dVal?.deposits ||
+          dVal?.data?.deposits ||
+          (Array.isArray(dVal?.data) ? dVal.data : Array.isArray(dVal) ? dVal : []);
+      }
+
+      // 2. Fetch individual group expenses & deposits in parallel
+      const expenseResults = await Promise.all(
+        groupList.map(async grp => {
+          try {
+            const res = await groupService.getGroupExpenses(grp.id, {
+              limit: 100,
+            });
+            const list: GroupExpense[] =
+              res?.history ||
+              res?.data?.history ||
+              res?.expenses ||
+              res?.data?.expenses ||
+              (Array.isArray(res?.data)
+                ? res.data
+                : Array.isArray(res)
+                ? res
+                : []);
+            return list.map(e => ({
+              ...e,
+              groupId: e.groupId || grp.id,
+              groupName: grp.name,
+              groupType: grp.type,
+            }));
+          } catch {
+            const localList = await localGroupService.getStoredGroupExpenses(grp.id);
+            return (localList || []).map(e => ({
+              ...e,
+              groupId: e.groupId || grp.id,
+              groupName: grp.name,
+              groupType: grp.type,
+            }));
+          }
+        }),
+      );
+
+      const groupSpecificDeposits = await Promise.all(
+        groupList.map(async grp => {
+          try {
+            const res = await groupService.getGroupDeposits(grp.id, {
+              limit: 100,
+            });
+            const list: GroupDeposit[] =
+              res?.deposits ||
+              res?.data?.deposits ||
+              (Array.isArray(res?.data)
+                ? res.data
+                : Array.isArray(res)
+                ? res
+                : []);
+            return list.map(d => ({
+              ...d,
+              groupId: d.groupId || grp.id,
+            }));
+          } catch {
+            const localDeps = await localGroupService.getStoredGroupDeposits(grp.id);
+            return (localDeps || []).map(d => ({
+              ...d,
+              groupId: d.groupId || grp.id,
+            }));
+          }
+        }),
+      );
+
+      // Merge and deduplicate all deposits
+      const depositMap = new Map<string, GroupDeposit>();
+      allDeposits.forEach(d => {
+        const k = d.id || (d as any).localId || `${d.groupId}_${d.userId}_${d.amount}`;
+        if (k) depositMap.set(k, d);
+      });
+      groupSpecificDeposits.flat().forEach(d => {
+        const k = d.id || (d as any).localId || `${d.groupId}_${d.userId}_${d.amount}`;
+        if (k) depositMap.set(k, d);
+      });
+      const combinedDeposits = Array.from(depositMap.values());
+      setGroupDeposits(combinedDeposits);
+      localGroupService.setStoredGroupDeposits(combinedDeposits).catch(() => {});
+
+      // Merge and deduplicate expenses
+      const combinedServer = expenseResults.flat();
       const localGroupExpenses: any[] = (expenses || [])
         .filter(e => e.type === 'GROUP')
         .map(e => {
@@ -263,15 +300,15 @@ export const TransactionsScreen: React.FC<TransactionsScreenProps> = ({
           };
         });
 
-      const map = new Map<string, any>();
+      const expMap = new Map<string, any>();
       localGroupExpenses.forEach(item => {
-        if (item.id) map.set(item.id, item);
+        if (item.id) expMap.set(item.id, item);
       });
       combinedServer.forEach(item => {
-        if (item.id) map.set(item.id, item);
+        if (item.id) expMap.set(item.id, item);
       });
 
-      const combined = Array.from(map.values());
+      const combined = Array.from(expMap.values());
       combined.sort((a, b) => {
         const dateA = new Date(a.expenseDate || a.createdAt || 0).getTime();
         const dateB = new Date(b.expenseDate || b.createdAt || 0).getTime();
@@ -289,8 +326,6 @@ export const TransactionsScreen: React.FC<TransactionsScreenProps> = ({
     expenses,
     userId,
     user,
-    groups.length,
-    groupExpenses.length,
   ]);
 
   useEffect(() => {
@@ -538,70 +573,63 @@ export const TransactionsScreen: React.FC<TransactionsScreenProps> = ({
     let thisMonthTotal = 0;
     let todayTotal = 0;
 
-    const targetGroups =
+    const targetExpenses =
       selectedGroupId === 'ALL'
-        ? groups
-        : groups.filter(g => g.id === selectedGroupId);
+        ? groupExpenses
+        : groupExpenses.filter(
+            e =>
+              (e as any).groupId === selectedGroupId ||
+              (e as any).group?.id === selectedGroupId,
+          );
 
-    let totalAllTimeDeposits = 0;
-    let totalAllTimeExpenses = 0;
-    let totalMyDeposits = 0;
+    const targetDeposits =
+      selectedGroupId === 'ALL'
+        ? groupDeposits.filter(d => d.status !== 'CANCELLED')
+        : groupDeposits.filter(
+            d =>
+              ((d as any).groupId === selectedGroupId ||
+                (d as any).group?.id === selectedGroupId) &&
+              d.status !== 'CANCELLED',
+          );
+
+    const totalAllTimeExpenses = targetExpenses.reduce(
+      (sum, e) => sum + (Number(e.amount) || 0),
+      0,
+    );
+    const totalAllTimeDeposits = targetDeposits.reduce(
+      (sum, d) => sum + (Number(d.amount) || 0),
+      0,
+    );
+
+    // Strictly the user's deposits into the group fund
+    const totalMyDeposits = targetDeposits
+      .filter(d => d.userId === userId || (d.user as any)?.id === userId)
+      .reduce((sum, d) => sum + (Number(d.amount) || 0), 0);
+
+    // User's fair share from target expenses
     let totalMyShare = 0;
-
-    targetGroups.forEach(grp => {
-      const grpExpenses = groupExpenses.filter(
-        e => (e as any).groupId === grp.id || (e as any).group?.id === grp.id,
-      );
-      const grpDeposits = groupDeposits.filter(
-        d => (d as any).groupId === grp.id || (d as any).group?.id === grp.id,
-      );
-
-      const grpTotalExp = grpExpenses.reduce(
-        (sum, e) => sum + (Number(e.amount) || 0),
-        0,
-      );
-      const grpTotalDep = grpDeposits
-        .filter(d => d.status !== 'CANCELLED')
-        .reduce((sum, d) => sum + (Number(d.amount) || 0), 0);
-
-      totalAllTimeExpenses += grpTotalExp;
-      totalAllTimeDeposits += grpTotalDep;
-
-      // Strictly the user's deposits into the group fund
-      const myDep = grpDeposits
-        .filter(
-          d =>
-            (d.userId === userId || d.user?.id === userId) &&
-            d.status !== 'CANCELLED',
-        )
-        .reduce((sum, d) => sum + (Number(d.amount) || 0), 0);
-      totalMyDeposits += myDep;
-
-      // User's fair share from this group's expenses
-      let grpMyShare = 0;
-      grpExpenses.forEach(e => {
-        if (e.participants && e.participants.length > 0) {
-          const p = e.participants.find(
-            (part: any) => part.userId === userId || part.user?.id === userId,
-          );
-          if (p) {
-            grpMyShare +=
-              Number(p.shareAmount) ||
-              (Number(e.amount) || 0) / e.participants.length;
-          }
-        } else {
-          const memberCount = Math.max(
-            grp.members?.length || 0,
-            grp._count?.members || 0,
-            1,
-          );
-          grpMyShare += (Number(e.amount) || 0) / memberCount;
+    targetExpenses.forEach(e => {
+      if (e.participants && e.participants.length > 0) {
+        const p = e.participants.find(
+          (part: any) => part.userId === userId || part.user?.id === userId,
+        );
+        if (p) {
+          totalMyShare +=
+            Number(p.shareAmount) ||
+            (Number(e.amount) || 0) / e.participants.length;
         }
-      });
-      totalMyShare += grpMyShare;
+      } else {
+        const grp = groups.find(g => g.id === (e as any).groupId);
+        const memberCount = Math.max(
+          grp?.members?.length || 0,
+          (grp as any)?._count?.members || 0,
+          1,
+        );
+        totalMyShare += (Number(e.amount) || 0) / memberCount;
+      }
     });
 
-    groupExpenses.forEach(g => {
+    targetExpenses.forEach(g => {
       const amt = Number(g.amount) || 0;
       const expDate = (g.expenseDate || (g as any).createdAt || '').slice(
         0,
@@ -667,6 +695,10 @@ export const TransactionsScreen: React.FC<TransactionsScreenProps> = ({
           : item.createdAt?.slice(0, 10) || '';
 
         const key = item.id || (item as any).localId || `gt_${idx}`;
+        const recorderName = isYou
+          ? 'You'
+          : item.user?.name || (item.user?.username ? `@${item.user.username}` : 'Member');
+
         if (!map.has(key)) {
           map.set(key, {
             id: key,
@@ -678,9 +710,7 @@ export const TransactionsScreen: React.FC<TransactionsScreenProps> = ({
             emoji: grpEmoji,
             groupName: groupName || null,
             groupId: item.groupId,
-            paidByName: isYou
-              ? 'You'
-              : item.user?.name || item.user?.username || 'Member',
+            paidByName: `Group Fund (${recorderName})`,
             participantCount: item.participants?.length || 1,
             localId: (item as any).localId,
             isYou,
@@ -1225,17 +1255,7 @@ export const TransactionsScreen: React.FC<TransactionsScreenProps> = ({
             }`}
             metrics={[
               {
-                label: '💳 You Paid',
-                value: `+৳${groupSummary.youPaid.toLocaleString('en-US')}`,
-                valueColor: 'text-emerald-400',
-              },
-              {
-                label: '📋 Items',
-                value: `${groupSummary.count} items`,
-                valueColor: 'text-slate-100',
-              },
-              {
-                label: '⚖️ Fund Balance',
+                label: '💰 Fund Balance',
                 value: `${
                   groupStats.groupFundBalance >= 0 ? '+' : '-'
                 }৳${Math.abs(groupStats.groupFundBalance).toLocaleString(
@@ -1243,6 +1263,21 @@ export const TransactionsScreen: React.FC<TransactionsScreenProps> = ({
                 )}`,
                 valueColor:
                   groupStats.groupFundBalance >= 0
+                    ? 'text-emerald-400'
+                    : 'text-rose-400',
+              },
+              {
+                label: '💳 Your Deposit',
+                value: `৳${groupStats.youPaid.toLocaleString('en-US')}`,
+                valueColor: 'text-slate-100',
+              },
+              {
+                label: '⚖️ Your Balance',
+                value: `${
+                  groupStats.netBalance >= 0 ? '+' : '-'
+                }৳${Math.abs(groupStats.netBalance).toLocaleString('en-US')}`,
+                valueColor:
+                  groupStats.netBalance >= 0
                     ? 'text-emerald-400'
                     : 'text-rose-400',
               },

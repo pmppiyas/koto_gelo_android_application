@@ -137,6 +137,15 @@ class AppDatabase {
       // Deduplicate any existing duplicate rows from previous versions
       try {
         await this.adapter.execAsync(`
+          DELETE FROM personal_expenses
+          WHERE serverId IS NOT NULL
+          AND localId NOT IN (
+            SELECT MAX(localId)
+            FROM personal_expenses
+            WHERE serverId IS NOT NULL
+            GROUP BY serverId
+          );
+
           DELETE FROM group_deposits
           WHERE serverId IS NOT NULL
           AND localId NOT IN (

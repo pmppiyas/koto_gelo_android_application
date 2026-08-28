@@ -395,11 +395,18 @@ export const groupService = {
     }
   },
 
-  async getGroupBalance(groupId: string): Promise<GroupBalance> {
+  async getGroupBalance(groupId: string, userId?: string): Promise<GroupBalance> {
     try {
       return await apiRequest(`${API_ENDPOINTS.GROUP.EXPENSES}/${groupId}/balance`);
     } catch {
-      return await localGroupService.calculateOfflineGroupBalance(groupId);
+      let currentUserId = userId;
+      if (!currentUserId) {
+        try {
+          const raw = await storage.getItem(STORAGE_KEYS.USER);
+          if (raw) currentUserId = JSON.parse(raw)?.id;
+        } catch {}
+      }
+      return await localGroupService.calculateOfflineGroupBalance(groupId, currentUserId);
     }
   },
 
@@ -519,12 +526,12 @@ export const groupService = {
       let url = API_ENDPOINTS.GROUP.DEPOSITS;
       const params = new URLSearchParams();
       if (groupId && groupId !== 'ALL') {
-        params.append('groupId', groupId);
+        params.set('groupId', groupId);
       }
       if (query) {
         Object.entries(query).forEach(([k, v]) => {
           if (v !== undefined && v !== null && v !== '') {
-            params.append(k, String(v));
+            params.set(k, String(v));
           }
         });
       }
@@ -535,7 +542,7 @@ export const groupService = {
         remote?.data?.deposits ||
         remote?.deposits ||
         (Array.isArray(remote?.data) ? remote.data : Array.isArray(remote) ? remote : []);
-      if (Array.isArray(deps) && deps.length > 0) {
+      if (Array.isArray(deps)) {
         await localGroupService.setStoredGroupDeposits(deps);
       }
       return { deposits: deps, data: { deposits: deps }, ...remote };

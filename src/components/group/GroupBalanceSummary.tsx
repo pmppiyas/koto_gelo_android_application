@@ -254,7 +254,7 @@ export const GroupBalanceSummary: React.FC<GroupBalanceSummaryProps> = ({
 
               return (
                 <View
-                  key={item.userId || idx}
+                  key={`${item.userId || 'mb'}_${idx}`}
                   className="flex-row items-center justify-between bg-muted/40 p-3.5 rounded-2xl border border-border/60"
                 >
                   <View className="flex-row items-center gap-3 flex-1 pr-2">

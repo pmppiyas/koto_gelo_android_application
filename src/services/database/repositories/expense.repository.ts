@@ -8,27 +8,42 @@ class ExpenseRepository {
       'SELECT * FROM personal_expenses ORDER BY date DESC, createdAt DESC'
     );
 
-    return rows.map((r) => ({
-      localId: r.localId,
-      serverId: r.serverId || null,
-      amount: Number(r.amount),
-      category: r.category,
-      subcategory: r.subcategory || null,
-      title: r.title || null,
-      note: r.note || null,
-      date: r.date,
-      syncStatus: r.syncStatus as any,
-      type: 'PERSONAL',
-      createdAt: r.createdAt,
-      updatedAt: r.updatedAt,
-    }));
+    // Strict deduplication by serverId and localId
+    const seenServerIds = new Set<string>();
+    const seenLocalIds = new Set<string>();
+    const result: LocalExpense[] = [];
+
+    for (const r of rows) {
+      if (r.serverId && seenServerIds.has(r.serverId)) continue;
+      if (seenLocalIds.has(r.localId)) continue;
+
+      if (r.serverId) seenServerIds.add(r.serverId);
+      seenLocalIds.add(r.localId);
+
+      result.push({
+        localId: r.localId,
+        serverId: r.serverId || null,
+        amount: Number(r.amount),
+        category: r.category,
+        subcategory: r.subcategory || null,
+        title: r.title || null,
+        note: r.note || null,
+        date: r.date,
+        syncStatus: r.syncStatus as any,
+        type: 'PERSONAL',
+        createdAt: r.createdAt,
+        updatedAt: r.updatedAt,
+      });
+    }
+
+    return result;
   }
 
-  async getById(localId: string): Promise<LocalExpense | null> {
+  async getById(localIdOrServerId: string): Promise<LocalExpense | null> {
     await database.init();
     const row = await database.db.getFirstAsync<any>(
-      'SELECT * FROM personal_expenses WHERE localId = ?',
-      [localId]
+      'SELECT * FROM personal_expenses WHERE localId = ? OR serverId = ?',
+      [localIdOrServerId, localIdOrServerId]
     );
 
     if (!row) return null;
@@ -51,13 +66,38 @@ class ExpenseRepository {
 
   async save(expense: LocalExpense): Promise<void> {
     await database.init();
+    const serverId = expense.serverId || null;
+    let localId = expense.localId;
+
+    if (!localId && serverId) {
+      const existing = await database.db.getFirstAsync<any>(
+        'SELECT localId FROM personal_expenses WHERE serverId = ?',
+        [serverId]
+      );
+      if (existing?.localId) {
+        localId = existing.localId;
+      }
+    }
+
+    if (!localId) {
+      localId = `loc_${Date.now()}_${Math.random().toString(36).substr(2, 8)}`;
+    }
+
+    // Clean up any stale rows with the same serverId but different localId
+    if (serverId) {
+      await database.db.runAsync(
+        'DELETE FROM personal_expenses WHERE localId != ? AND serverId = ?',
+        [localId, serverId]
+      );
+    }
+
     await database.db.runAsync(
       `INSERT OR REPLACE INTO personal_expenses (
         localId, serverId, amount, category, subcategory, title, note, date, syncStatus, createdAt, updatedAt
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
-        expense.localId || `loc_${Date.now()}_${Math.random().toString(36).substr(2, 8)}`,
-        expense.serverId || null,
+        localId,
+        serverId,
         Number(expense.amount || 0),
         expense.category || 'General',
         expense.subcategory || null,
@@ -73,9 +113,34 @@ class ExpenseRepository {
 
   async saveAll(expenses: LocalExpense[]): Promise<void> {
     await database.init();
-    for (const exp of expenses) {
+    const seen = new Set<string>();
+    const deduped = expenses.filter(e => {
+      const key = e.serverId || e.localId;
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+
+    for (const exp of deduped) {
       await this.save(exp);
     }
+    await this.deduplicate();
+  }
+
+  async deduplicate(): Promise<void> {
+    await database.init();
+    try {
+      await database.db.runAsync(`
+        DELETE FROM personal_expenses
+        WHERE serverId IS NOT NULL
+        AND localId NOT IN (
+          SELECT MAX(localId)
+          FROM personal_expenses
+          WHERE serverId IS NOT NULL
+          GROUP BY serverId
+        )
+      `);
+    } catch {}
   }
 
   async update(localId: string, updates: Partial<LocalExpense>): Promise<void> {
@@ -92,15 +157,35 @@ class ExpenseRepository {
     await this.save(merged);
   }
 
-  async delete(localId: string): Promise<void> {
+  async delete(localIdOrServerId: string): Promise<void> {
     await database.init();
-    await database.db.runAsync('DELETE FROM personal_expenses WHERE localId = ?', [localId]);
+    await database.db.runAsync(
+      'DELETE FROM personal_expenses WHERE localId = ? OR serverId = ?',
+      [localIdOrServerId, localIdOrServerId]
+    );
   }
 
   async getPending(): Promise<LocalExpense[]> {
     await database.init();
-    const all = await this.getAll();
-    return all.filter((e) => e.syncStatus === 'pending' || e.syncStatus === 'failed');
+    const rows = await database.db.getAllAsync<any>(
+      'SELECT * FROM personal_expenses WHERE syncStatus = ? OR syncStatus = ?',
+      ['pending', 'failed']
+    );
+
+    return rows.map((r) => ({
+      localId: r.localId,
+      serverId: r.serverId || null,
+      amount: Number(r.amount),
+      category: r.category,
+      subcategory: r.subcategory || null,
+      title: r.title || null,
+      note: r.note || null,
+      date: r.date,
+      syncStatus: r.syncStatus as any,
+      type: 'PERSONAL',
+      createdAt: r.createdAt,
+      updatedAt: r.updatedAt,
+    }));
   }
 
   async markAsSynced(localId: string, serverId: string): Promise<void> {
@@ -108,6 +193,7 @@ class ExpenseRepository {
       serverId,
       syncStatus: 'synced',
     });
+    await this.deduplicate();
   }
 
   async clear(): Promise<void> {

@@ -15,7 +15,13 @@ class GroupRepository {
     );
 
     const membersByGroup: Record<string, GroupMember[]> = {};
+    const seenMembers = new Set<string>();
+
     members.forEach((m) => {
+      const memberKey = `${m.groupId}_${m.userId}`;
+      if (seenMembers.has(memberKey)) return;
+      seenMembers.add(memberKey);
+
       let parsedUser: any = null;
       if (m.rawJson) {
         try {
@@ -23,7 +29,7 @@ class GroupRepository {
         } catch {}
       }
       const memberObj: GroupMember = {
-        id: m.id,
+        id: m.id || memberKey,
         userId: m.userId,
         role: m.role as any,
         status: m.status as any,
@@ -50,6 +56,18 @@ class GroupRepository {
         } catch {}
       }
 
+      const groupMembers = membersByGroup[r.id] || parsedGroup?.members || [];
+      const uniqueGroupMembers: GroupMember[] = [];
+      const memberIdSet = new Set<string>();
+
+      groupMembers.forEach((gm: any) => {
+        const uId = gm.userId || gm.user?.id || gm.id;
+        if (uId && !memberIdSet.has(uId)) {
+          memberIdSet.add(uId);
+          uniqueGroupMembers.push(gm);
+        }
+      });
+
       return {
         id: r.id,
         name: r.name,
@@ -58,9 +76,9 @@ class GroupRepository {
         status: r.status as any,
         createdById: r.createdById,
         createdBy: parsedGroup?.createdBy,
-        members: membersByGroup[r.id] || parsedGroup?.members || [],
+        members: uniqueGroupMembers,
         _count: {
-          members: (membersByGroup[r.id] || parsedGroup?.members || []).length,
+          members: uniqueGroupMembers.length,
           expenses: parsedGroup?._count?.expenses || 0,
         },
         createdAt: r.createdAt,
@@ -96,14 +114,26 @@ class GroupRepository {
     );
 
     if (group.members && Array.isArray(group.members)) {
+      const savedUserIds = new Set<string>();
       for (const m of group.members) {
         const memberUserId = m.userId || m.user?.id || '';
+        if (!memberUserId || savedUserIds.has(memberUserId)) continue;
+        savedUserIds.add(memberUserId);
+
+        const memberId = m.id || `${group.id}_${memberUserId}`;
+
+        // Clean up duplicate records for this member in this group
+        await database.db.runAsync(
+          'DELETE FROM group_members WHERE groupId = ? AND userId = ? AND id != ?',
+          [group.id, memberUserId, memberId]
+        );
+
         await database.db.runAsync(
           `INSERT OR REPLACE INTO group_members (
             id, groupId, userId, role, status, rawJson, joinedAt
           ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
           [
-            m.id || `m_${group.id}_${memberUserId}`,
+            memberId,
             group.id,
             memberUserId,
             m.role || 'MEMBER',

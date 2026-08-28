@@ -18,6 +18,7 @@ export interface SyncProgressState {
 export type ProgressCallback = (progress: SyncProgressState) => void;
 
 let isSyncing = false;
+const inFlightSyncIds = new Set<string>();
 
 async function syncExpenseToServer(expense: LocalExpense): Promise<any> {
   if (expense.type === 'GROUP' && expense.groupId) {
@@ -65,8 +66,11 @@ export const expenseSyncService = {
 
       // 2. Process pending personal & group expenses
       const pending = await localExpenseService.getPendingExpenses();
+      // Filter out items already in flight
+      const availablePending = pending.filter(e => !inFlightSyncIds.has(e.localId));
 
-      for (const expense of pending) {
+      for (const expense of availablePending) {
+        inFlightSyncIds.add(expense.localId);
         try {
           const result = await syncExpenseToServer(expense);
           const serverId = result?.id || result?.expense?.id || `srv_${Date.now()}`;
@@ -97,6 +101,8 @@ export const expenseSyncService = {
               },
             });
           }
+        } finally {
+          inFlightSyncIds.delete(expense.localId);
         }
       }
 
@@ -127,6 +133,10 @@ export const expenseSyncService = {
     expense: LocalExpense,
     dispatch?: (action: any) => void
   ): Promise<boolean> {
+    if (inFlightSyncIds.has(expense.localId)) {
+      return true; // Already syncing
+    }
+    inFlightSyncIds.add(expense.localId);
     try {
       const result = await syncExpenseToServer(expense);
       const serverId = result?.id || result?.expense?.id || `srv_${Date.now()}`;
@@ -146,6 +156,8 @@ export const expenseSyncService = {
         syncStatus: 'pending',
       });
       return false;
+    } finally {
+      inFlightSyncIds.delete(expense.localId);
     }
   },
 
@@ -286,31 +298,42 @@ export const expenseSyncService = {
       });
 
       if (groupsList.length > 0) {
-        // Run all group expense & deposit network requests concurrently in parallel!
+        // Run all group detail, expense & deposit network requests concurrently in parallel!
         await Promise.allSettled(
           groupsList.map(async (grp) => {
             try {
-              const [expRes, depRes] = await Promise.allSettled([
+              const [expRes, depRes, detailRes] = await Promise.allSettled([
                 groupService.getGroupExpenses(grp.id, { limit: 100 }),
                 groupService.getGroupDeposits(grp.id, { limit: 100 }),
+                groupService.getGroupById(grp.id),
               ]);
 
+              if (detailRes.status === 'fulfilled') {
+                const grpData = (detailRes.value as any)?.data || detailRes.value;
+                if (grpData && grpData.id) {
+                  await localGroupService.saveGroupLocally(grpData, 'synced');
+                }
+              }
+
               if (expRes.status === 'fulfilled') {
+                const val = expRes.value as any;
                 const exps =
-                  (expRes.value as any)?.history ||
-                  (expRes.value as any)?.expenses ||
-                  expRes.value ||
-                  [];
+                  val?.history ||
+                  val?.data?.history ||
+                  val?.expenses ||
+                  val?.data?.expenses ||
+                  (Array.isArray(val?.data) ? val.data : Array.isArray(val) ? val : []);
                 if (Array.isArray(exps) && exps.length > 0) {
                   await localGroupService.setStoredGroupExpenses(exps);
                 }
               }
 
               if (depRes.status === 'fulfilled') {
+                const val = depRes.value as any;
                 const deps =
-                  (depRes.value as any)?.deposits ||
-                  depRes.value ||
-                  [];
+                  val?.deposits ||
+                  val?.data?.deposits ||
+                  (Array.isArray(val?.data) ? val.data : Array.isArray(val) ? val : []);
                 if (Array.isArray(deps) && deps.length > 0) {
                   await localGroupService.setStoredGroupDeposits(deps);
                 }

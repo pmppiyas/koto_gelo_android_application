@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   FlatList,
   RefreshControl,
@@ -7,6 +7,7 @@ import {
 import { Feather } from '@expo/vector-icons';
 import { View, Text, TouchableOpacity, ScrollView } from '../../ui/core';
 import { GroupDeposit, groupService, GroupMember } from '../../../services/groupService';
+import { localGroupService } from '../../../services/localGroupService';
 import { GroupDepositCard } from '../GroupDepositCard';
 import { ConfirmModal } from '../../common/ConfirmModal';
 import { BOTTOM_TAB_HEIGHT, spacing } from '../../../constants/spacing';
@@ -93,15 +94,41 @@ export const DepositsTab: React.FC<DepositsTabProps> = ({
 
   const totalFund = summaryData?.totalGroupDeposit ?? deposits.reduce((sum, d) => sum + Number(d.amount), 0);
 
+  // Robust member deposit calculation fallback
+  const memberSummaries = useMemo(() => {
+    if (summaryData?.memberSummaries && summaryData.memberSummaries.length > 0) {
+      return summaryData.memberSummaries;
+    }
+    const map = new Map<string, { user: any; totalDeposited: number }>();
+    (members || []).forEach(m => {
+      const u = m.user || (m as any);
+      const uId = u?.id || m.userId;
+      if (uId) {
+        map.set(uId, { user: u, totalDeposited: 0 });
+      }
+    });
+    deposits.forEach(d => {
+      const uId = d.userId || (d.user as any)?.id;
+      if (uId) {
+        if (!map.has(uId)) {
+          map.set(uId, { user: d.user, totalDeposited: 0 });
+        }
+        map.get(uId)!.totalDeposited += Number(d.amount) || 0;
+      }
+    });
+    return Array.from(map.values()).filter(m => m.totalDeposited > 0);
+  }, [summaryData, members, deposits]);
+
   return (
     <View className="flex-1">
       <FlatList
         data={deposits}
-        keyExtractor={(item) => item.id}
+        keyExtractor={(item, index) => item.id || item.serverId || item.localId || `dep_${index}`}
         renderItem={({ item }) => (
           <GroupDepositCard
             deposit={item}
             currentUserId={currentUserId}
+            members={members}
             onDelete={(id) => setDeleteTargetId(id)}
           />
         )}
@@ -139,25 +166,25 @@ export const DepositsTab: React.FC<DepositsTabProps> = ({
                 </TouchableOpacity>
               </View>
 
-              {summaryData?.memberSummaries && summaryData.memberSummaries.length > 0 && (
+              {memberSummaries.length > 0 && (
                 <View className="mt-3.5 pt-3 border-t border-border">
                   <Text className="text-[10px] font-bold text-muted-foreground tracking-wider mb-2">
-                    MEMBER DEPOSITS
+                    MEMBER DEPOSITS BREAKDOWN
                   </Text>
                   <ScrollView
                     horizontal
                     showsHorizontalScrollIndicator={false}
                     contentContainerClassName="gap-2 py-0.5"
                   >
-                    {summaryData.memberSummaries.map((m: any, idx: number) => {
-                      const name = m.user?.username ? `@${m.user.username}` : m.user?.name || 'User';
+                    {memberSummaries.map((m: any, idx: number) => {
+                      const name = m.user?.name || (m.user?.username ? `@${m.user.username}` : 'Member');
                       return (
                         <View key={idx} className="bg-background border border-border py-1.5 px-3 rounded-xl">
                           <Text className="text-[10px] font-semibold text-muted-foreground" numberOfLines={1}>
                             {name}
                           </Text>
                           <Text className="text-xs font-extrabold text-emerald-600">
-                            ৳{Number(m.totalDeposited).toLocaleString()}
+                            +৳{Number(m.totalDeposited).toLocaleString()}
                           </Text>
                         </View>
                       );

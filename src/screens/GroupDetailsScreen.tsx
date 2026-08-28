@@ -80,7 +80,7 @@ export const GroupDetailsScreen: React.FC<GroupDetailsScreenProps> = ({
     try {
       const [groupRes, balRes, expRes, setRes] = await Promise.allSettled([
         groupService.getGroupById(groupId),
-        groupService.getGroupBalance(groupId),
+        groupService.getGroupBalance(groupId, userId),
         groupService.getGroupExpenses(groupId, { limit: 50 }),
         groupService.getSettlementPlan(groupId),
       ]);
@@ -101,6 +101,18 @@ export const GroupDetailsScreen: React.FC<GroupDetailsScreenProps> = ({
     } catch {} finally {
       setIsLoading(false);
       setIsRefreshing(false);
+    }
+  }, [groupId]);
+
+  // 0ms instant offline load from SQLite
+  useEffect(() => {
+    if (groupId) {
+      localGroupService.getStoredGroupById(groupId).then((cached) => {
+        if (cached) {
+          setGroup(cached);
+          setIsLoading(false);
+        }
+      }).catch(() => {});
     }
   }, [groupId]);
 

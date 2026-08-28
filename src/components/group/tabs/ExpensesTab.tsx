@@ -48,7 +48,7 @@ export const ExpensesTab: React.FC<ExpensesTabProps> = ({
   return (
     <FlatList
       data={expenses}
-      keyExtractor={(item) => item.id}
+      keyExtractor={(item, index) => `${item.id || (item as any).localId || 'exp'}_${index}`}
       contentContainerClassName="px-4 pt-3"
       contentContainerStyle={{ paddingBottom: BOTTOM_TAB_HEIGHT + spacing.sm }}
       showsVerticalScrollIndicator={false}
