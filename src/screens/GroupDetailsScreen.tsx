@@ -102,19 +102,7 @@ export const GroupDetailsScreen: React.FC<GroupDetailsScreenProps> = ({
       setIsLoading(false);
       setIsRefreshing(false);
     }
-  }, [groupId]);
-
-  // 0ms instant offline load from SQLite
-  useEffect(() => {
-    if (groupId) {
-      localGroupService.getStoredGroupById(groupId).then((cached) => {
-        if (cached) {
-          setGroup(cached);
-          setIsLoading(false);
-        }
-      }).catch(() => {});
-    }
-  }, [groupId]);
+  }, [groupId, userId]);
 
   useEffect(() => {
     fetchAllData();

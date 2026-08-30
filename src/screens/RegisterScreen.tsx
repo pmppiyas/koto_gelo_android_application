@@ -12,8 +12,7 @@ import {
   Button,
 } from '../components/ui';
 import { Logo } from '../components/common/Logo';
-import { SyncProgressModal } from '../components/common/SyncProgressModal';
-import { SyncProgressState } from '../services/expenseSyncService';
+import { SuccessModal } from '../components/common/SuccessModal';
 import { useAuth } from '../store/hooks';
 import {
   isValidUsername,
@@ -39,7 +38,7 @@ export const RegisterScreen: React.FC<RegisterScreenProps> = ({
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [validationError, setValidationError] = useState('');
-  const [syncProgress, setSyncProgress] = useState<SyncProgressState | null>(null);
+  const [showSuccess, setShowSuccess] = useState(false);
 
   const handleRegister = async () => {
     setValidationError('');
@@ -61,47 +60,20 @@ export const RegisterScreen: React.FC<RegisterScreenProps> = ({
     }
 
     try {
-      setSyncProgress({
-        currentStep: 1,
-        totalSteps: 5,
-        stepName: 'Account Authenticated',
-        detail: 'Creating your account securely...',
-        percentage: 15,
+      await signup({
+        username,
+        password,
+        name: name.trim() || undefined,
+        phone: phone.trim() || undefined,
       });
-      await signup(
-        {
-          username,
-          password,
-          name: name.trim() || undefined,
-          phone: phone.trim() || undefined,
-        },
-        progress => {
-          setSyncProgress(progress);
-        }
-      );
-      setSyncProgress({
-        currentStep: 5,
-        totalSteps: 5,
-        stepName: 'Workspace Ready',
-        detail: 'All done! Launching your dashboard...',
-        percentage: 100,
-      });
-      await new Promise(r => setTimeout(r, 650));
-      onRegisterSuccess?.();
-    } catch (err) {
-      setSyncProgress(null);
-    }
+      setShowSuccess(true);
+    } catch {}
   };
 
   const displayError = validationError || error;
 
   return (
     <SafeAreaView className="flex-1 bg-background relative">
-      <SyncProgressModal
-        visible={isLoading || syncProgress !== null}
-        progress={syncProgress}
-        title="Creating Account & Syncing Workspace"
-      />
 
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -259,6 +231,19 @@ export const RegisterScreen: React.FC<RegisterScreenProps> = ({
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      <SuccessModal
+        visible={showSuccess}
+        title="Account Created!"
+        subtitle={`Welcome to KotoGelo, @${username}`}
+        type="DEFAULT"
+        autoDismissMs={1400}
+        onDismiss={() => {
+          setShowSuccess(false);
+          onRegisterSuccess?.();
+          onNavigateToHome?.();
+        }}
+      />
     </SafeAreaView>
   );
 };

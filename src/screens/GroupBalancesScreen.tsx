@@ -16,7 +16,6 @@ import {
   GroupExpense,
   GroupDeposit,
 } from '../services/groupService';
-import { localGroupService } from '../services/localGroupService';
 import { AddGroupDepositModal } from '../components/group/AddGroupDepositModal';
 import { AddGroupExpenseModal } from '../components/group/AddGroupExpenseModal';
 import { InviteMemberModal } from '../components/group/InviteMemberModal';
@@ -62,6 +61,7 @@ export interface GroupBalancesScreenProps {
   onNavigateToPersonalExpenses?: () => void;
   onNavigateToTransactions?: () => void;
   onNavigateToGroups?: () => void;
+  onNavigateToAddExpense?: (type?: 'PERSONAL' | 'GROUP', groupId?: string) => void;
 }
 
 type PeriodType = 'WEEK' | 'MONTH' | 'YEAR';
@@ -82,22 +82,24 @@ const MONTH_NAMES = [
   'December',
 ];
 
-const parseExpenseDate = (dateVal?: any): Date | null => {
+const parseDateSafely = (dateVal: any): Date | null => {
   if (!dateVal) return null;
-  if (typeof dateVal === 'string' && dateVal.includes('-')) {
-    const parts = dateVal.slice(0, 10).split('-');
-    if (parts.length === 3) {
-      const y = parseInt(parts[0], 10);
-      const m = parseInt(parts[1], 10) - 1;
-      const d = parseInt(parts[2], 10);
-      if (!isNaN(y) && !isNaN(m) && !isNaN(d)) {
-        return new Date(y, m, d);
-      }
+  if (dateVal instanceof Date) {
+    return isNaN(dateVal.getTime()) ? null : dateVal;
+  }
+  if (typeof dateVal === 'string') {
+    const cleanStr = dateVal.trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(cleanStr)) {
+      const parts = cleanStr.split('-').map(Number);
+      const d = new Date(parts[0], parts[1] - 1, parts[2]);
+      return isNaN(d.getTime()) ? null : d;
     }
   }
   const parsed = new Date(dateVal);
   return isNaN(parsed.getTime()) ? null : parsed;
 };
+
+const parseExpenseDate = parseDateSafely;
 
 export const GroupBalancesScreen: React.FC<GroupBalancesScreenProps> = ({
   groupId: propGroupId,
@@ -108,6 +110,7 @@ export const GroupBalancesScreen: React.FC<GroupBalancesScreenProps> = ({
   onNavigateToPersonalExpenses,
   onNavigateToTransactions,
   onNavigateToGroups,
+  onNavigateToAddExpense,
 }) => {
   const { user, isAuthenticated } = useAuth();
   const userId = user?.id || '';
@@ -129,6 +132,7 @@ export const GroupBalancesScreen: React.FC<GroupBalancesScreenProps> = ({
   const [activeTab, setActiveTab] = useState<GroupTabType>('EXPENSES');
   const [periodType, setPeriodType] = useState<PeriodType>('MONTH');
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const [newlyAddedDepositId, setNewlyAddedDepositId] = useState<string | null>(null);
 
   useEffect(() => {
     if (propGroupId && propGroupId !== selectedGroupId) {
@@ -136,40 +140,7 @@ export const GroupBalancesScreen: React.FC<GroupBalancesScreenProps> = ({
     }
   }, [propGroupId]);
 
-  // Instant 0ms offline cache load
-  useEffect(() => {
-    let isMounted = true;
-    const loadOfflineData = async () => {
-      try {
-        const cachedGroups = await localGroupService.getStoredGroups();
-        if (!isMounted) return;
-        if (cachedGroups && cachedGroups.length > 0) {
-          setGroups(cachedGroups);
-          const targetId = selectedGroupId || cachedGroups[0].id;
-          if (targetId) {
-            setSelectedGroupId(targetId);
-            const [cachedGrp, cachedExp, cachedDep] = await Promise.all([
-              localGroupService.getStoredGroupById(targetId),
-              localGroupService.getStoredGroupExpenses(targetId),
-              localGroupService.getStoredGroupDeposits(targetId),
-            ]);
-            if (isMounted) {
-              if (cachedGrp) setGroupDetails(cachedGrp);
-              if (cachedExp && cachedExp.length > 0)
-                setGroupExpenses(cachedExp as any);
-              if (cachedDep && cachedDep.length > 0)
-                setGroupDeposits(cachedDep as any);
-              setIsLoading(false);
-            }
-          }
-        }
-      } catch {}
-    };
-    loadOfflineData();
-    return () => {
-      isMounted = false;
-    };
-  }, [selectedGroupId]);
+
 
   const categoryMap = useMemo(() => {
     const map: Record<
@@ -224,7 +195,6 @@ export const GroupBalancesScreen: React.FC<GroupBalancesScreenProps> = ({
         const list: Group[] = response?.groups || response?.data?.groups || [];
         if (list.length > 0) {
           setGroups(list);
-          localGroupService.setStoredGroups(list).catch(() => {});
         }
 
         const targetId = selectedGroupId || (list.length > 0 ? list[0].id : '');
@@ -240,44 +210,26 @@ export const GroupBalancesScreen: React.FC<GroupBalancesScreenProps> = ({
           if (grpRes.status === 'fulfilled') {
             const grpData = (grpRes.value as any)?.data || grpRes.value;
             setGroupDetails(grpData);
-            if (grpData)
-              localGroupService
-                .saveGroupLocally(grpData, 'synced')
-                .catch(() => {});
           }
           if (expRes.status === 'fulfilled') {
             const expVal = expRes.value as any;
             const expList =
-              expVal?.data?.history ||
-              expVal?.data?.expenses ||
+              (Array.isArray(expVal) ? expVal : null) ||
               expVal?.history ||
               expVal?.expenses ||
-              (Array.isArray(expVal?.data)
-                ? expVal.data
-                : Array.isArray(expVal)
-                ? expVal
-                : []);
-            if (Array.isArray(expList) && expList.length > 0) {
-              setGroupExpenses(expList);
-              localGroupService.setStoredGroupExpenses(expList).catch(() => {});
-            }
+              expVal?.data?.history ||
+              expVal?.data?.expenses ||
+              (Array.isArray(expVal?.data) ? expVal.data : []);
+            setGroupExpenses(Array.isArray(expList) ? expList : []);
           }
           if (depRes.status === 'fulfilled') {
             const depVal = depRes.value as any;
             const depList =
-              depVal?.data?.deposits ||
+              (Array.isArray(depVal) ? depVal : null) ||
               depVal?.deposits ||
-              (Array.isArray(depVal?.data)
-                ? depVal.data
-                : Array.isArray(depVal)
-                ? depVal
-                : []);
-            if (Array.isArray(depList)) {
-              setGroupDeposits(depList);
-              if (depList.length > 0) {
-                localGroupService.setStoredGroupDeposits(depList).catch(() => {});
-              }
-            }
+              depVal?.data?.deposits ||
+              (Array.isArray(depVal?.data) ? depVal.data : []);
+            setGroupDeposits(Array.isArray(depList) ? depList : []);
           }
           if (balRes.status === 'fulfilled') {
             const val = balRes.value;
@@ -291,7 +243,7 @@ export const GroupBalancesScreen: React.FC<GroupBalancesScreenProps> = ({
         setIsRefreshing(false);
       }
     },
-    [isAuthenticated, selectedGroupId, groups.length],
+    [isAuthenticated, selectedGroupId, groups.length, user?.id],
   );
 
   useEffect(() => {
@@ -301,18 +253,6 @@ export const GroupBalancesScreen: React.FC<GroupBalancesScreenProps> = ({
   const handleRefresh = async () => {
     await fetchGroupsAndData(true);
   };
-
-  const refreshFromLocalDb = useCallback(async (targetGroupId: string) => {
-    if (!targetGroupId) return;
-    try {
-      const [cachedExp, cachedDep] = await Promise.all([
-        localGroupService.getStoredGroupExpenses(targetGroupId),
-        localGroupService.getStoredGroupDeposits(targetGroupId),
-      ]);
-      if (cachedExp && cachedExp.length > 0) setGroupExpenses(cachedExp as any);
-      if (cachedDep && cachedDep.length > 0) setGroupDeposits(cachedDep as any);
-    } catch {}
-  }, []);
 
   const selectedGroup = useMemo(() => {
     if (groupDetails) return groupDetails;
@@ -402,12 +342,14 @@ export const GroupBalancesScreen: React.FC<GroupBalancesScreenProps> = ({
         const bUserId = b.userId || b.user?.id || b.id;
         if (!bUserId) return;
         const existing = memberMap.get(bUserId);
-        const depAmt = Number(b.totalDeposited ?? b.paid ?? 0);
-        const shareAmt = Number(b.totalShare ?? b.owes ?? 0);
-        const netAmt = Number(b.netBalance ?? b.net ?? (depAmt - shareAmt));
+        const depAmt = Number(b.totalDeposited ?? 0);
+        const paidAmt = Number(b.totalPaid ?? 0);
+        const shareAmt = Number(b.totalShare ?? 0);
+        const netAmt = Number(b.netBalance ?? ((depAmt + paidAmt) - shareAmt));
 
         if (existing) {
           existing.totalDeposited = depAmt;
+          existing.totalPaid = paidAmt;
           existing.totalShare = shareAmt;
           existing.netBalance = netAmt;
           if (b.user) existing.user = b.user;
@@ -420,7 +362,7 @@ export const GroupBalancesScreen: React.FC<GroupBalancesScreenProps> = ({
             name: b.name || b.user?.name || b.username || 'Member',
             user: b.user || { id: bUserId, username: b.username },
             totalDeposited: depAmt,
-            totalPaid: Number(b.totalPaid || 0),
+            totalPaid: paidAmt,
             totalShare: shareAmt,
             netBalance: netAmt,
           });
@@ -445,39 +387,36 @@ export const GroupBalancesScreen: React.FC<GroupBalancesScreenProps> = ({
         }
       });
 
-      const totalMembersCount = Math.max(
-        1,
-        memberMap.size || (members.length > 0 ? members.length : 1),
-      );
-
-      // Offline fallback: Calculate actual share per member from expenses
+      // Sum expenses per member from allExpensesList
       allExpensesList.forEach(exp => {
-        const expAmt = Number(exp.amount) || 0;
-        if (exp.participants && exp.participants.length > 0) {
-          exp.participants.forEach((p: any) => {
-            const pId = p.userId || p.user?.id;
-            if (pId && memberMap.has(pId)) {
-              const memberItem = memberMap.get(pId)!;
-              const share =
-                Number(p.shareAmount) || expAmt / exp.participants.length;
-              memberItem.totalShare = (memberItem.totalShare || 0) + share;
-            }
-          });
-        } else {
-          const equalPart = expAmt / totalMembersCount;
-          memberMap.forEach(item => {
-            item.totalShare = (item.totalShare || 0) + equalPart;
-          });
-        }
+        const payers = exp.payers || (exp.userId ? [{ userId: exp.userId, amount: exp.amount }] : []);
+        payers.forEach((p: any) => {
+          const pId = p.userId || p.id;
+          const item = memberMap.get(pId);
+          if (item) {
+            item.totalPaid = (item.totalPaid || 0) + (Number(p.amount) || 0);
+          }
+        });
+
+        const participants = exp.participants || [];
+        participants.forEach((part: any) => {
+          const partId = part.userId || part.id;
+          const item = memberMap.get(partId);
+          if (item) {
+            item.totalShare = (item.totalShare || 0) + (Number(part.shareAmount) || (Number(exp.amount) / (participants.length || 1)));
+          }
+        });
       });
 
-      // Calculate net balance for each member: totalDeposited - totalShare
+      // Calculate net balance for each member: (totalDeposited + totalPaid) - totalShare
       memberMap.forEach(item => {
         const roundedDeposited = Math.round(item.totalDeposited || 0);
+        const roundedPaid = Math.round(item.totalPaid || 0);
         const roundedShare = Math.round(item.totalShare || 0);
         item.totalDeposited = roundedDeposited;
+        item.totalPaid = roundedPaid;
         item.totalShare = roundedShare;
-        item.netBalance = roundedDeposited - roundedShare;
+        item.netBalance = (roundedDeposited + roundedPaid) - roundedShare;
       });
     }
 
@@ -499,28 +438,118 @@ export const GroupBalancesScreen: React.FC<GroupBalancesScreenProps> = ({
         ? currentUserItem.totalDeposited
         : Math.round(balance?.yourDeposited ?? 0);
 
+    const yourPaid =
+      currentUserItem?.totalPaid !== undefined
+        ? currentUserItem.totalPaid
+        : Math.round((balance as any)?.yourSpending ?? (balance as any)?.yourPaid ?? 0);
+
     const yourShare =
       currentUserItem?.totalShare !== undefined
         ? currentUserItem.totalShare
         : Math.round(balance?.yourShare ?? 0);
 
     const netBalance =
-      balance?.netBalance !== undefined
+      currentUserItem?.netBalance !== undefined
+        ? currentUserItem.netBalance
+        : balance?.netBalance !== undefined
         ? balance.netBalance
-        : yourDeposited - yourShare;
+        : (yourDeposited + yourPaid) - yourShare;
     const isPositiveBalance = netBalance >= 0;
+
+    const groupFundExpenses = allExpensesList
+      .filter(
+        e =>
+          e.paymentSource === 'GROUP_FUND' ||
+          (e as any).paidFrom === 'GROUP_FUND' ||
+          !e.payers ||
+          e.payers.length === 0,
+      )
+      .reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
+
+    const remainingFund =
+      balance?.remainingFund !== undefined
+        ? balance.remainingFund
+        : totalDeposits - groupFundExpenses;
+
+    const mergedContributions: Array<{
+      id: string;
+      userId: string;
+      user?: any;
+      amount: number;
+      date: string;
+      badgeText: string;
+      isPersonalExpense: boolean;
+      title?: string;
+      note?: string;
+      category?: string;
+      method?: string;
+    }> = [];
+
+    // 1. Direct group deposits
+    groupDeposits.forEach((dep, idx) => {
+      mergedContributions.push({
+        id: dep.id || (dep as any).localId || `dep_${idx}`,
+        userId: dep.userId || dep.user?.id || '',
+        user: dep.user,
+        amount: Number(dep.amount) || 0,
+        date: dep.depositDate || dep.createdAt || '',
+        badgeText: dep.method || 'CASH',
+        isPersonalExpense: false,
+        note: dep.note,
+        method: dep.method || 'CASH',
+      });
+    });
+
+    // 2. Personal pocket expenses
+    allExpensesList.forEach(exp => {
+      const isPersonal =
+        exp.paymentSource === 'PERSONAL' ||
+        (exp as any).paidFrom === 'PERSONAL' ||
+        (exp.payers && exp.payers.length > 0);
+
+      if (isPersonal) {
+        const payers =
+          exp.payers && exp.payers.length > 0
+            ? exp.payers
+            : exp.userId
+            ? [{ userId: exp.userId, amount: exp.amount, user: exp.user }]
+            : [];
+
+        payers.forEach((p: any, pIdx: number) => {
+          mergedContributions.push({
+            id: `${exp.id || 'exp'}_p_${pIdx}`,
+            userId: p.userId || p.user?.id || exp.userId || '',
+            user: p.user || exp.user,
+            amount: Number(p.amount) || 0,
+            date: exp.expenseDate || exp.createdAt || '',
+            badgeText: exp.category || 'EXPENSE',
+            isPersonalExpense: true,
+            title: exp.title || exp.subcategory || exp.category,
+            note: exp.note,
+            category: exp.category,
+          });
+        });
+      }
+    });
+
+    mergedContributions.sort(
+      (a, b) =>
+        new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime(),
+    );
 
     return {
       totalExpenses,
       totalDeposits,
-      remainingFund: totalDeposits - totalExpenses,
+      remainingFund,
       totalMembers: memberBalancesList.length || 1,
       yourDeposited,
+      yourPaid,
       yourShare,
       netBalance,
       isPositiveBalance,
       balances: memberBalancesList,
       allExpensesList,
+      mergedContributions,
     };
   }, [
     balance,
@@ -737,9 +766,9 @@ export const GroupBalancesScreen: React.FC<GroupBalancesScreenProps> = ({
               metrics={[
                 {
                   label: '📥 You Deposited',
-                  value: `+৳${computedMetrics.yourDeposited.toLocaleString(
-                    'en-US',
-                  )}`,
+                  value: `+৳${(
+                    computedMetrics.yourDeposited + computedMetrics.yourPaid
+                  ).toLocaleString('en-US')}`,
                   valueColor: 'text-emerald-400',
                 },
                 {
@@ -896,8 +925,17 @@ export const GroupBalancesScreen: React.FC<GroupBalancesScreenProps> = ({
                     </View>
                   </View>
                   <TouchableOpacity
-                    className="flex-row items-center gap-1 bg-primary px-3 py-1.5 rounded-full shadow-xs"
-                    onPress={() => setIsExpenseModalOpen(true)}
+                    className="flex-row items-center gap-1 bg-primary px-3 py-1.5 rounded-full shadow-xs active:bg-primary-dark"
+                    onPress={() => {
+                      if (onNavigateToAddExpense) {
+                        onNavigateToAddExpense(
+                          'GROUP',
+                          selectedGroupId || propGroupId,
+                        );
+                      } else {
+                        setIsExpenseModalOpen(true);
+                      }
+                    }}
                     activeOpacity={0.8}
                   >
                     <Feather name="plus" size={13} color="#FFFFFF" />
@@ -949,12 +987,35 @@ export const GroupBalancesScreen: React.FC<GroupBalancesScreenProps> = ({
                               </View>
                             )}
                           </View>
-                          <Text className="text-xs text-muted-foreground">
-                            {item.user?.id === userId
-                              ? 'Paid by You'
-                              : `Paid by ${item.user?.name || 'Member'}`}{' '}
-                            • {item.expenseDate?.slice(0, 10)}
-                          </Text>
+                          {(() => {
+                            const isFromGroupFund =
+                              item.paymentSource === 'GROUP_FUND' ||
+                              item.paidFrom === 'GROUP_FUND' ||
+                              (!item.payers || item.payers.length === 0);
+                            const payer =
+                              item.payers && item.payers.length > 0
+                                ? item.payers[0]
+                                : null;
+                            const payerUser = payer?.user || item.user;
+                            const payerId =
+                              payer?.userId || payerUser?.id || item.userId;
+                            const isPayerYou = payerId === userId;
+                            const payerName = isPayerYou
+                              ? 'You'
+                              : payerUser?.username
+                              ? `@${payerUser.username}`
+                              : payerUser?.name || 'Member';
+
+                            const sourceLabel = isFromGroupFund
+                              ? 'Group Fund'
+                              : `Paid by ${payerName}`;
+
+                            return (
+                              <Text className="text-xs text-muted-foreground">
+                                {sourceLabel} • {item.expenseDate?.slice(0, 10)}
+                              </Text>
+                            );
+                          })()}
                         </View>
                       </View>
                       <View className="items-end">
@@ -984,7 +1045,7 @@ export const GroupBalancesScreen: React.FC<GroupBalancesScreenProps> = ({
                     </Text>
                     <View className="bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
                       <Text className="text-[11px] font-bold text-emerald-700">
-                        {groupDeposits.length}
+                        {computedMetrics.mergedContributions.length}
                       </Text>
                     </View>
                   </View>
@@ -1000,7 +1061,7 @@ export const GroupBalancesScreen: React.FC<GroupBalancesScreenProps> = ({
                   </TouchableOpacity>
                 </View>
 
-                {groupDeposits.length === 0 ? (
+                {computedMetrics.mergedContributions.length === 0 ? (
                   <View className="py-8 items-center justify-center">
                     <View className="w-12 h-12 rounded-2xl bg-emerald-50 border border-emerald-100 items-center justify-center mb-2 shadow-xs">
                       <Feather name="download" size={20} color="#059669" />
@@ -1009,7 +1070,7 @@ export const GroupBalancesScreen: React.FC<GroupBalancesScreenProps> = ({
                       No Deposits Recorded
                     </Text>
                     <Text className="text-xs text-muted-foreground text-center mt-0.5 mb-3 max-w-[240px]">
-                      Collect advances from members to track group funds.
+                      Collect advances from members or record personal expenses to track group funds.
                     </Text>
                     <TouchableOpacity
                       onPress={() => setIsDepositModalOpen(true)}
@@ -1023,24 +1084,24 @@ export const GroupBalancesScreen: React.FC<GroupBalancesScreenProps> = ({
                     </TouchableOpacity>
                   </View>
                 ) : (
-                  groupDeposits.map((dep, index) => {
+                  computedMetrics.mergedContributions.map((item, index) => {
                     const isYou =
-                      dep.userId === userId || dep.user?.id === userId;
+                      item.userId === userId || item.user?.id === userId;
                     let memberObj = groupMembers.find(
                       m =>
-                        m.userId === dep.userId ||
-                        m.id === dep.userId ||
-                        (m.user as any)?.id === dep.userId ||
-                        (m as any).id === dep.userId,
+                        m.userId === item.userId ||
+                        m.id === item.userId ||
+                        (m.user as any)?.id === item.userId ||
+                        (m as any).id === item.userId,
                     );
 
                     if (!memberObj && groups && groups.length > 0) {
                       for (const g of groups) {
                         const found = (g.members || []).find(
                           (m: any) =>
-                            m.userId === dep.userId ||
-                            m.user?.id === dep.userId ||
-                            m.id === dep.userId,
+                            m.userId === item.userId ||
+                            m.user?.id === item.userId ||
+                            m.id === item.userId,
                         );
                         if (found) {
                           memberObj = found;
@@ -1053,7 +1114,7 @@ export const GroupBalancesScreen: React.FC<GroupBalancesScreenProps> = ({
 
                     // Extract first valid username (ignoring generic 'Member')
                     const candidateUsernames = [
-                      dep.user?.username,
+                      item.user?.username,
                       memberUser?.username,
                       (memberObj as any)?.username,
                     ].filter(
@@ -1070,7 +1131,7 @@ export const GroupBalancesScreen: React.FC<GroupBalancesScreenProps> = ({
 
                     // Extract first valid name (ignoring generic 'Member')
                     const candidateNames = [
-                      dep.user?.name,
+                      item.user?.name,
                       memberUser?.name,
                       (memberObj as any)?.name,
                     ].filter(
@@ -1102,18 +1163,39 @@ export const GroupBalancesScreen: React.FC<GroupBalancesScreenProps> = ({
                     )
                       .charAt(0)
                       .toUpperCase();
-                    const method = dep.method || 'CASH';
+
+                    const isDepositNewlyAdded =
+                      (!!newlyAddedDepositId &&
+                        (item.id === newlyAddedDepositId ||
+                          (item as any).localId === newlyAddedDepositId)) ||
+                      (!!newlyAddedId &&
+                        (item.id === newlyAddedId ||
+                          (item as any).localId === newlyAddedId));
 
                     return (
                       <View
-                        key={`${
-                          dep.id || (dep as any).localId || 'dep'
-                        }_${index}`}
-                        className="flex-row justify-between items-center py-2.5"
+                        key={`${item.id}_${index}`}
+                        className={`flex-row justify-between items-center py-2.5 ${
+                          index !== computedMetrics.mergedContributions.length - 1
+                            ? 'border-b border-border'
+                            : ''
+                        }`}
                       >
                         <View className="flex-row items-center flex-1 pr-3">
-                          <View className="w-10 h-10 rounded-xl bg-emerald-50 border border-emerald-100 items-center justify-center mr-3 shadow-2xs">
-                            <Text className="text-xs font-black text-emerald-700">
+                          <View
+                            className={`w-10 h-10 rounded-xl items-center justify-center mr-3 shadow-2xs ${
+                              item.isPersonalExpense
+                                ? 'bg-blue-50 border border-blue-100'
+                                : 'bg-emerald-50 border border-emerald-100'
+                            }`}
+                          >
+                            <Text
+                              className={`text-xs font-black ${
+                                item.isPersonalExpense
+                                  ? 'text-blue-700'
+                                  : 'text-emerald-700'
+                              }`}
+                            >
                               {initial}
                             </Text>
                           </View>
@@ -1125,28 +1207,51 @@ export const GroupBalancesScreen: React.FC<GroupBalancesScreenProps> = ({
                               >
                                 {depositorName}
                               </Text>
-                              <View className="bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200">
-                                <Text className="text-[9px] font-bold text-emerald-700">
-                                  {method}
+                              <View
+                                className={`px-1.5 py-0.2 rounded border ${
+                                  item.isPersonalExpense
+                                    ? 'bg-blue-50 border-blue-200'
+                                    : 'bg-emerald-50 border-emerald-200'
+                                }`}
+                              >
+                                <Text
+                                  className={`text-[9px] font-bold ${
+                                    item.isPersonalExpense
+                                      ? 'text-blue-700'
+                                      : 'text-emerald-700'
+                                  }`}
+                                >
+                                  {item.badgeText}
                                 </Text>
                               </View>
+                              {isDepositNewlyAdded && (
+                                <View className="flex-row items-center gap-0.5 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
+                                  <Text className="text-[9px] font-bold text-amber-700">
+                                    NEW
+                                  </Text>
+                                </View>
+                              )}
                             </View>
                             <Text
                               className="text-xs text-muted-foreground"
                               numberOfLines={1}
                             >
-                              {dep.depositDate?.slice(0, 10) ||
-                                dep.createdAt?.slice(0, 10)}
-                              {dep.note ? ` • ${dep.note}` : ''}
+                              {item.isPersonalExpense && item.title
+                                ? `${item.title} • `
+                                : ''}
+                              {item.date?.slice(0, 10)}
+                              {!item.isPersonalExpense && item.note
+                                ? ` • ${item.note}`
+                                : ''}
                             </Text>
                           </View>
                         </View>
                         <View className="items-end">
                           <Text className="text-sm font-black text-emerald-600 mb-0.5">
-                            +৳{Number(dep.amount).toLocaleString('en-US')}
+                            +৳{Number(item.amount).toLocaleString('en-US')}
                           </Text>
                           <Text className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">
-                            Deposit
+                            {item.isPersonalExpense ? 'Expense' : 'Deposit'}
                           </Text>
                         </View>
                       </View>
@@ -1442,9 +1547,9 @@ export const GroupBalancesScreen: React.FC<GroupBalancesScreenProps> = ({
                               className="text-xs text-muted-foreground"
                               numberOfLines={1}
                             >
-                              Dep: ৳{(item.totalDeposited || 0).toLocaleString()}{' '}
-                              • Share: ৳
-                              {Math.round(item.totalShare || 0).toLocaleString()}
+                              {(item.totalDeposited || 0) > 0 ? `Dep: ৳${(item.totalDeposited || 0).toLocaleString()} • ` : ''}
+                              {(item.totalPaid || 0) > 0 ? `Paid: ৳${(item.totalPaid || 0).toLocaleString()} • ` : ''}
+                              Share: ৳{Math.round(item.totalShare || 0).toLocaleString()}
                             </Text>
                           </View>
                         </View>
@@ -1504,9 +1609,14 @@ export const GroupBalancesScreen: React.FC<GroupBalancesScreenProps> = ({
           members={selectedGroup?.members || []}
           currentUserId={userId}
           onClose={() => setIsDepositModalOpen(false)}
-          onSuccess={() => {
+          onSuccess={(depositId) => {
             setIsDepositModalOpen(false);
-            refreshFromLocalDb(selectedGroupId);
+            if (depositId) {
+              setNewlyAddedDepositId(depositId);
+              setTimeout(() => {
+                setNewlyAddedDepositId(null);
+              }, 15000);
+            }
             fetchGroupsAndData(true);
           }}
         />
@@ -1519,7 +1629,6 @@ export const GroupBalancesScreen: React.FC<GroupBalancesScreenProps> = ({
           onClose={() => setIsExpenseModalOpen(false)}
           onSuccess={() => {
             setIsExpenseModalOpen(false);
-            refreshFromLocalDb(selectedGroupId);
             fetchGroupsAndData(true);
           }}
         />
@@ -1532,7 +1641,6 @@ export const GroupBalancesScreen: React.FC<GroupBalancesScreenProps> = ({
           onClose={() => setIsInviteModalOpen(false)}
           onSuccess={() => {
             setIsInviteModalOpen(false);
-            refreshFromLocalDb(selectedGroupId);
             fetchGroupsAndData(true);
           }}
         />

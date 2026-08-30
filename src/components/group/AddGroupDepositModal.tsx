@@ -9,6 +9,7 @@ import {
   Button,
 } from '../ui';
 import { GroupMember, groupService } from '../../services/groupService';
+import { SuccessModal } from '../common/SuccessModal';
 
 export interface AddGroupDepositModalProps {
   visible: boolean;
@@ -16,7 +17,7 @@ export interface AddGroupDepositModalProps {
   members: GroupMember[];
   currentUserId?: string;
   onClose: () => void;
-  onSuccess: () => void;
+  onSuccess: (newDepositId?: string) => void;
 }
 
 const PAYMENT_METHODS = [
@@ -94,6 +95,22 @@ export const AddGroupDepositModal: React.FC<AddGroupDepositModalProps> = ({
   const [note, setNote] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [showSuccess, setShowSuccess] = useState(false);
+  const [successAmount, setSuccessAmount] = useState<number>(0);
+  const [newlyCreatedDepositId, setNewlyCreatedDepositId] = useState<string | null>(null);
+
+  const currentMember = members.find(
+    (m) =>
+      m.userId === currentUserId ||
+      (m.user as any)?.id === currentUserId ||
+      (m as any).id === currentUserId,
+  );
+  const isCurrentUserAdmin =
+    (currentMember?.role === 'OWNER' ||
+      currentMember?.role === 'ADMIN' ||
+      (currentMember as any)?.role === 'OWNER' ||
+      (currentMember as any)?.role === 'ADMIN') ??
+    false;
 
   // Synchronize default selected member when modal opens
   useEffect(() => {
@@ -142,7 +159,7 @@ export const AddGroupDepositModal: React.FC<AddGroupDepositModalProps> = ({
         avatarUrl: (selectedMember as any).avatarUrl || selectedMember.user?.avatarUrl || null,
       } : undefined);
 
-      await groupService.addGroupDeposit({
+      const created = await groupService.addGroupDeposit({
         groupId,
         userId: selectedMemberId,
         amount: numAmount,
@@ -151,16 +168,40 @@ export const AddGroupDepositModal: React.FC<AddGroupDepositModalProps> = ({
         depositDate: new Date().toISOString(),
         user: userObj,
       });
-      setAmount('');
-      setNote('');
-      onSuccess();
-      onClose();
+      if (created && (created.id || (created as any)._id)) {
+        setNewlyCreatedDepositId(created.id || (created as any)._id);
+      }
+      setSuccessAmount(numAmount);
+      setShowSuccess(true);
     } catch (err: any) {
       setErrorMessage(err.message || 'Failed to record deposit');
     } finally {
       setIsSubmitting(false);
     }
   };
+
+  if (showSuccess) {
+    return (
+      <SuccessModal
+        visible={true}
+        title="Deposit Recorded!"
+        subtitle="Added to group fund successfully"
+        amount={successAmount}
+        amountPrefix="+"
+        type="DEPOSIT"
+        autoDismissMs={2500}
+        onDismiss={() => {
+          const createdId = newlyCreatedDepositId;
+          setShowSuccess(false);
+          setNewlyCreatedDepositId(null);
+          setAmount('');
+          setNote('');
+          onSuccess(createdId || undefined);
+          onClose();
+        }}
+      />
+    );
+  }
 
   return (
     <Modal
@@ -212,75 +253,76 @@ export const AddGroupDepositModal: React.FC<AddGroupDepositModalProps> = ({
             ) : null}
 
             <ScrollView showsVerticalScrollIndicator={false} className="my-3">
-              {/* Member Selection */}
-              <Text className="text-[11px] font-extrabold text-muted-foreground uppercase tracking-wider mb-2 mt-1">
-                WHO DEPOSITED? *
-              </Text>
+              {/* Member Selection (Only visible for Admins / Owners) */}
+              {isCurrentUserAdmin && members.length > 0 && (
+                <>
+                  <Text className="text-[11px] font-extrabold text-muted-foreground uppercase tracking-wider mb-2 mt-1">
+                    WHO DEPOSITED? *
+                  </Text>
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerClassName="gap-2 py-1 mb-3"
+                  >
+                    {members.map((m, idx) => {
+                      const mId =
+                        m.userId ||
+                        (m.user as any)?.id ||
+                        (m as any).id ||
+                        `m_${idx}`;
+                      const isSelected = selectedMemberId === mId;
+                      const name =
+                        m.user?.name ||
+                        m.user?.username ||
+                        (m as any).name ||
+                        (m as any).username ||
+                        'Member';
+                      const username =
+                        m.user?.username || (m as any).username;
+                      const initial = (username || name).charAt(0).toUpperCase();
+                      const isYou = currentUserId ? mId === currentUserId : false;
 
-              {members.length > 0 ? (
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  contentContainerClassName="gap-2 py-1 mb-3"
-                >
-                  {members.map((m, idx) => {
-                    const mId = m.userId || (m.user as any)?.id || (m as any).id || `m_${idx}`;
-                    const isSelected = selectedMemberId === mId;
-                    const name =
-                      m.user?.name ||
-                      m.user?.username ||
-                      (m as any).name ||
-                      (m as any).username ||
-                      'Member';
-                    const username = m.user?.username || (m as any).username;
-                    const initial = (username || name).charAt(0).toUpperCase();
-                    const isYou = currentUserId ? mId === currentUserId : false;
-
-                    return (
-                      <TouchableOpacity
-                        key={mId}
-                        className={`flex-row items-center gap-2 px-3.5 py-2 rounded-full border transition-all ${
-                          isSelected
-                            ? 'bg-emerald-50 border-emerald-500 shadow-2xs'
-                            : 'bg-muted/40 border-border/80 active:bg-muted'
-                        }`}
-                        onPress={() => setSelectedMemberId(mId)}
-                        activeOpacity={0.7}
-                      >
-                        <View
-                          className={`w-6 h-6 rounded-full items-center justify-center ${
-                            isSelected ? 'bg-emerald-600' : 'bg-muted border border-border'
+                      return (
+                        <TouchableOpacity
+                          key={mId}
+                          className={`flex-row items-center gap-2 px-3.5 py-2 rounded-full border transition-all ${
+                            isSelected
+                              ? 'bg-emerald-50 border-emerald-500 shadow-2xs'
+                              : 'bg-muted/40 border-border/80 active:bg-muted'
                           }`}
+                          onPress={() => setSelectedMemberId(mId)}
+                          activeOpacity={0.7}
                         >
-                          <Text
-                            className={`text-[10px] font-black ${
-                              isSelected ? 'text-white' : 'text-muted-foreground'
+                          <View
+                            className={`w-6 h-6 rounded-full items-center justify-center ${
+                              isSelected
+                                ? 'bg-emerald-600'
+                                : 'bg-muted border border-border'
                             }`}
                           >
-                            {initial}
+                            <Text
+                              className={`text-[10px] font-black ${
+                                isSelected ? 'text-white' : 'text-muted-foreground'
+                              }`}
+                            >
+                              {initial}
+                            </Text>
+                          </View>
+                          <Text
+                            className={`text-xs ${
+                              isSelected
+                                ? 'text-emerald-800 font-extrabold'
+                                : 'text-foreground font-semibold'
+                            }`}
+                            numberOfLines={1}
+                          >
+                            {isYou ? 'You' : username ? `@${username}` : name}
                           </Text>
-                        </View>
-                        <Text
-                          className={`text-xs ${
-                            isSelected
-                              ? 'text-emerald-800 font-extrabold'
-                              : 'text-foreground font-semibold'
-                          }`}
-                          numberOfLines={1}
-                        >
-                          {isYou ? 'You' : username ? `@${username}` : name}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </ScrollView>
-              ) : (
-                <View className="flex-row items-center gap-2.5 p-3 bg-muted/40 rounded-2xl border border-border mb-3">
-                  <View className="w-6 h-6 rounded-full bg-emerald-600 items-center justify-center">
-                    <Text className="text-[10px] font-bold text-white">Y</Text>
-                  </View>
-                  <Text className="text-xs font-bold text-foreground">You (Group Admin)</Text>
-                </View>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </ScrollView>
+                </>
               )}
 
               {/* Deposit Amount Input */}

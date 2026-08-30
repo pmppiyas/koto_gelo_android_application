@@ -66,6 +66,7 @@ class GroupDepositRepository {
         depositDate: r.depositDate,
         method: r.method as any,
         note: r.note || null,
+        expenseId: parsed?.expenseId || null,
         status: r.status as any,
         user: resolvedUser,
         recordedBy: parsed?.recordedBy || {
@@ -107,6 +108,7 @@ class GroupDepositRepository {
       depositDate: row.depositDate,
       method: row.method as any,
       note: row.note || null,
+      expenseId: parsed?.expenseId || null,
       status: row.status as any,
       user: parsed?.user || {
         id: row.userId,
@@ -229,6 +231,7 @@ class GroupDepositRepository {
         depositDate: r.depositDate,
         method: r.method as any,
         note: r.note || null,
+        expenseId: parsed?.expenseId || null,
         status: r.status as any,
         user: parsed?.user || { id: r.userId, username: 'Member' },
         recordedBy: parsed?.recordedBy,

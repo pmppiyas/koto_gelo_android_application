@@ -1,20 +1,20 @@
-class LocalStorage {
-  private memoryStore = new Map<string, string>();
+import { storage } from '../../config/storage';
 
+class LocalStorage {
   async getItem(key: string): Promise<string | null> {
-    return this.memoryStore.get(key) || null;
+    return storage.getItem(key);
   }
 
   async setItem(key: string, value: string): Promise<void> {
-    this.memoryStore.set(key, value);
+    return storage.setItem(key, value);
   }
 
   async removeItem(key: string): Promise<void> {
-    this.memoryStore.delete(key);
+    return storage.removeItem(key);
   }
 
   async clear(): Promise<void> {
-    this.memoryStore.clear();
+    return storage.clear();
   }
 }
 

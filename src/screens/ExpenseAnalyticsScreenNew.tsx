@@ -13,7 +13,6 @@ import { DonutChart } from '../components/common/DonutChart';
 import { EXPENSE_CATEGORIES } from '../constants/expense';
 import { expenseService } from '../services/expenseService';
 import { groupService, Group } from '../services/groupService';
-import { localGroupService } from '../services/localGroupService';
 import { useExpenses, useAuth } from '../store/hooks';
 import { BOTTOM_TAB_HEIGHT, spacing } from '../constants/spacing';
 
@@ -162,41 +161,6 @@ export const ExpenseAnalyticsScreen: React.FC<ExpenseAnalyticsScreenProps> = ({
     setSelectedBarMonthIndex(null);
   }, [periodType, activeMode, selectedGroupId, selectedDate, triggerChartAnimation]);
 
-  // Instant 0ms offline load for groups & group expenses
-  useEffect(() => {
-    let isMounted = true;
-    const loadOfflineGroupCache = async () => {
-      try {
-        const [cachedGroups, cachedExpenses] = await Promise.all([
-          localGroupService.getStoredGroups(),
-          localGroupService.getStoredGroupExpenses(),
-        ]);
-        if (isMounted) {
-          if (cachedGroups && cachedGroups.length > 0) setGroups(cachedGroups);
-          if (cachedExpenses && cachedExpenses.length > 0) {
-            setServerGroupExpenses(
-              cachedExpenses.map((e: any) => ({
-                id: e.id || e.localId,
-                amount: Number(e.amount) || 0,
-                category: e.category || 'Other',
-                subcategory: e.subcategory,
-                title: e.title,
-                expenseDate: e.expenseDate || e.date || e.createdAt,
-                type: 'GROUP' as const,
-                groupId: e.groupId,
-                paidById: e.paidById || e.payerId || e.userId,
-              }))
-            );
-          }
-        }
-      } catch {}
-    };
-    loadOfflineGroupCache();
-    return () => {
-      isMounted = false;
-    };
-  }, []);
-
   const fetchServerData = useCallback(
     async (isBackground = false) => {
       if (!isAuthenticated) {
@@ -215,9 +179,6 @@ export const ExpenseAnalyticsScreen: React.FC<ExpenseAnalyticsScreenProps> = ({
             groupsRes?.data ||
             (Array.isArray(groupsRes) ? groupsRes : []);
           setGroups(groupList);
-          if (groupList.length > 0) {
-            localGroupService.setStoredGroups(groupList).catch(() => {});
-          }
 
           const groupPromises = groupList.map(async grp => {
             try {
@@ -253,9 +214,6 @@ export const ExpenseAnalyticsScreen: React.FC<ExpenseAnalyticsScreenProps> = ({
           const allGroupExp = await Promise.all(groupPromises);
           const flatGroupExp = allGroupExp.flat();
           setServerGroupExpenses(flatGroupExp);
-          if (flatGroupExp.length > 0) {
-            localGroupService.setStoredGroupExpenses(flatGroupExp as any).catch(() => {});
-          }
         }
       } catch (err) {
         console.warn('Analytics fetch error:', err);
@@ -269,11 +227,10 @@ export const ExpenseAnalyticsScreen: React.FC<ExpenseAnalyticsScreenProps> = ({
 
   useEffect(() => {
     fetchServerData();
-  }, [fetchServerData]);
+  }, [activeMode, isAuthenticated]);
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
-    await syncExpenses();
     await fetchServerData(true);
   };
 

@@ -52,13 +52,9 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
   onNavigateToProfile,
 }) => {
   const { user, isAuthenticated } = useAuth();
-  const dispatch = useAppDispatch();
   const {
     expenses,
-    pendingExpenses,
-    syncExpenses,
     refreshExpenses,
-    isSyncing,
     newlyAddedId,
   } = useExpenses();
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -66,33 +62,11 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
 
   const fetchGroupSummary = useCallback(async () => {
     try {
-      // 1. Calculate from local SQLite database in 0ms (instant)
-      const localSummary = await localGroupService.calculateOverallGroupSummary(user?.id);
-      if (localSummary && typeof localSummary.totalMyShare === 'number') {
-        setGroupShareAmount(localSummary.totalMyShare);
-      }
-
-      // 2. Fetch remote update in background if online
       const summaryData = await groupService.getOverallGroupSummary();
       const myShare = Number(summaryData?.totalMyShare) || 0;
       setGroupShareAmount(myShare);
     } catch {}
-  }, [user?.id]);
-
-  // One-time SQLite hydration (instant 0ms) — only if Redux is empty
-  const hasHydratedRef = useRef(false);
-  useEffect(() => {
-    if (hasHydratedRef.current || expenses.length > 0) return;
-    hasHydratedRef.current = true;
-    (async () => {
-      try {
-        const stored = await localExpenseService.getLocalExpenses();
-        if (stored && stored.length > 0) {
-          dispatch({ type: 'expenses/setExpenses', payload: stored });
-        }
-      } catch {}
-    })();
-  }, [dispatch, expenses.length]);
+  }, []);
 
   // Auto-refresh from server whenever user/auth changes (e.g. after login)
   useEffect(() => {
@@ -103,11 +77,8 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
-    hasAnimatedRef.current = false;
-    setAnimProgress(0);
     try {
       await Promise.all([
-        syncExpenses(),
         refreshExpenses(),
         fetchGroupSummary(),
       ]);
@@ -460,29 +431,6 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({
           />
         }
       >
-        {/* Sync Banner if pending */}
-        {pendingExpenses.length > 0 && (
-          <TouchableOpacity
-            className="flex-row items-center justify-between bg-amber-50 p-3 rounded-2xl border border-amber-200"
-            onPress={syncExpenses}
-            disabled={isSyncing}
-            activeOpacity={0.8}
-          >
-            <View className="flex-row items-center gap-2 flex-1">
-              <Feather name="cloud-off" size={16} color="#B45309" />
-              <Text className="text-xs text-amber-900 font-semibold flex-1">
-                {pendingExpenses.length} expense
-                {pendingExpenses.length > 1 ? 's' : ''} waiting to sync
-              </Text>
-            </View>
-            <View className="bg-amber-600 px-3 py-1 rounded-full">
-              <Text className="text-xs text-white font-bold">
-                {isSyncing ? 'Syncing...' : 'Sync Now'}
-              </Text>
-            </View>
-          </TouchableOpacity>
-        )}
-
         {/* Shared Hero Stat Card */}
         <HeroStatCard
           title="This Month Spend"

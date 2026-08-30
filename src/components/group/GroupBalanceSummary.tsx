@@ -86,7 +86,7 @@ export const GroupBalanceSummary: React.FC<GroupBalanceSummaryProps> = ({
               <Text className="text-[11px] text-slate-400 font-medium">You Deposited</Text>
             </View>
             <Text className="text-sm font-extrabold text-emerald-400">
-              +৳{yourDeposited.toLocaleString('en-US')}
+              +৳{(yourDeposited + yourSpending).toLocaleString('en-US')}
             </Text>
           </View>
 
@@ -246,11 +246,12 @@ export const GroupBalanceSummary: React.FC<GroupBalanceSummaryProps> = ({
                 item.username ||
                 `Member ${idx + 1}`;
               const initial = name.charAt(0).toUpperCase();
-              const deposited = item.totalDeposited ?? item.paid ?? 0;
+              const deposited = item.totalDeposited ?? 0;
+              const paid = item.totalPaid ?? item.paid ?? 0;
               const share = item.totalShare ?? item.owes ?? 0;
-              const net = item.netBalance ?? item.net ?? deposited - share;
+              const net = item.netBalance ?? item.net ?? ((deposited + paid) - share);
               const isPositive = net > 0;
-              const isZero = net === 0;
+              const isZero = Math.abs(net) < 0.01;
 
               return (
                 <View

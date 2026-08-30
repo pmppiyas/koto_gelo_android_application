@@ -1,26 +1,30 @@
-import { secureStorage } from '../storage/secureStorage';
-import { STORAGE_KEYS } from '../storage/storageKeys';
+import { storage, STORAGE_KEYS } from '../../config/storage';
+import { authService } from '../authService';
 
 class TokenService {
   async getAccessToken(): Promise<string | null> {
-    return secureStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN);
+    return storage.getItem(STORAGE_KEYS.AUTH_TOKEN);
   }
 
   async setAccessToken(token: string): Promise<void> {
-    await secureStorage.setItem(STORAGE_KEYS.ACCESS_TOKEN, token);
+    await storage.setItem(STORAGE_KEYS.AUTH_TOKEN, token);
   }
 
   async getRefreshToken(): Promise<string | null> {
-    return secureStorage.getItem(STORAGE_KEYS.REFRESH_TOKEN);
+    return storage.getItem(STORAGE_KEYS.REFRESH_TOKEN);
   }
 
   async setRefreshToken(token: string): Promise<void> {
-    await secureStorage.setItem(STORAGE_KEYS.REFRESH_TOKEN, token);
+    await storage.setItem(STORAGE_KEYS.REFRESH_TOKEN, token);
   }
 
   async clearTokens(): Promise<void> {
-    await secureStorage.removeItem(STORAGE_KEYS.ACCESS_TOKEN);
-    await secureStorage.removeItem(STORAGE_KEYS.REFRESH_TOKEN);
+    await storage.removeItem(STORAGE_KEYS.AUTH_TOKEN);
+    await storage.removeItem(STORAGE_KEYS.REFRESH_TOKEN);
+  }
+
+  async refreshTokens(): Promise<string | null> {
+    return authService.refreshToken();
   }
 }
 

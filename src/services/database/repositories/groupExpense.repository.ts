@@ -41,6 +41,8 @@ class GroupExpenseRepository {
         note: r.note || null,
         expenseDate: r.expenseDate,
         splitType: r.splitType,
+        paymentSource: parsed?.paymentSource || parsed?.paidFrom || 'GROUP_FUND',
+        paidFrom: parsed?.paidFrom || parsed?.paymentSource || 'GROUP_FUND',
         user: parsed?.user || {
           id: r.userId,
           username: parsed?.user?.username || 'Member',
@@ -82,6 +84,8 @@ class GroupExpenseRepository {
       note: row.note || null,
       expenseDate: row.expenseDate,
       splitType: row.splitType,
+      paymentSource: parsed?.paymentSource || parsed?.paidFrom || 'GROUP_FUND',
+      paidFrom: parsed?.paidFrom || parsed?.paymentSource || 'GROUP_FUND',
       user: parsed?.user || {
         id: row.userId,
         username: parsed?.user?.username || 'Member',
@@ -209,6 +213,8 @@ class GroupExpenseRepository {
         note: r.note || null,
         expenseDate: r.expenseDate,
         splitType: r.splitType,
+        paymentSource: parsed?.paymentSource || parsed?.paidFrom || 'GROUP_FUND',
+        paidFrom: parsed?.paidFrom || parsed?.paymentSource || 'GROUP_FUND',
         user: parsed?.user || { id: r.userId, username: 'Member' },
         participants: parsed?.participants || [],
         payers: parsed?.payers || [],

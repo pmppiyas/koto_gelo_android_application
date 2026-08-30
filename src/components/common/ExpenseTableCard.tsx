@@ -200,8 +200,8 @@ export const ExpenseTableCard: React.FC<ExpenseTableCardProps> = ({
                             'Expense'}
                         </Text>
                         {isNewlyAdded && (
-                          <View className="flex-row items-center gap-0.5 bg-amber-50 px-1.5 py-0.5 ">
-                            <Text className="text-[4px] font-bold text-amber-700">
+                          <View className="flex-row items-center gap-0.5 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
+                            <Text className="text-[9px] font-bold text-amber-700">
                               NEW
                             </Text>
                           </View>

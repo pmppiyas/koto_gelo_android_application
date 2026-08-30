@@ -12,8 +12,7 @@ import {
   Button,
 } from '../components/ui';
 import { Logo } from '../components/common/Logo';
-import { SyncProgressModal } from '../components/common/SyncProgressModal';
-import { SyncProgressState } from '../services/expenseSyncService';
+import { SuccessModal } from '../components/common/SuccessModal';
 import { useAuth } from '../store/hooks';
 import { isValidUsername, isValidPassword } from '../utils/validation';
 
@@ -33,7 +32,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [validationError, setValidationError] = useState('');
-  const [syncProgress, setSyncProgress] = useState<SyncProgressState | null>(null);
+  const [showSuccess, setShowSuccess] = useState(false);
 
   const handleLogin = async () => {
     setValidationError('');
@@ -49,39 +48,15 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
     }
 
     try {
-      setSyncProgress({
-        currentStep: 1,
-        totalSteps: 5,
-        stepName: 'Account Authenticated',
-        detail: 'Verifying credentials with server...',
-        percentage: 15,
-      });
-      await signin({ username, password }, progress => {
-        setSyncProgress(progress);
-      });
-      setSyncProgress({
-        currentStep: 5,
-        totalSteps: 5,
-        stepName: 'Workspace Ready',
-        detail: 'All done! Launching your dashboard...',
-        percentage: 100,
-      });
-      await new Promise(r => setTimeout(r, 650));
-      onLoginSuccess?.();
-    } catch (err) {
-      setSyncProgress(null);
-    }
+      await signin({ username, password });
+      setShowSuccess(true);
+    } catch {}
   };
 
   const displayError = validationError || error;
 
   return (
     <SafeAreaView className="flex-1 bg-background relative">
-      <SyncProgressModal
-        visible={isLoading || syncProgress !== null}
-        progress={syncProgress}
-        title="Signing In & Syncing Workspace"
-      />
 
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -196,6 +171,19 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      <SuccessModal
+        visible={showSuccess}
+        title="Welcome Back!"
+        subtitle={`Signed in as @${username}`}
+        type="DEFAULT"
+        autoDismissMs={1400}
+        onDismiss={() => {
+          setShowSuccess(false);
+          onLoginSuccess?.();
+          onNavigateToHome?.();
+        }}
+      />
     </SafeAreaView>
   );
 };

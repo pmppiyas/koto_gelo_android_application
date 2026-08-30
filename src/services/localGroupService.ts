@@ -37,10 +37,31 @@ export const localGroupService = {
 
   async saveGroupExpenseLocally(expense: any, syncStatus = 'pending'): Promise<void> {
     await groupExpenseRepository.save(expense, syncStatus);
+
+    // Auto deposit in SQLite if paymentSource is PERSONAL
+    if (expense.paymentSource === 'PERSONAL' || expense.paidFrom === 'PERSONAL') {
+      const payerId = (expense.payers && expense.payers[0]?.userId) || expense.userId || expense.user?.id;
+      if (payerId && expense.groupId) {
+        await groupDepositRepository.save({
+          id: `dep_${expense.id || expense.localId}`,
+          localId: `dep_${expense.localId || expense.id}`,
+          groupId: expense.groupId,
+          userId: payerId,
+          recordedById: expense.userId || payerId,
+          amount: Number(expense.amount),
+          depositDate: expense.expenseDate || new Date().toISOString(),
+          method: 'CASH',
+          note: `Auto deposit for personal expense: ${expense.title || expense.category || ''}`,
+          expenseId: expense.serverId || expense.localId || expense.id,
+          status: 'ACTIVE',
+        }, syncStatus);
+      }
+    }
   },
 
   async deleteGroupExpenseLocally(id: string): Promise<void> {
     await groupExpenseRepository.delete(id);
+    await groupDepositRepository.delete(`dep_${id}`);
   },
 
   // Group Deposits
@@ -143,10 +164,25 @@ export const localGroupService = {
       const expAmt = Number(exp.amount) || 0;
       totalExpenses += expAmt;
 
-      // Payer attribution
-      const payerId = (exp as any).userId || exp.user?.id;
-      if (payerId && memberMap.has(payerId)) {
-        memberMap.get(payerId)!.paid += expAmt;
+      // Payer attribution: Only attribute out-of-pocket 'paid' if paid from personal pocket
+      const isPersonalPayment =
+        (exp as any).paidFrom === 'PERSONAL' ||
+        (Array.isArray(exp.payers) && exp.payers.length > 0);
+
+      if (isPersonalPayment) {
+        if (Array.isArray(exp.payers) && exp.payers.length > 0) {
+          exp.payers.forEach((p: any) => {
+            const pId = p.userId || p.user?.id;
+            if (pId && memberMap.has(pId)) {
+              memberMap.get(pId)!.paid += Number(p.amount) || 0;
+            }
+          });
+        } else {
+          const payerId = (exp as any).userId || exp.user?.id;
+          if (payerId && memberMap.has(payerId)) {
+            memberMap.get(payerId)!.paid += expAmt;
+          }
+        }
       }
 
       // Participant share calculation

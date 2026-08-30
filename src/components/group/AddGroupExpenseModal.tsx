@@ -10,7 +10,7 @@ import {
   ScrollView,
   Button,
 } from '../ui';
-import { EXPENSE_CATEGORIES } from '../../constants/expense';
+import { GROUP_EXPENSE_CATEGORIES } from '../../constants/expense';
 import { groupService, GroupMember } from '../../services/groupService';
 import { localGroupService } from '../../services/localGroupService';
 import {
@@ -41,20 +41,28 @@ export const AddGroupExpenseModal: React.FC<AddGroupExpenseModalProps> = ({
   const [amount, setAmount] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
   const [note, setNote] = useState('');
+  const [paidFrom, setPaidFrom] = useState<'GROUP_FUND' | 'PERSONAL'>('GROUP_FUND');
+  const [payerUserIds, setPayerUserIds] = useState<string[]>(currentUserId ? [currentUserId] : []);
   const [selectedParticipantIds, setSelectedParticipantIds] = useState<string[]>([]);
   const [isSaving, setIsSaving] = useState(false);
 
   React.useEffect(() => {
-    if (visible && members && members.length > 0) {
-      setSelectedParticipantIds(members.map((m) => m.user?.id || m.userId));
+    if (visible) {
+      setPaidFrom('GROUP_FUND');
+      if (currentUserId) setPayerUserIds([currentUserId]);
+      if (members && members.length > 0) {
+        setSelectedParticipantIds(members.map((m) => m.user?.id || m.userId));
+      }
     }
-  }, [visible, members]);
+  }, [visible, members, currentUserId]);
 
   const reset = () => {
     setTitle('');
     setAmount('');
     setSelectedCategory('');
     setNote('');
+    setPaidFrom('GROUP_FUND');
+    setPayerUserIds(currentUserId ? [currentUserId] : []);
   };
 
   const handleClose = () => {
@@ -70,7 +78,15 @@ export const AddGroupExpenseModal: React.FC<AddGroupExpenseModalProps> = ({
 
     setIsSaving(true);
     try {
-      // 1. Instantly save to local database & trigger background sync (0ms)
+      const isGroupFund = paidFrom === 'GROUP_FUND';
+      const activePayerIds = payerUserIds.length > 0 ? payerUserIds : currentUserId ? [currentUserId] : [];
+      const payersList = isGroupFund
+        ? []
+        : activePayerIds.map((pid) => ({
+            userId: pid,
+            amount: Math.round(parsedAmount / activePayerIds.length),
+          }));
+
       await groupService.addGroupExpense({
         groupId,
         title: title.trim() || undefined,
@@ -79,6 +95,9 @@ export const AddGroupExpenseModal: React.FC<AddGroupExpenseModalProps> = ({
         note: note.trim() || undefined,
         expenseDate: formatExpenseDateForServer(getLocalDateString()),
         splitType: 'EQUAL',
+        paymentSource: paidFrom,
+        paidFrom,
+        payers: payersList,
         participants: selectedParticipantIds.map((id) => ({
           userId: id,
           shareAmount: Math.round(parsedAmount / selectedParticipantIds.length),
@@ -160,13 +179,134 @@ export const AddGroupExpenseModal: React.FC<AddGroupExpenseModalProps> = ({
               </View>
 
               {numAmount > 0 && selectedParticipantIds.length > 0 && (
-                <View className="flex-row items-center justify-between bg-primary-light px-3.5 py-2 rounded-xl border border-blue-200 mb-4">
+                <View className="flex-row items-center justify-between bg-primary-light px-3.5 py-2 rounded-xl border border-blue-200 mb-3">
                   <Text className="text-xs text-primary font-semibold">
                     Split between {participantCount} members:
                   </Text>
                   <Text className="text-xs font-extrabold text-primary">
                     ৳{splitAmount.toLocaleString()}/person
                   </Text>
+                </View>
+              )}
+
+              {/* Payment Source Selection (Group Fund vs Personal Pocket) */}
+              <View className="bg-muted/40 p-3 rounded-2xl border border-border mb-3 gap-2">
+                <View className="flex-row items-center gap-1.5">
+                  <Feather name="shield" size={13} color="#4F46E5" />
+                  <Text className="text-xs font-bold text-foreground">
+                    Paid from
+                  </Text>
+                </View>
+                <View className="flex-row flex-wrap gap-1.5 pt-0.5">
+                  <TouchableOpacity
+                    className={`flex-row items-center gap-1.5 px-3 py-1.5 rounded-xl border ${
+                      paidFrom === 'GROUP_FUND'
+                        ? 'bg-primary-light border-primary'
+                        : 'bg-card border-border opacity-60'
+                    }`}
+                    onPress={() => setPaidFrom('GROUP_FUND')}
+                    activeOpacity={0.7}
+                  >
+                    <Feather
+                      name={paidFrom === 'GROUP_FUND' ? 'check-circle' : 'circle'}
+                      size={12}
+                      color={paidFrom === 'GROUP_FUND' ? '#4F46E5' : '#94A3B8'}
+                    />
+                    <Text
+                      className={`text-xs font-semibold ${
+                        paidFrom === 'GROUP_FUND' ? 'text-primary font-bold' : 'text-muted-foreground'
+                      }`}
+                    >
+                      Group Fund
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    className={`flex-row items-center gap-1.5 px-3 py-1.5 rounded-xl border ${
+                      paidFrom === 'PERSONAL'
+                        ? 'bg-primary-light border-primary'
+                        : 'bg-card border-border opacity-60'
+                    }`}
+                    onPress={() => setPaidFrom('PERSONAL')}
+                    activeOpacity={0.7}
+                  >
+                    <Feather
+                      name={paidFrom === 'PERSONAL' ? 'check-circle' : 'circle'}
+                      size={12}
+                      color={paidFrom === 'PERSONAL' ? '#4F46E5' : '#94A3B8'}
+                    />
+                    <Text
+                      className={`text-xs font-semibold ${
+                        paidFrom === 'PERSONAL' ? 'text-primary font-bold' : 'text-muted-foreground'
+                      }`}
+                    >
+                      Personal Pocket
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              {/* Who Paid Selector (Only when paidFrom is PERSONAL) */}
+              {paidFrom === 'PERSONAL' && members && members.length > 0 && (
+                <View className="bg-muted/40 p-3 rounded-2xl border border-border mb-3 gap-2">
+                  <View className="flex-row justify-between items-center">
+                    <View className="flex-row items-center gap-1.5">
+                      <Feather name="credit-card" size={13} color="#4F46E5" />
+                      <Text className="text-xs font-bold text-foreground">
+                        Paid by ({payerUserIds.length})
+                      </Text>
+                    </View>
+                  </View>
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerClassName="gap-2 py-1"
+                  >
+                    {members.map((m) => {
+                      const mId = m.user?.id || m.userId;
+                      const isSelected = payerUserIds.includes(mId);
+                      const isYou = mId === currentUserId;
+                      const name = isYou
+                        ? 'You'
+                        : m.user?.name || m.user?.username || 'Member';
+
+                      return (
+                        <TouchableOpacity
+                          key={`payer_${mId}`}
+                          className={`flex-row items-center gap-1.5 px-3 py-1.5 rounded-xl border ${
+                            isSelected
+                              ? 'bg-primary-light border-primary'
+                              : 'bg-card border-border'
+                          }`}
+                          onPress={() => {
+                            if (isSelected) {
+                              if (payerUserIds.length > 1) {
+                                setPayerUserIds(payerUserIds.filter((id) => id !== mId));
+                              }
+                            } else {
+                              setPayerUserIds([...payerUserIds, mId]);
+                            }
+                          }}
+                          activeOpacity={0.7}
+                        >
+                          <Feather
+                            name={isSelected ? 'check-circle' : 'circle'}
+                            size={12}
+                            color={isSelected ? '#2563EB' : '#94A3B8'}
+                          />
+                          <Text
+                            className={`text-xs font-semibold ${
+                              isSelected
+                                ? 'text-primary font-bold'
+                                : 'text-muted-foreground'
+                            }`}
+                          >
+                            {name}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </ScrollView>
                 </View>
               )}
 
@@ -275,7 +415,7 @@ export const AddGroupExpenseModal: React.FC<AddGroupExpenseModalProps> = ({
                 showsHorizontalScrollIndicator={false}
                 contentContainerClassName="gap-2 py-1 mb-4"
               >
-                {EXPENSE_CATEGORIES.map((cat) => {
+                {GROUP_EXPENSE_CATEGORIES.map((cat) => {
                   const isSelected = selectedCategory === cat.name;
                   return (
                     <TouchableOpacity

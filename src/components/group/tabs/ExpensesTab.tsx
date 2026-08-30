@@ -74,6 +74,7 @@ export const ExpensesTab: React.FC<ExpensesTabProps> = ({
             category={item.category}
             paidByName={item.user.name || item.user.username}
             isYou={isYou}
+            paymentSource={item.paymentSource || item.paidFrom}
             date={formatDate(item.expenseDate || item.createdAt)}
             participantCount={count}
           />

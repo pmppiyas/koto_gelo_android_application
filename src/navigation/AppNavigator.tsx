@@ -24,6 +24,7 @@ import { BottomTabBar } from './BottomTabBar';
 import { DashboardDrawer } from '../components/dashboard/DashboardDrawer';
 import { Loading } from '../components/common/Loading';
 import { ConfirmModal } from '../components/common/ConfirmModal';
+import { SuccessModal } from '../components/common/SuccessModal';
 import { useAuth } from '../store/hooks';
 import { ROUTES, RouteNames } from '../constants/routes';
 
@@ -37,6 +38,14 @@ export const AppNavigator: React.FC = () => {
   const [isLogoutModalVisible, setIsLogoutModalVisible] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
+  const [addExpenseInitialType, setAddExpenseInitialType] = useState<'PERSONAL' | 'GROUP'>('PERSONAL');
+  const [authSuccessModal, setAuthSuccessModal] = useState<{
+    visible: boolean;
+    title: string;
+    subtitle: string;
+    type?: 'DEFAULT' | 'DEPOSIT' | 'EXPENSE' | 'SETTLE';
+  } | null>(null);
+  const hasInitializedRef = useRef(false);
 
   const horizontalScrollRef = useRef<ScrollView>(null);
   const [activeTabIndex, setActiveTabIndex] = useState<number>(0);
@@ -73,6 +82,21 @@ export const AppNavigator: React.FC = () => {
     if (isLoading) return;
 
     if (isAuthenticated) {
+      if (
+        hasInitializedRef.current &&
+        (currentRoute === ROUTES.LOGIN ||
+          currentRoute === ROUTES.REGISTER ||
+          currentRoute === ROUTES.HOME)
+      ) {
+        setAuthSuccessModal({
+          visible: true,
+          title: 'Welcome to KotoGelo!',
+          subtitle: `Signed in as @${user?.username || user?.name || 'User'}`,
+          type: 'DEFAULT',
+        });
+      }
+      hasInitializedRef.current = true;
+
       // After login/register or token restore → go to Dashboard
       setCurrentRoute((prev) => {
         if (
@@ -86,6 +110,7 @@ export const AppNavigator: React.FC = () => {
         return prev;
       });
     } else {
+      hasInitializedRef.current = true;
       // Not authenticated → kick back to Home/Login
       setCurrentRoute((prev) => {
         const publicRoutes: RouteNames[] = [ROUTES.HOME, ROUTES.LOGIN, ROUTES.REGISTER];
@@ -96,12 +121,33 @@ export const AppNavigator: React.FC = () => {
         return prev;
       });
     }
-  }, [isAuthenticated, isLoading]);
+  }, [isAuthenticated, isLoading, user]);
 
   const isHomeRoute = (route: RouteNames) =>
     route === ROUTES.HOME || route === ROUTES.DASHBOARD;
 
-  const navigateTo = (route: RouteNames, replace: boolean = false) => {
+  const navigateTo = (
+    route: RouteNames,
+    replace: boolean = false,
+    initialExpenseType?: 'PERSONAL' | 'GROUP',
+    groupId?: string,
+  ) => {
+    if (groupId) {
+      setSelectedGroupId(groupId);
+    }
+    if (initialExpenseType) {
+      setAddExpenseInitialType(initialExpenseType);
+    } else if (route === ROUTES.ADD_EXPENSE) {
+      const isGroup =
+        currentRoute === ROUTES.GROUPS ||
+        currentRoute === ROUTES.GROUP_BALANCES ||
+        currentRoute === ROUTES.GROUP_EXPENSES ||
+        currentRoute === ROUTES.GROUP_ANALYTICS ||
+        currentRoute === ROUTES.GROUP_DETAILS ||
+        activeTabIndex === 3;
+      setAddExpenseInitialType(isGroup ? 'GROUP' : 'PERSONAL');
+    }
+
     if (route === currentRoute) return;
 
     setPreviousRoute(currentRoute);
@@ -236,6 +282,12 @@ export const AppNavigator: React.FC = () => {
     try {
       await logout();
       setIsLogoutModalVisible(false);
+      setAuthSuccessModal({
+        visible: true,
+        title: 'Logged Out',
+        subtitle: 'You have been safely signed out',
+        type: 'DEFAULT',
+      });
       setHistory([ROUTES.HOME]);
       setCurrentRoute(ROUTES.HOME);
     } catch {
@@ -402,6 +454,14 @@ export const AppNavigator: React.FC = () => {
             onNavigateToAnalytics={() => navigateTo(ROUTES.GROUP_ANALYTICS)}
             onNavigateToTransactions={() => navigateTo(ROUTES.TRANSACTIONS)}
             onNavigateToGroups={() => navigateTo(ROUTES.GROUPS)}
+            onNavigateToAddExpense={(type, gid) =>
+              navigateTo(
+                ROUTES.ADD_EXPENSE,
+                false,
+                type || 'GROUP',
+                gid || selectedGroupId || undefined,
+              )
+            }
           />
         );
 
@@ -426,17 +486,21 @@ export const AppNavigator: React.FC = () => {
           ROUTES.SETTLEMENTS,
           ROUTES.GROUP_DETAILS,
         ];
-        const isFromGroupContext = groupRoutes.includes(previousRoute);
+        const isFromGroupContext =
+          addExpenseInitialType === 'GROUP' ||
+          groupRoutes.includes(previousRoute) ||
+          activeTabIndex === 3;
+
         return (
           <AddExpenseScreen
             initialType={isFromGroupContext ? 'GROUP' : 'PERSONAL'}
-            initialGroupId={isFromGroupContext && selectedGroupId ? selectedGroupId : undefined}
+            initialGroupId={selectedGroupId || undefined}
             onClose={(createdType, groupId) => {
               if (createdType === 'GROUP' && groupId) {
                 setSelectedGroupId(groupId);
                 navigateTo(ROUTES.GROUP_BALANCES, true);
               } else if (createdType === 'PERSONAL') {
-                navigateTo(ROUTES.TRANSACTIONS, true);
+                navigateTo(ROUTES.DASHBOARD, true);
               } else {
                 goBack();
               }
@@ -550,8 +614,13 @@ export const AppNavigator: React.FC = () => {
                       }
                       onNavigateToGroups={() => navigateTo(ROUTES.GROUPS)}
                       onNavigateToDashboard={() => navigateTo(ROUTES.HOME)}
-                      onNavigateToAddExpense={() =>
-                        navigateTo(ROUTES.ADD_EXPENSE)
+                      onNavigateToAddExpense={(type, gid) =>
+                        navigateTo(
+                          ROUTES.ADD_EXPENSE,
+                          false,
+                          type || 'PERSONAL',
+                          gid,
+                        )
                       }
                     />
                   </View>
@@ -636,6 +705,19 @@ export const AppNavigator: React.FC = () => {
           if (!isLoggingOut) setIsLogoutModalVisible(false);
         }}
       />
+
+      {authSuccessModal && (
+        <SuccessModal
+          visible={authSuccessModal.visible}
+          title={authSuccessModal.title}
+          subtitle={authSuccessModal.subtitle}
+          type={authSuccessModal.type || 'DEFAULT'}
+          autoDismissMs={2500}
+          onDismiss={() => {
+            setAuthSuccessModal(null);
+          }}
+        />
+      )}
     </View>
   );
 };

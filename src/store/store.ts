@@ -2,12 +2,9 @@ import React, { createContext, useContext, useReducer, useEffect, ReactNode } fr
 import { authReducer, initialAuthState, AuthAction } from './authSlice';
 import { expenseReducer, initialExpenseState } from './expenseSlice';
 import { AuthState } from './auth.types';
-import { ExpenseState, ExpenseAction } from './expense.types';
+import { ExpenseState, ExpenseAction, LocalExpense } from './expense.types';
 import { authService } from '../services/authService';
 import { expenseService } from '../services/expenseService';
-import { localExpenseService } from '../services/localExpenseService';
-import { expenseSyncService } from '../services/expenseSyncService';
-import { database } from '../services/database/database';
 import { storage, STORAGE_KEYS } from '../config/storage';
 import { API_ENDPOINTS } from '../config/api';
 import { onUnauthorized } from '../utils/authEvents';
@@ -27,7 +24,7 @@ interface StoreContextType {
 
 const StoreContext = createContext<StoreContextType | undefined>(undefined);
 
-async function verifyToken(token: string): Promise<'valid' | 'invalid' | 'offline'> {
+async function verifyToken(token: string): Promise<{ status: 'valid' | 'invalid' | 'offline'; token?: string }> {
   try {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 5000);
@@ -41,10 +38,19 @@ async function verifyToken(token: string): Promise<'valid' | 'invalid' | 'offlin
       signal: controller.signal,
     });
     clearTimeout(timer);
-    return res.ok ? 'valid' : 'invalid';
+    if (res.ok) return { status: 'valid', token };
+
+    if (res.status === 401) {
+      const newToken = await authService.refreshToken();
+      if (newToken) {
+        return { status: 'valid', token: newToken };
+      }
+      return { status: 'invalid' };
+    }
+
+    return { status: 'invalid' };
   } catch {
-    // Network error / timeout / server down → treat as offline, keep user logged in
-    return 'offline';
+    return { status: 'offline', token };
   }
 }
 
@@ -61,7 +67,6 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   };
 
   useEffect(() => {
-    // Subscribe to global unauthorized events (e.g. 401 or token expired)
     const unsubscribe = onUnauthorized(() => {
       authDispatch({ type: 'auth/logout' });
     });
@@ -71,48 +76,32 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   useEffect(() => {
     const initializeApp = async () => {
       try {
-        // 1. Initialize SQLite Database Tables
-        await database.init();
-
-        // 2. Check for stored token FIRST (don't load data before user verification)
         const token = await authService.getStoredToken();
 
         if (!token) {
-          // No token → clear any stale data from previous session
-          await database.clearAllData().catch(() => {});
           authDispatch({ type: 'auth/setLoading', payload: false });
           return;
         }
 
-        const tokenStatus = await verifyToken(token);
+        const tokenResult = await verifyToken(token);
+        const activeToken = tokenResult.token || token;
 
-        if (tokenStatus === 'invalid') {
-          // Token is definitely rejected by server → logout & clear stale data
+        if (tokenResult.status === 'invalid') {
           await storage.removeItem(STORAGE_KEYS.AUTH_TOKEN);
+          await storage.removeItem(STORAGE_KEYS.REFRESH_TOKEN);
           await storage.removeItem(STORAGE_KEYS.USER);
-          await database.clearAllData().catch(() => {});
           authDispatch({ type: 'auth/logout' });
           return;
         }
 
-        // 'valid' or 'offline' → keep user logged in
         const user = await authService.getStoredUser();
-
-        // 3. NOW load local data for this verified user
-        const localExpenses = await localExpenseService.getLocalExpenses();
-        expenseDispatch({ type: 'expenses/setExpenses', payload: localExpenses });
 
         authDispatch({
           type: 'auth/setTokenOnly',
-          payload: { token, user },
+          payload: { token: activeToken, user },
         });
 
-        if (tokenStatus === 'valid') {
-          // Sync pending items from SQLite queue
-          await expenseSyncService.syncPendingExpenses(combinedDispatch);
-          // Pull latest remote data in background to refresh SQLite
-          await expenseSyncService.pullLatestRemoteData();
-
+        if (tokenResult.status === 'valid') {
           try {
             const res = await expenseService.getPersonalExpenses({ limit: 100 });
             const serverExpenses =
@@ -121,7 +110,7 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
               (Array.isArray(res?.data) ? res.data : Array.isArray(res) ? res : []);
             if (Array.isArray(serverExpenses)) {
               const todayStr = getLocalDateString();
-              const serverMapped = serverExpenses.map((se: any) => {
+              const serverMapped: LocalExpense[] = serverExpenses.map((se: any) => {
                 let formattedDate = todayStr;
                 try {
                   const rawDate = se.expenseDate || se.date || se.createdAt;
@@ -134,36 +123,21 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
                 } catch {}
 
                 return {
-                  localId: `srv_${se.id}`,
-                  serverId: se.id,
+                  id: se.id,
+                  localId: se.id,
                   amount: Number(se.amount),
                   category: se.category,
                   subcategory: se.subcategory || null,
                   title: se.title || null,
                   date: formattedDate,
                   note: se.note || null,
-                  syncStatus: 'synced' as const,
-                  type: 'PERSONAL' as const,
+                  type: 'PERSONAL',
                   groupId: se.groupId || null,
                   createdAt: se.createdAt,
                   updatedAt: se.updatedAt || se.createdAt,
                 };
               });
-              const currentLocal = await localExpenseService.getLocalExpenses();
-              const pendingItems = currentLocal.filter(
-                (e) => e.syncStatus === 'pending' || e.syncStatus === 'failed'
-              );
-              const seen = new Set<string>();
-              const reconciled: any[] = [];
-              [...pendingItems, ...serverMapped].forEach((item) => {
-                const k = item.serverId || item.localId;
-                if (k && !seen.has(k)) {
-                  seen.add(k);
-                  reconciled.push(item);
-                }
-              });
-              await localExpenseService.setLocalExpenses(reconciled);
-              expenseDispatch({ type: 'expenses/setExpenses', payload: reconciled });
+              expenseDispatch({ type: 'expenses/setExpenses', payload: serverMapped });
             }
           } catch {}
         }

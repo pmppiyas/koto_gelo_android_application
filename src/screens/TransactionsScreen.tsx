@@ -27,7 +27,6 @@ import {
   GroupExpense,
   GroupDeposit,
 } from '../services/groupService';
-import { localGroupService } from '../services/localGroupService';
 import { GroupExpenseCard } from '../components/group/GroupExpenseCard';
 import { BOTTOM_TAB_HEIGHT, spacing } from '../constants/spacing';
 import { getLocalDateString } from '../utils/date';
@@ -43,7 +42,7 @@ export interface TransactionsScreenProps {
   onNavigateToGroupDetails?: (groupId: string) => void;
   onNavigateToDashboard?: () => void;
   onNavigateBack?: () => void;
-  onNavigateToAddExpense?: () => void;
+  onNavigateToAddExpense?: (type?: 'PERSONAL' | 'GROUP', groupId?: string) => void;
 }
 
 interface DisplayTransaction {
@@ -135,35 +134,9 @@ export const TransactionsScreen: React.FC<TransactionsScreenProps> = ({
     return map;
   }, []);
 
-  // Instant 0ms offline load for group data from local storage
-  useEffect(() => {
-    let isMounted = true;
-    const loadOfflineGroupCache = async () => {
-      try {
-        const [cachedGroups, cachedExpenses, cachedDeposits] =
-          await Promise.all([
-            localGroupService.getStoredGroups(),
-            localGroupService.getStoredGroupExpenses(),
-            localGroupService.getStoredGroupDeposits(),
-          ]);
-        if (isMounted) {
-          if (cachedGroups && cachedGroups.length > 0) setGroups(cachedGroups);
-          if (cachedExpenses && cachedExpenses.length > 0)
-            setGroupExpenses(cachedExpenses);
-          if (cachedDeposits && cachedDeposits.length > 0)
-            setGroupDeposits(cachedDeposits);
-        }
-      } catch {}
-    };
-    loadOfflineGroupCache();
-    return () => {
-      isMounted = false;
-    };
-  }, []);
-
-  const fetchGroupData = useCallback(async () => {
+  const fetchGroupData = useCallback(async (showFullLoader = false) => {
     if (!isAuthenticated) return;
-    if (groups.length === 0 && groupExpenses.length === 0) {
+    if (showFullLoader) {
       setIsLoadingGroups(true);
     }
     try {
@@ -182,7 +155,6 @@ export const TransactionsScreen: React.FC<TransactionsScreenProps> = ({
           (Array.isArray(response) ? response : []);
         if (groupList.length > 0) {
           setGroups(groupList);
-          localGroupService.setStoredGroups(groupList).catch(() => {});
         }
       }
 
@@ -219,13 +191,7 @@ export const TransactionsScreen: React.FC<TransactionsScreenProps> = ({
               groupType: grp.type,
             }));
           } catch {
-            const localList = await localGroupService.getStoredGroupExpenses(grp.id);
-            return (localList || []).map(e => ({
-              ...e,
-              groupId: e.groupId || grp.id,
-              groupName: grp.name,
-              groupType: grp.type,
-            }));
+            return [];
           }
         }),
       );
@@ -249,11 +215,7 @@ export const TransactionsScreen: React.FC<TransactionsScreenProps> = ({
               groupId: d.groupId || grp.id,
             }));
           } catch {
-            const localDeps = await localGroupService.getStoredGroupDeposits(grp.id);
-            return (localDeps || []).map(d => ({
-              ...d,
-              groupId: d.groupId || grp.id,
-            }));
+            return [];
           }
         }),
       );
@@ -270,74 +232,36 @@ export const TransactionsScreen: React.FC<TransactionsScreenProps> = ({
       });
       const combinedDeposits = Array.from(depositMap.values());
       setGroupDeposits(combinedDeposits);
-      localGroupService.setStoredGroupDeposits(combinedDeposits).catch(() => {});
 
-      // Merge and deduplicate expenses
+      // Merge and sort expenses
       const combinedServer = expenseResults.flat();
-      const localGroupExpenses: any[] = (expenses || [])
-        .filter(e => e.type === 'GROUP')
-        .map(e => {
-          const grp = groupList.find(g => g.id === e.groupId);
-          return {
-            id: e.serverId || e.localId,
-            title: e.title || e.category,
-            category: e.category,
-            subcategory: e.subcategory,
-            amount: e.amount,
-            note: e.note,
-            expenseDate: e.date,
-            createdAt: e.createdAt,
-            groupId: e.groupId,
-            groupName: grp?.name || 'Group Expense',
-            groupType: grp?.type || 'OTHER',
-            user: {
-              id: userId,
-              username: user?.username || 'You',
-              name: user?.name || user?.username || 'You',
-            },
-            participants: (e as any).participants || [],
-            syncStatus: e.syncStatus,
-          };
-        });
-
-      const expMap = new Map<string, any>();
-      localGroupExpenses.forEach(item => {
-        if (item.id) expMap.set(item.id, item);
-      });
-      combinedServer.forEach(item => {
-        if (item.id) expMap.set(item.id, item);
-      });
-
-      const combined = Array.from(expMap.values());
-      combined.sort((a, b) => {
+      combinedServer.sort((a, b) => {
         const dateA = new Date(a.expenseDate || a.createdAt || 0).getTime();
         const dateB = new Date(b.expenseDate || b.createdAt || 0).getTime();
         return dateB - dateA;
       });
 
-      setGroupExpenses(combined);
-      localGroupService.setStoredGroupExpenses(combined).catch(() => {});
+      setGroupExpenses(combinedServer);
     } catch {
     } finally {
       setIsLoadingGroups(false);
     }
-  }, [
-    isAuthenticated,
-    expenses,
-    userId,
-    user,
-  ]);
+  }, [isAuthenticated]);
+
+  useEffect(() => {
+    fetchGroupData(false);
+  }, [fetchGroupData]);
 
   useEffect(() => {
     if (transactionType === 'GROUP') {
-      fetchGroupData();
+      fetchGroupData(groupExpenses.length === 0);
     }
   }, [transactionType, fetchGroupData]);
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
     try {
-      await Promise.all([syncExpenses(), refreshExpenses(), fetchGroupData()]);
+      await Promise.all([refreshExpenses(), fetchGroupData()]);
     } catch {
     } finally {
       setIsRefreshing(false);
@@ -695,9 +619,24 @@ export const TransactionsScreen: React.FC<TransactionsScreenProps> = ({
           : item.createdAt?.slice(0, 10) || '';
 
         const key = item.id || (item as any).localId || `gt_${idx}`;
-        const recorderName = isYou
+        const isFromGroupFund =
+          item.paymentSource === 'GROUP_FUND' ||
+          item.paidFrom === 'GROUP_FUND' ||
+          (!item.payers || item.payers.length === 0);
+        const payer =
+          item.payers && item.payers.length > 0 ? item.payers[0] : null;
+        const payerUser = payer?.user || item.user;
+        const payerId = payer?.userId || payerUser?.id || item.userId;
+        const isPayerYou = payerId === userId;
+        const payerName = isPayerYou
           ? 'You'
-          : item.user?.name || (item.user?.username ? `@${item.user.username}` : 'Member');
+          : payerUser?.username
+          ? `@${payerUser.username}`
+          : payerUser?.name || 'Member';
+
+        const paidByLabel = isFromGroupFund
+          ? 'Group Fund'
+          : `Paid by ${payerName}`;
 
         if (!map.has(key)) {
           map.set(key, {
@@ -710,7 +649,7 @@ export const TransactionsScreen: React.FC<TransactionsScreenProps> = ({
             emoji: grpEmoji,
             groupName: groupName || null,
             groupId: item.groupId,
-            paidByName: `Group Fund (${recorderName})`,
+            paidByName: paidByLabel,
             participantCount: item.participants?.length || 1,
             localId: (item as any).localId,
             isYou,
@@ -1289,7 +1228,9 @@ export const TransactionsScreen: React.FC<TransactionsScreenProps> = ({
         {renderFilterControls()}
 
         {/* Expenses List Card (Shared Component - Matches Home Page Recent Expenses Style Exactly) */}
-        {transactionType === 'GROUP' && isLoadingGroups ? (
+        {transactionType === 'GROUP' &&
+        isLoadingGroups &&
+        groupExpenses.length === 0 ? (
           <View className="items-center justify-center py-16 gap-3 bg-card rounded-2xl border border-border mb-2">
             <ActivityIndicator size="large" color="#4F46E5" />
             <Text className="text-xs text-muted-foreground">
@@ -1340,7 +1281,12 @@ export const TransactionsScreen: React.FC<TransactionsScreenProps> = ({
                 ? 'You have not added any expenses for today yet.'
                 : 'Start adding personal or group expenses to see them here.'
             }
-            onAddExpense={onNavigateToAddExpense}
+            onAddExpense={() =>
+              onNavigateToAddExpense?.(
+                transactionType === 'GROUP' ? 'GROUP' : 'PERSONAL',
+                selectedGroupId !== 'ALL' ? selectedGroupId : undefined,
+              )
+            }
           />
         )}
       </ScrollView>

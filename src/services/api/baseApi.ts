@@ -2,6 +2,10 @@ import { ENV } from '../../config/env';
 import { RequestConfig, ApiResponse } from './api.types';
 import { handleUnauthorized } from '../../utils/authEvents';
 
+import { authService } from '../authService';
+
+let baseApiRefreshPromise: Promise<string | null> | null = null;
+
 export class BaseApi {
   protected baseUrl: string;
 
@@ -13,7 +17,8 @@ export class BaseApi {
     endpoint: string,
     method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' = 'GET',
     data?: any,
-    config?: RequestConfig
+    config?: RequestConfig,
+    isRetry = false
   ): Promise<ApiResponse<T>> {
     const url = `${this.baseUrl}${endpoint}`;
     const headers: Record<string, string> = {
@@ -36,12 +41,28 @@ export class BaseApi {
         resJson = null;
       }
 
-      if (
+      const isAuthError =
         response.status === 401 ||
         resJson?.message?.toLowerCase()?.includes('expired') ||
         resJson?.message?.toLowerCase()?.includes('invalid token') ||
-        resJson?.message?.toLowerCase()?.includes('unauthorized')
-      ) {
+        resJson?.message?.toLowerCase()?.includes('unauthorized');
+
+      if (isAuthError) {
+        if (!isRetry && !endpoint.includes('/auth/')) {
+          if (!baseApiRefreshPromise) {
+            baseApiRefreshPromise = authService.refreshToken().finally(() => {
+              baseApiRefreshPromise = null;
+            });
+          }
+          const newToken = await baseApiRefreshPromise;
+          if (newToken) {
+            const retryHeaders = {
+              ...(config?.headers || {}),
+              Authorization: `Bearer ${newToken}`,
+            };
+            return this.request<T>(endpoint, method, data, { ...config, headers: retryHeaders }, true);
+          }
+        }
         handleUnauthorized();
       }
 
