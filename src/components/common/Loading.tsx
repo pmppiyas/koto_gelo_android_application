@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
-import { ActivityIndicator, Animated, Platform } from 'react-native';
+import { ActivityIndicator, Animated, Platform, Easing } from 'react-native';
 import { View, Text } from '../ui/core';
+import { AppLogoIcon } from '@/components/common/Logo';
 
 export interface LoadingProps {
   message?: string;
@@ -13,90 +14,126 @@ export interface LoadingProps {
 export const Loading: React.FC<LoadingProps> = ({
   message,
   text,
-  subtitle = 'Securing your financial records & balances',
+  subtitle = 'Securing your financial records...',
   fullscreen = true,
   isOverlay = false,
 }) => {
   const displayMessage = text || message || 'Loading KotoGelo...';
+
   const pulseAnim = useRef(new Animated.Value(1)).current;
+  const opacityAnim = useRef(new Animated.Value(0.3)).current;
 
   useEffect(() => {
-    const pulseLoop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulseAnim, {
-          toValue: 1.08,
-          duration: 900,
-          useNativeDriver: Platform.OS !== 'web',
-        }),
-        Animated.timing(pulseAnim, {
-          toValue: 0.96,
-          duration: 900,
-          useNativeDriver: Platform.OS !== 'web',
-        }),
-      ])
-    );
-    pulseLoop.start();
+    const animation = Animated.loop(
+      Animated.parallel([
+        Animated.sequence([
+          Animated.timing(pulseAnim, {
+            toValue: 1.2,
+            duration: 1000,
+            easing: Easing.inOut(Easing.ease),
+            useNativeDriver: Platform.OS !== 'web',
+          }),
+          Animated.timing(pulseAnim, {
+            toValue: 1.05,
+            duration: 1000,
+            easing: Easing.inOut(Easing.ease),
+            useNativeDriver: Platform.OS !== 'web',
+          }),
+        ]),
 
-    return () => pulseLoop.stop();
-  }, [pulseAnim]);
+        Animated.sequence([
+          Animated.timing(opacityAnim, {
+            toValue: 1,
+            duration: 1000,
+            easing: Easing.inOut(Easing.ease),
+            useNativeDriver: Platform.OS !== 'web',
+          }),
+          Animated.timing(opacityAnim, {
+            toValue: 0.3,
+            duration: 1000,
+            easing: Easing.inOut(Easing.ease),
+            useNativeDriver: Platform.OS !== 'web',
+          }),
+        ]),
+      ]),
+    );
+
+    animation.start();
+    return () => animation.stop();
+  }, [pulseAnim, opacityAnim]);
 
   return (
     <View
       className={`items-center justify-center p-6 ${
         isOverlay
-          ? 'absolute inset-0 z-50 bg-slate-900/60'
+          ? 'absolute inset-0 z-50 bg-slate-900/70'
           : fullscreen
-          ? 'flex-1 bg-background'
+          ? 'flex-1 bg-slate-50'
           : ''
       }`}
       style={
         isOverlay
           ? ({
-              backdropFilter: 'blur(6px)',
-              WebkitBackdropFilter: 'blur(6px)',
+              backdropFilter: 'blur(8px)',
+              WebkitBackdropFilter: 'blur(8px)',
             } as any)
           : undefined
       }
     >
-      <View className="bg-card px-8 py-7 rounded-3xl border border-border/80 shadow-2xl items-center max-w-[320px] w-full">
-        {/* Pulsating Logo Emblem */}
-        <Animated.View
-          style={{
-            transform: [{ scale: pulseAnim }],
-          }}
-          className="mb-4"
-        >
-          <View className="w-16 h-16 rounded-3xl bg-primary items-center justify-center shadow-lg border-2 border-indigo-400/40">
-            <Text
-              className="text-3xl font-black text-white"
-              style={{ includeFontPadding: false }}
-            >
-              ৳
-            </Text>
-          </View>
-        </Animated.View>
+      {/* Modern Premium Card */}
+      <View className="bg-white px-8 py-12 rounded-[40px] border border-slate-100 shadow-[0_20px_60px_-15px_rgba(79,70,229,0.15)] items-center max-w-[340px] w-full">
+        {/* Animated Logo Container */}
+        <View className="relative items-center justify-center mb-8 mt-2">
+          {/* Animated Glow Behind Logo */}
+          <Animated.View
+            style={{
+              position: 'absolute',
+              width: 120,
+              height: 120,
+              backgroundColor: '#EEF2FF',
+              borderRadius: 65,
+              transform: [{ scale: pulseAnim }],
+              opacity: opacityAnim,
+              backfaceVisibility: 'hidden',
+            }}
+          />
 
-        {/* Brand Name */}
-        <Text className="text-xl font-black tracking-tight text-foreground mb-1">
-          Koto<Text className="text-primary">Gelo</Text>
-        </Text>
+          {/* Main Logo Container */}
+          <Animated.View
+            style={{
+              transform: [{ scale: pulseAnim }],
+              zIndex: 10,
+              backfaceVisibility: 'hidden',
+            }}
+          >
+            <View className="bg-white p-5 rounded-full shadow-sm border border-slate-50 ">
+              <AppLogoIcon size={60} />
+            </View>
+          </Animated.View>
+        </View>
 
         {/* Dynamic Status Message */}
-        <Text className="text-sm font-bold text-slate-800 text-center mb-1">
+        <Text className="text-[24px] font-extrabold text-slate-900 text-center mb-2 tracking-tight">
           {displayMessage}
         </Text>
 
         {/* Subtitle */}
         {!!subtitle && (
-          <Text className="text-xs text-muted-foreground text-center leading-relaxed mb-4">
+          <Text className="text-[13px] font-medium text-slate-500 text-center leading-relaxed mb-8 px-2">
             {subtitle}
           </Text>
         )}
 
-        {/* Activity Indicator Spinner */}
-        <View className="flex-row items-center gap-2 bg-primary-light px-3.5 py-1.5 rounded-full border border-indigo-200">
+        {/* Sleek Minimalist Processing Indicator */}
+        <View className="flex-row items-center justify-center gap-3 mt-2">
           <ActivityIndicator size="small" color="#4F46E5" />
-          <Text className="text-[11px] font-bold text-primary">Please wait</Text>
+          <Animated.View
+            style={{ opacity: opacityAnim, backfaceVisibility: 'hidden' }}
+          >
+            <Text className="text-[12px] font-extrabold text-indigo-600 uppercase tracking-[0.25em]">
+              Processing
+            </Text>
+          </Animated.View>
         </View>
       </View>
     </View>

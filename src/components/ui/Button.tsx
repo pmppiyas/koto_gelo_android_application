@@ -102,6 +102,7 @@ export const Button: React.FC<ButtonProps> = ({
               ? '#4F46E5'
               : '#FFFFFF'
           }
+          style={{ marginRight: 6 }}
         />
       )}
       {typeof children === 'string' || typeof children === 'number' ? (

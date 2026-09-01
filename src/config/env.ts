@@ -5,10 +5,10 @@ const resolveApiBaseUrl = (): string => {
   const envUrl =
     process.env.EXPO_PUBLIC_API_BASE_URL ||
     process.env.API_BASE_URL ||
-    'http://localhost:3000/api/v1';
+    'https://koto-gelo-backend.vercel.app/api/v1';
 
   // If in web browser or remote https url, return as is
-  if (Platform.OS === 'web' || !envUrl.includes('localhost') && !envUrl.includes('127.0.0.1')) {
+  if (Platform.OS === 'web' || (!envUrl.includes('localhost') && !envUrl.includes('127.0.0.1'))) {
     return envUrl;
   }
 

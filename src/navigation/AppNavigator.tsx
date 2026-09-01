@@ -23,6 +23,7 @@ import { InvitationsScreen } from '../features/invitations/screens/InvitationsSc
 import { BottomTabBar } from './BottomTabBar';
 import { DashboardDrawer } from '../components/dashboard/DashboardDrawer';
 import { Loading } from '../components/common/Loading';
+import { SplashLoading } from '../components/common/SplashLoading';
 import { ConfirmModal } from '../components/common/ConfirmModal';
 import { SuccessModal } from '../components/common/SuccessModal';
 import { useAuth } from '../store/hooks';
@@ -30,6 +31,7 @@ import { ROUTES, RouteNames } from '../constants/routes';
 
 export const AppNavigator: React.FC = () => {
   const { user, isAuthenticated, isLoading, logout } = useAuth();
+
   const { width: screenWidth } = useWindowDimensions();
   const [currentRoute, setCurrentRoute] = useState<RouteNames>(ROUTES.HOME);
   const [previousRoute, setPreviousRoute] = useState<RouteNames>(ROUTES.HOME);
@@ -38,7 +40,9 @@ export const AppNavigator: React.FC = () => {
   const [isLogoutModalVisible, setIsLogoutModalVisible] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
-  const [addExpenseInitialType, setAddExpenseInitialType] = useState<'PERSONAL' | 'GROUP'>('PERSONAL');
+  const [addExpenseInitialType, setAddExpenseInitialType] = useState<
+    'PERSONAL' | 'GROUP'
+  >('PERSONAL');
   const [authSuccessModal, setAuthSuccessModal] = useState<{
     visible: boolean;
     title: string;
@@ -46,6 +50,15 @@ export const AppNavigator: React.FC = () => {
     type?: 'DEFAULT' | 'DEPOSIT' | 'EXPENSE' | 'SETTLE';
   } | null>(null);
   const hasInitializedRef = useRef(false);
+  const [splashMinReady, setSplashMinReady] = useState(false);
+
+  // Splash duration — keeps splash visible for 3 seconds on app launch (Facebook style)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setSplashMinReady(true);
+    }, 3000);
+    return () => clearTimeout(timer);
+  }, []);
 
   const horizontalScrollRef = useRef<ScrollView>(null);
   const [activeTabIndex, setActiveTabIndex] = useState<number>(0);
@@ -68,11 +81,7 @@ export const AppNavigator: React.FC = () => {
       route === ROUTES.GROUP_EXPENSES
     )
       return 1;
-    if (
-      route === ROUTES.EXPENSE_ANALYTICS ||
-      route === ROUTES.GROUP_ANALYTICS ||
-      route === ROUTES.EXPENSE_SUMMARY
-    )
+    if (route === ROUTES.EXPENSE_ANALYTICS || route === ROUTES.GROUP_ANALYTICS)
       return 2;
     if (route === ROUTES.GROUPS) return 3;
     return -1;
@@ -97,8 +106,7 @@ export const AppNavigator: React.FC = () => {
       }
       hasInitializedRef.current = true;
 
-      // After login/register or token restore → go to Dashboard
-      setCurrentRoute((prev) => {
+      setCurrentRoute(prev => {
         if (
           prev === ROUTES.LOGIN ||
           prev === ROUTES.REGISTER ||
@@ -111,9 +119,13 @@ export const AppNavigator: React.FC = () => {
       });
     } else {
       hasInitializedRef.current = true;
-      // Not authenticated → kick back to Home/Login
-      setCurrentRoute((prev) => {
-        const publicRoutes: RouteNames[] = [ROUTES.HOME, ROUTES.LOGIN, ROUTES.REGISTER];
+
+      setCurrentRoute(prev => {
+        const publicRoutes: RouteNames[] = [
+          ROUTES.HOME,
+          ROUTES.LOGIN,
+          ROUTES.REGISTER,
+        ];
         if (!publicRoutes.includes(prev)) {
           setHistory([ROUTES.HOME]);
           return ROUTES.HOME;
@@ -155,7 +167,7 @@ export const AppNavigator: React.FC = () => {
 
     const rootRoute = isAuthenticated ? ROUTES.DASHBOARD : ROUTES.HOME;
 
-    setHistory((prev) => {
+    setHistory(prev => {
       if (replace) {
         return [...prev.slice(0, -1), route];
       }
@@ -177,7 +189,6 @@ export const AppNavigator: React.FC = () => {
 
     const rootRoute = isAuthenticated ? ROUTES.DASHBOARD : ROUTES.HOME;
 
-    // 1. If currently on root Home screen -> double press back to exit app
     if (isHomeRoute(currentRoute)) {
       const now = Date.now();
       if (now - lastBackPressTimeRef.current < 2000) {
@@ -192,7 +203,6 @@ export const AppNavigator: React.FC = () => {
       return true;
     }
 
-    // 2. If on another main tab (Expenses, Analytics, Groups) -> go back to Home
     if (isMainTabActive) {
       setPreviousRoute(currentRoute);
       setCurrentRoute(rootRoute);
@@ -200,7 +210,6 @@ export const AppNavigator: React.FC = () => {
       return true;
     }
 
-    // 3. If in a sub-screen / modal (AddExpense, Profile, GroupBalances, Invitations)
     if (history.length > 1) {
       const nextHistory = history.slice(0, -1);
       const targetRoute = nextHistory[nextHistory.length - 1];
@@ -210,14 +219,12 @@ export const AppNavigator: React.FC = () => {
       return true;
     }
 
-    // Fallback to root Home
     setPreviousRoute(currentRoute);
     setCurrentRoute(rootRoute);
     setHistory([rootRoute]);
     return true;
   };
 
-  // Listen to Android hardware back button and edge swipe gestures
   useEffect(() => {
     const onBackPress = () => {
       return goBack();
@@ -225,7 +232,7 @@ export const AppNavigator: React.FC = () => {
 
     const backHandler = BackHandler.addEventListener(
       'hardwareBackPress',
-      onBackPress
+      onBackPress,
     );
 
     return () => backHandler.remove();
@@ -307,18 +314,6 @@ export const AppNavigator: React.FC = () => {
       currentRoute === ROUTES.EXPENSE_ANALYTICS ||
       currentRoute === ROUTES.GROUPS);
 
-  const activeMainTab =
-    currentRoute === ROUTES.HOME || currentRoute === ROUTES.DASHBOARD
-      ? ROUTES.DASHBOARD
-      : currentRoute === ROUTES.TRANSACTIONS
-      ? ROUTES.TRANSACTIONS
-      : currentRoute === ROUTES.EXPENSE_ANALYTICS
-      ? ROUTES.EXPENSE_ANALYTICS
-      : currentRoute === ROUTES.GROUPS
-      ? ROUTES.GROUPS
-      : null;
-
-  // Sync horizontal scroll position when currentRoute changes programmatically
   useEffect(() => {
     if (!isMainTabActive) return;
     const targetIdx = getTabIndexForRoute(currentRoute);
@@ -343,7 +338,7 @@ export const AppNavigator: React.FC = () => {
 
   // Handle manual left-right swipe gesture (Instagram style)
   const handleMomentumScrollEnd = (
-    e: NativeSyntheticEvent<NativeScrollEvent>
+    e: NativeSyntheticEvent<NativeScrollEvent>,
   ) => {
     if (isProgrammaticScrollRef.current) return;
     const offsetX = e.nativeEvent.contentOffset.x;
@@ -397,7 +392,9 @@ export const AppNavigator: React.FC = () => {
         return (
           <TransactionsScreen
             initialTab="PERSONAL"
-            onNavigateToPersonalExpenses={() => navigateTo(ROUTES.PERSONAL_EXPENSES)}
+            onNavigateToPersonalExpenses={() =>
+              navigateTo(ROUTES.PERSONAL_EXPENSES)
+            }
             onNavigateToGroupExpenses={() => navigateTo(ROUTES.GROUP_EXPENSES)}
             onNavigateToGroups={() => navigateTo(ROUTES.GROUPS)}
             onNavigateToDashboard={() => navigateTo(ROUTES.HOME)}
@@ -411,7 +408,9 @@ export const AppNavigator: React.FC = () => {
           <TransactionsScreen
             initialTab="PERSONAL"
             initialTimeFilter="TODAY"
-            onNavigateToPersonalExpenses={() => navigateTo(ROUTES.PERSONAL_EXPENSES)}
+            onNavigateToPersonalExpenses={() =>
+              navigateTo(ROUTES.PERSONAL_EXPENSES)
+            }
             onNavigateToGroupExpenses={() => navigateTo(ROUTES.GROUP_EXPENSES)}
             onNavigateToGroups={() => navigateTo(ROUTES.GROUPS)}
             onNavigateToDashboard={() => navigateTo(ROUTES.HOME)}
@@ -424,7 +423,9 @@ export const AppNavigator: React.FC = () => {
         return (
           <TransactionsScreen
             initialTab="GROUP"
-            onNavigateToPersonalExpenses={() => navigateTo(ROUTES.PERSONAL_EXPENSES)}
+            onNavigateToPersonalExpenses={() =>
+              navigateTo(ROUTES.PERSONAL_EXPENSES)
+            }
             onNavigateToGroupExpenses={() => navigateTo(ROUTES.GROUP_EXPENSES)}
             onNavigateToGroups={() => navigateTo(ROUTES.GROUPS)}
             onNavigateToDashboard={() => navigateTo(ROUTES.HOME)}
@@ -450,7 +451,9 @@ export const AppNavigator: React.FC = () => {
           <GroupBalancesScreen
             groupId={selectedGroupId || undefined}
             onNavigateBack={() => goBack()}
-            onNavigateToPersonalExpenses={() => navigateTo(ROUTES.PERSONAL_EXPENSES)}
+            onNavigateToPersonalExpenses={() =>
+              navigateTo(ROUTES.PERSONAL_EXPENSES)
+            }
             onNavigateToAnalytics={() => navigateTo(ROUTES.GROUP_ANALYTICS)}
             onNavigateToTransactions={() => navigateTo(ROUTES.TRANSACTIONS)}
             onNavigateToGroups={() => navigateTo(ROUTES.GROUPS)}
@@ -466,16 +469,10 @@ export const AppNavigator: React.FC = () => {
         );
 
       case ROUTES.PROFILE:
-        return (
-          <ProfileScreen
-            onNavigateToHome={() => goBack()}
-          />
-        );
+        return <ProfileScreen onNavigateToHome={() => goBack()} />;
 
       case ROUTES.INVITATIONS:
-        return (
-          <InvitationsScreen onNavigateBack={() => goBack()} />
-        );
+        return <InvitationsScreen onNavigateBack={() => goBack()} />;
 
       case ROUTES.ADD_EXPENSE: {
         const groupRoutes: RouteNames[] = [
@@ -524,12 +521,8 @@ export const AppNavigator: React.FC = () => {
     }
   };
 
-  if (isLoading) {
-    return (
-      <View className="flex-1 bg-background justify-center items-center">
-        <Loading text="Loading KotoGelo..." />
-      </View>
-    );
+  if (isLoading || !splashMinReady) {
+    return <Loading />;
   }
 
   const showBottomNav =
@@ -638,7 +631,7 @@ export const AppNavigator: React.FC = () => {
                   {/* Tab 3: Groups */}
                   <View style={{ width: screenWidth }} className="flex-1">
                     <GroupsScreen
-                      onSelectGroup={(id) => {
+                      onSelectGroup={id => {
                         setSelectedGroupId(id);
                         navigateTo(ROUTES.GROUP_BALANCES);
                       }}
@@ -682,11 +675,11 @@ export const AppNavigator: React.FC = () => {
               ? ROUTES.HOME
               : currentRoute
           }
-          onNavigate={(route) => {
+          onNavigate={route => {
             setIsDrawerOpen(false);
             navigateTo(route as RouteNames);
           }}
-          onOpenDrawer={() => setIsDrawerOpen((prev) => !prev)}
+          onOpenDrawer={() => setIsDrawerOpen(prev => !prev)}
         />
       )}
 

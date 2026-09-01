@@ -27,12 +27,15 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
   onNavigateToHome,
   onLoginSuccess,
 }) => {
-  const { signin, isLoading, error, clearError } = useAuth();
+  const { signin, isLoading: authLoading, error, clearError } = useAuth();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [validationError, setValidationError] = useState('');
   const [showSuccess, setShowSuccess] = useState(false);
+  const [localLoading, setLocalLoading] = useState(false);
+
+  const isLoading = authLoading || localLoading;
 
   const handleLogin = async () => {
     setValidationError('');
@@ -48,9 +51,12 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
     }
 
     try {
+      setLocalLoading(true);
       await signin({ username, password });
       setShowSuccess(true);
-    } catch {}
+    } catch {
+      setLocalLoading(false);
+    }
   };
 
   const displayError = validationError || error;

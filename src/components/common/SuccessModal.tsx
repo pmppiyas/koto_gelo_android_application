@@ -120,47 +120,13 @@ export const SuccessModal: React.FC<SuccessModalProps> = ({
   const isExpense = type === 'EXPENSE';
   const isSettle = type === 'SETTLE';
 
-  const iconBgHex = isDeposit
-    ? '#059669' // Emerald
-    : isExpense
-    ? '#4F46E5' // Indigo
-    : isSettle
-    ? '#D97706' // Amber
-    : '#059669';
-
-  const rippleBgHex = isDeposit
-    ? 'rgba(16, 185, 129, 0.25)'
-    : isExpense
-    ? 'rgba(99, 102, 241, 0.25)'
-    : isSettle
-    ? 'rgba(245, 158, 11, 0.25)'
-    : 'rgba(16, 185, 129, 0.25)';
-
-  const badgeBgHex = isDeposit
-    ? '#ECFDF5'
-    : isExpense
-    ? '#EEF2FF'
-    : isSettle
-    ? '#FEF3C7'
-    : '#ECFDF5';
-
-  const badgeBorderHex = isDeposit
-    ? '#A7F3D0'
-    : isExpense
-    ? '#C7D2FE'
-    : isSettle
-    ? '#FDE68A'
-    : '#A7F3D0';
-
-  const badgeTextHex = isDeposit
-    ? '#047857'
-    : isExpense
-    ? '#4338CA'
-    : isSettle
-    ? '#B45309'
-    : '#047857';
-
-  const buttonBgHex = iconBgHex;
+  // Match App Theme: Premium Brand Blue / Indigo
+  const iconBgHex = '#2563EB'; // Theme Blue (Matches Logo & Brand)
+  const rippleBgHex = 'rgba(37, 99, 235, 0.25)';
+  const badgeBgHex = '#EFF6FF';
+  const badgeBorderHex = '#BFDBFE';
+  const badgeTextHex = '#1D4ED8';
+  const buttonBgHex = '#2563EB';
 
   const formattedAmount =
     amount !== undefined && amount !== null && amount !== ''

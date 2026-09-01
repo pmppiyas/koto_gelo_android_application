@@ -31,7 +31,7 @@ export const RegisterScreen: React.FC<RegisterScreenProps> = ({
   onNavigateToHome,
   onRegisterSuccess,
 }) => {
-  const { signup, isLoading, error, clearError } = useAuth();
+  const { signup, isLoading: authLoading, error, clearError } = useAuth();
   const [username, setUsername] = useState('');
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
@@ -39,6 +39,9 @@ export const RegisterScreen: React.FC<RegisterScreenProps> = ({
   const [showPassword, setShowPassword] = useState(false);
   const [validationError, setValidationError] = useState('');
   const [showSuccess, setShowSuccess] = useState(false);
+  const [localLoading, setLocalLoading] = useState(false);
+
+  const isLoading = authLoading || localLoading;
 
   const handleRegister = async () => {
     setValidationError('');
@@ -60,6 +63,7 @@ export const RegisterScreen: React.FC<RegisterScreenProps> = ({
     }
 
     try {
+      setLocalLoading(true);
       await signup({
         username,
         password,
@@ -67,7 +71,9 @@ export const RegisterScreen: React.FC<RegisterScreenProps> = ({
         phone: phone.trim() || undefined,
       });
       setShowSuccess(true);
-    } catch {}
+    } catch {
+      setLocalLoading(false);
+    }
   };
 
   const displayError = validationError || error;

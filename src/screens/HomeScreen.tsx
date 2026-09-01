@@ -9,7 +9,7 @@ import {
   SafeAreaView,
   Button,
 } from '../components/ui';
-import { Logo } from '../components/common/Logo';
+import { Logo, AppLogoIcon } from '../components/common/Logo';
 import { spacing } from '../constants/spacing';
 
 export interface HomeScreenProps {
@@ -164,8 +164,8 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         {/* 1. Main Luxury Black Hero Banner */}
         <View className="bg-slate-900 rounded-3xl p-6 shadow-xl border border-slate-800">
           <View className="flex-row items-center justify-between mb-4">
-            <View className="w-12 h-12 rounded-2xl bg-indigo-500/20 border border-indigo-400/30 items-center justify-center shadow-xs">
-              <Text className="text-2xl font-black text-indigo-300">৳</Text>
+            <View className="w-12 h-12 rounded-2xl overflow-hidden shadow-xs">
+              <AppLogoIcon size={48} />
             </View>
             <View className="bg-indigo-500/20 px-3 py-1 rounded-full border border-indigo-400/30">
               <Text className="text-[11px] font-bold text-indigo-200">

@@ -1,23 +1,47 @@
 {
   "expo": {
-    "name": "kotogelo_frontend",
-    "slug": "kotogelo_frontend",
+    "name": "KotoGelo - Smart Expense & Mess Tracker",
+    "slug": "kotogelo",
     "version": "1.0.0",
+    "description": "Smart daily personal expense tracker and mess group bill manager. Track spending, split shared bills, and settle debts in real-time.",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
+    "primaryColor": "#2563EB",
     "scheme": "kotogelo",
+    "icon": "./assets/images/logo.png",
+    "updates": {
+      "enabled": false,
+      "checkAutomatically": "NEVER"
+    },
+    "splash": {
+      "image": "./assets/images/logo.png",
+      "backgroundColor": "#0F172A",
+      "resizeMode": "contain"
+    },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.anonymous.kotogeloFrontend"
+      "bundleIdentifier": "com.kotogelo.app",
+      "infoPlist": {
+        "CFBundleDisplayName": "KotoGelo"
+      }
     },
     "android": {
-      "package": "com.anonymous.kotogelo_frontend",
+      "package": "com.kotogelo.app",
       "adaptiveIcon": {
-        "backgroundColor": "#ffffff"
+        "foregroundImage": "./assets/images/logo.png",
+        "backgroundColor": "#0F172A"
       }
     },
     "web": {
-      "bundler": "metro"
+      "name": "KotoGelo - Smart Expense & Mess Tracker",
+      "shortName": "KotoGelo",
+      "description": "Track personal and mess group expenses with real-time settlement.",
+      "themeColor": "#2563EB",
+      "backgroundColor": "#0F172A",
+      "bundler": "metro",
+      "lang": "bn",
+      "display": "standalone",
+      "favicon": "./assets/icons/favicon.ico"
     },
     "extra": {
       "eas": {

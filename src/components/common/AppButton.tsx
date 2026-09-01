@@ -71,7 +71,9 @@ export const AppButton: React.FC<AppButtonProps> = ({
       {loading ? (
         <ActivityIndicator
           size="small"
-          color={variant === 'outline' || variant === 'ghost' ? '#2563EB' : '#FFFFFF'}
+          color={
+            variant === 'outline' || variant === 'ghost' ? '#2563EB' : '#FFFFFF'
+          }
         />
       ) : (
         <>
